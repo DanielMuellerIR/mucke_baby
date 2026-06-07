@@ -8,6 +8,16 @@ A native macOS internet‑radio player (SwiftUI + VLCKit) with seven hand‑craf
 
 > The app's UI is in German; this README is English.
 
+## Screenshots
+
+<p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave theme — neon oscilloscope"></p>
+
+| Standard | Retro | Fanzine |
+|:--:|:--:|:--:|
+| ![Standard](assets/screenshots/standard.png) | ![Retro](assets/screenshots/retro.png) | ![Fanzine](assets/screenshots/fanzine.png) |
+| **GuitarAmp** | **Danish** | **Black MIDI** |
+| ![GuitarAmp](assets/screenshots/guitaramp.png) | ![Danish](assets/screenshots/danish.png) | ![Black MIDI](assets/screenshots/midi.png) |
+
 ## Run it (CLI / headless‑friendly)
 
 No Xcode project — the app is compiled with `swiftc` into a `.app` bundle. Only the Command Line Tools are required. The whole toolchain is scriptable (handy for automation and AI agents):

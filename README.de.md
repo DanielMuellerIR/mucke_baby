@@ -6,6 +6,16 @@
 
 Ein nativer macOS-Internetradio-Player (SwiftUI + VLCKit) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Eine Mac-Umsetzung der Idee hinter dem Linux-Mint-Applet **Radio++**.
 
+## Screenshots
+
+<p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave — Neon-Oszilloskop"></p>
+
+| Standard | Retro | Fanzine |
+|:--:|:--:|:--:|
+| ![Standard](assets/screenshots/standard.png) | ![Retro](assets/screenshots/retro.png) | ![Fanzine](assets/screenshots/fanzine.png) |
+| **GuitarAmp** | **Danish** | **Black MIDI** |
+| ![GuitarAmp](assets/screenshots/guitaramp.png) | ![Danish](assets/screenshots/danish.png) | ![Black MIDI](assets/screenshots/midi.png) |
+
 ## Starten (Kommandozeile / headless-tauglich)
 
 Kein Xcode-Projekt — die App wird mit `swiftc` zu einem `.app`-Bundle kompiliert. Es genügen die Command Line Tools. Die gesamte Toolchain ist skriptbar (praktisch für Automatisierung und KI-Agenten):
