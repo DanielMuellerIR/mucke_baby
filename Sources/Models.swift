@@ -55,5 +55,19 @@ struct SeedStation: Decodable {
 
 // App-Version an einer Stelle. Wird auch in der Info.plist gespiegelt.
 enum AppInfo {
-    static let version = "1.7.25"
+    static let version = "1.7.26"
+}
+
+/// Verschiebt einmalig den alten Daten-Ordner „MacRadio" auf den neuen Namen „MuckeBaby"
+/// (im jeweiligen Basis-Verzeichnis: Application Support bzw. Music), damit beim Umbenennen
+/// keine Sender/Verlauf/Aufnahmen verloren gehen. Idempotent: läuft nur, wenn der alte Ordner
+/// existiert und der neue noch nicht — danach No-Op. (Bundle-ID/EXE bleiben aus Kontinuität.)
+func migrateLegacyAppDir(in base: FileManager.SearchPathDirectory) {
+    let fm = FileManager.default
+    guard let root = fm.urls(for: base, in: .userDomainMask).first else { return }
+    let oldURL = root.appendingPathComponent("MacRadio", isDirectory: true)
+    let newURL = root.appendingPathComponent("MuckeBaby", isDirectory: true)
+    if fm.fileExists(atPath: oldURL.path), !fm.fileExists(atPath: newURL.path) {
+        try? fm.moveItem(at: oldURL, to: newURL)
+    }
 }

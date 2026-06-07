@@ -1,7 +1,7 @@
 import Foundation
 
 // Schreibt den laufenden Stream als Roh-Audio-Dump in Dateien unter
-// ~/Music/MacRadio/Aufnahmen/. Eine Datei pro Sender-Session; Rollover am
+// ~/Music/MuckeBaby/Aufnahmen/. Eine Datei pro Sender-Session; Rollover am
 // naechsten Songwechsel nach 24 h. Stoppt bei < 10 GB frei. Thread-sicher
 // ueber eine serielle Queue (alle Datei-/Index-Operationen laufen dort).
 //
@@ -35,8 +35,9 @@ final class Recorder: @unchecked Sendable {
     private var clips: [Clip] = []
 
     init() {
+        migrateLegacyAppDir(in: .musicDirectory)   // alten „MacRadio"-Aufnahmeordner übernehmen
         let music = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
-        dir = music.appendingPathComponent("MacRadio/Aufnahmen", isDirectory: true)
+        dir = music.appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         indexURL = dir.appendingPathComponent("recordings-index.json")
         q.sync { loadIndex(); closeDangling() }

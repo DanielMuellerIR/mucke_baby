@@ -9,7 +9,7 @@
     <key>CFBundleIdentifier</key>
     <string>de.danielmuller.macradio</string>
     <key>CFBundleExecutable</key>
-    <string>MacRadio</string>
+    <string>MuckeBaby</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>

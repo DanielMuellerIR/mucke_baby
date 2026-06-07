@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 // Haelt die Senderliste und kuemmert sich um Laden/Speichern.
-// Speicherort: ~/Library/Application Support/MacRadio/stations.json
+// Speicherort: ~/Library/Application Support/MuckeBaby/stations.json
 // (gut von Hand editierbar und damit auch agent-/skriptsteuerbar).
 @MainActor
 final class Store: ObservableObject {
@@ -12,8 +12,9 @@ final class Store: ObservableObject {
     let stationsURL: URL
 
     init() {
+        migrateLegacyAppDir(in: .applicationSupportDirectory)   // alten „MacRadio"-Ordner übernehmen
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        dir = base.appendingPathComponent("MacRadio", isDirectory: true)
+        dir = base.appendingPathComponent("MuckeBaby", isDirectory: true)
         stationsURL = dir.appendingPathComponent("stations.json")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         loadStations()

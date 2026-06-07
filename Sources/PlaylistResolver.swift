@@ -36,7 +36,7 @@ enum PlaylistResolver {
     static func fetchHead(_ url: URL) async -> String? {
         var req = URLRequest(url: url)
         req.setValue("bytes=0-65535", forHTTPHeaderField: "Range")
-        req.setValue("MacRadio/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
         req.timeoutInterval = 8
         do {
             let (data, _) = try await URLSession.shared.data(for: req)

@@ -43,9 +43,10 @@ final class SongHistory: ObservableObject {
     private let shortLaunchQuit: TimeInterval = 20  // < 20 s: bei Start und Beenden weg
 
     init() {
+        migrateLegacyAppDir(in: .applicationSupportDirectory)   // alten „MacRadio"-Ordner übernehmen
         let dir = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MacRadio", isDirectory: true)
+            .appendingPathComponent("MuckeBaby", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("verlauf.json")
         load()

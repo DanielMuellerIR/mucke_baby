@@ -6,8 +6,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Bundle heisst "Mucke, Baby!" (Anzeigename); die Binary bleibt schlank "MacRadio".
-EXE="MacRadio"
+# Bundle heisst "Mucke, Baby!" (Anzeigename); Binary/Prozessname "MuckeBaby"
+# (sichtbar z.B. im Aktivitaetsmonitor). Bundle-ID bleibt aus Kontinuitaet de.danielmuller.macradio.
+EXE="MuckeBaby"
 BUNDLE="Mucke, Baby!"
 BUILD="build"
 APPDIR="$BUILD/$BUNDLE.app"
@@ -80,9 +81,19 @@ fi
 echo "Bündle VLCKit …"
 cp -R "$FWDIR/VLCKit.framework" "$APPDIR/Contents/Frameworks/"
 
-# Ad-hoc signieren, inside-out (erst Framework, dann App). Kein Hardened-Runtime
-# -> keine Library-Validation -> ad-hoc Framework laedt im lokalen Build.
-codesign --force --sign - "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null 2>&1 || true
-codesign --force --sign - "$APPDIR" >/dev/null 2>&1 || true
+# Signieren inside-out (erst Framework, dann App). Wenn ein Developer-ID-Zertifikat da ist,
+# damit + Hardened Runtime signieren: dann bleibt die einmal erteilte Audio-Aufnahme-Erlaubnis
+# (TCC) ueber REBUILDS erhalten — TCC schluesselt auf Team-ID + Bundle-ID, nicht auf den bei
+# jedem ad-hoc-Build wechselnden cdhash (sonst fragt macOS staendig neu). Kein --timestamp
+# (braucht Netz, fuer lokale Builds unnoetig; die Release-Signatur in wrappers/ stempelt). Sonst
+# ad-hoc-Fallback. VLCKit wird mit derselben Identitaet signiert (Library-Validation).
+DEVID="Developer ID Application: Daniel Mueller (9QSWKSR4NQ)"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$DEVID"; then
+  codesign --force --options runtime --sign "$DEVID" "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null 2>&1 || true
+  codesign --force --options runtime --sign "$DEVID" "$APPDIR" >/dev/null 2>&1 || true
+else
+  codesign --force --sign - "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null 2>&1 || true
+  codesign --force --sign - "$APPDIR" >/dev/null 2>&1 || true
+fi
 
 echo "Fertig: $APPDIR"
