@@ -14,14 +14,14 @@ Kein Xcode-Projekt — die App wird mit `swiftc` zu einem `.app`-Bundle kompilie
 ./build.sh                                       # baut "build/Mucke, Baby!.app" (lädt VLCKit einmalig, ~84 MB)
 ./run.sh                                         # bauen + starten
 open "build/Mucke, Baby!.app"                    # starten
-"build/Mucke, Baby!.app/Contents/MacOS/MacRadio" # starten mit Logs (Debug)
+"build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby" # starten mit Logs (Debug)
 ```
 
 ### Headless / Automatisierung
 
 - **Theme-Screenshots ohne UI-Sitzung:** `MUCKE_SHOTS=<verzeichnis>` setzen — die App schaltet durch alle Themes, schreibt je ein PNG und beendet sich. `MUCKE_SHOT_W=<px>` überschreibt die Fensterbreite.
   ```bash
-  MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MacRadio"
+  MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
   ```
 - **Signiertes + notarisiertes DMG** (Developer ID, Hardened Runtime, DMG mit Hintergrundbild):
   ```bash
@@ -50,14 +50,14 @@ Die Visualizer lesen die eigene Tonausgabe über einen CoreAudio-Process-Tap. Be
 Die Sender liegen in einer editierbaren JSON-Datei:
 
 ```
-~/Library/Application Support/MacRadio/stations.json
+~/Library/Application Support/MuckeBaby/stations.json
 ```
 
 Beim ersten Start wird sie aus `Resources/seed-stations.json` befüllt, falls vorhanden, sonst aus der generischen `Resources/seed-stations.example.json` (die einzige mitgelieferte Liste).
 
 ## ⚠️ Aufnahme ist standardmäßig AN
 
-Dieser Build **schneidet den laufenden Stream dauerhaft auf die Platte mit** (roher Audio-Dump in `~/Music/MacRadio/Aufnahmen/`) — bewusst für den privaten Gebrauch des Autors. Zu beachten:
+Dieser Build **schneidet den laufenden Stream dauerhaft auf die Platte mit** (roher Audio-Dump in `~/Music/MuckeBaby/Aufnahmen/`) — bewusst für den privaten Gebrauch des Autors. Zu beachten:
 
 - Während ein Sender spielt, wird ständig geschrieben → **der Plattenverbrauch wächst**. Die Aufnahme **stoppt automatisch, wenn weniger als 10 GB frei** sind.
 - Pro Sender wird eine neue Datei begonnen; lange Einzelsender-Sitzungen rollen nach 24 h beim nächsten Titelwechsel über.

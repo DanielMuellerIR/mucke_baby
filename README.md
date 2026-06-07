@@ -16,14 +16,14 @@ No Xcode project — the app is compiled with `swiftc` into a `.app` bundle. Onl
 ./build.sh                                       # build -> "build/Mucke, Baby!.app" (downloads VLCKit once, ~84 MB)
 ./run.sh                                         # build + launch
 open "build/Mucke, Baby!.app"                    # launch
-"build/Mucke, Baby!.app/Contents/MacOS/MacRadio" # launch with logs (debug)
+"build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby" # launch with logs (debug)
 ```
 
 ### Headless / automation
 
 - **Theme screenshots without a UI session:** set `MUCKE_SHOTS=<dir>` — the app cycles through all themes, writes one PNG per theme and quits. `MUCKE_SHOT_W=<px>` overrides the window width.
   ```bash
-  MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MacRadio"
+  MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
   ```
 - **Signed + notarized DMG** (Developer ID, hardened runtime, DMG with background image):
   ```bash
@@ -52,14 +52,14 @@ The visualizers read the app's own audio output through a CoreAudio process tap.
 Stations live in an editable JSON file:
 
 ```
-~/Library/Application Support/MacRadio/stations.json
+~/Library/Application Support/MuckeBaby/stations.json
 ```
 
 On first launch it is seeded from `Resources/seed-stations.json` if present, otherwise from the generic `Resources/seed-stations.example.json` (the only list that ships).
 
 ## ⚠️ Recording is ON by default
 
-This build **continuously records the playing stream to disk** by default (raw audio dump in `~/Music/MacRadio/Aufnahmen/`), intentional for the author's personal use. Be aware:
+This build **continuously records the playing stream to disk** by default (raw audio dump in `~/Music/MuckeBaby/Aufnahmen/`), intentional for the author's personal use. Be aware:
 
 - It writes constantly while a station plays → **disk usage grows**. Recording **auto‑stops when less than 10 GB is free**.
 - A new file is started per station; long single‑station sessions roll over at the next song change after 24 h.

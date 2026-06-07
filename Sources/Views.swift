@@ -80,7 +80,7 @@ struct PreferencesView: View {
 
     private var recordingsDir: URL {
         FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MacRadio/Aufnahmen", isDirectory: true)
+            .appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
     }
 
     var body: some View {
@@ -104,7 +104,7 @@ struct PreferencesView: View {
                 }
                 Section("Aufnahme") {
                     Toggle("Laufende Streams mitschneiden", isOn: $recordStreams)
-                    Text("⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MacRadio/Aufnahmen/. Greift ab dem nächsten Senderstart.")
+                    Text("⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button("Aufnahmen im Finder zeigen") {
                         try? FileManager.default.createDirectory(at: recordingsDir, withIntermediateDirectories: true)
@@ -147,7 +147,7 @@ struct PreferencesView: View {
     private func exportStations() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "macradio-sender.json"
+        panel.nameFieldStringValue = "muckebaby-sender.json"
         guard panel.runModal() == .OK, let url = panel.url, let data = store.exportData() else { return }
         do {
             try data.write(to: url)
@@ -260,7 +260,7 @@ struct SearchView: View {
         ]
         guard let url = c.url else { error = "Ungültige Anfrage"; return }
         var req = URLRequest(url: url)
-        req.setValue("MacRadio/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
         do {
             let (data, _) = try await URLSession.shared.data(for: req)
             results = try JSONDecoder().decode([RBStation].self, from: data)

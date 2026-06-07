@@ -63,7 +63,7 @@ private final class HealthProbe: NSObject, URLSessionDataDelegate {
         let s = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
         session = s
         var req = URLRequest(url: url)
-        req.setValue("MacRadio/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
         req.setValue("1", forHTTPHeaderField: "Icy-MetaData")
         s.dataTask(with: req).resume()
     }

@@ -34,7 +34,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         session = s
         var req = URLRequest(url: url)
         req.setValue("1", forHTTPHeaderField: "Icy-MetaData")
-        req.setValue("MacRadio/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
         let t = s.dataTask(with: req)
         task = t
         t.resume()
