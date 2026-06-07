@@ -1,0 +1,10 @@
+[
+  {"name":"Deutschlandfunk","url":"https://st01.sslstream.dlf.de/dlf/01/high/aac/stream.aac?aggregator=web"},
+  {"name":"DLF Kultur","url":"https://st02.sslstream.dlf.de/dlf/02/high/aac/stream.aac"},
+  {"name":"DLF Nova","url":"https://st03.sslstream.dlf.de/dlf/03/high/aac/stream.aac?aggregator=web"},
+  {"name":"WDR 5","url":"http://wdr-wdr5-live.icecast.wdr.de/wdr/wdr5/live/mp3/128/stream.mp3"},
+  {"name":"WDR 2 Rheinland","url":"http://wdr-wdr2-rheinland.icecast.wdr.de/wdr/wdr2/rheinland/mp3/128/stream.mp3"},
+  {"name":"1LIVE","url":"http://wdr-1live-live.icecast.wdr.de/wdr/1live/live/mp3/128/stream.mp3"},
+  {"name":"Bayern 3","url":"http://streams.br.de/bayern3_2.m3u"},
+  {"name":"NDR 2","url":"https://icecast.ndr.de/ndr/ndr2/niedersachsen/mp3/128/stream.mp3"}
+]

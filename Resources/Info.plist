@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Mucke, Baby!</string>
+    <key>CFBundleDisplayName</key>
+    <string>Mucke, Baby!</string>
+    <key>CFBundleIdentifier</key>
+    <string>de.danielmuller.macradio</string>
+    <key>CFBundleExecutable</key>
+    <string>MacRadio</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.6.2</string>
+    <key>CFBundleVersion</key>
+    <string>10</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.2</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <!-- CoreAudio Process-Tap (Audio-Reaktivität der Visualizer) tappt die eigene Tonausgabe.
+         Ohne diesen Schlüssel liefert der Tap stumme Nullen (TCC verweigert still). -->
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>„Mucke, Baby!“ analysiert die eigene Tonausgabe, damit die Visualizer synchron zur Musik reagieren.</string>
+    <!-- Viele Radiostreams laufen ueber http (nicht https) -> ATS oeffnen. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+</dict>
+</plist>

@@ -1,0 +1,296 @@
+[
+  {
+    "enabled": true,
+    "favorite": true,
+    "name": "A.D.M. Hardstyle Radio",
+    "url": "http://kathy.torontocast.com:2450/stream"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "I love Hardstyle",
+    "url": "https://streams.ilovemusic.de/iloveradio21.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "WDR 5",
+    "url": "http://wdr-wdr5-live.icecast.wdr.de/wdr/wdr5/live/mp3/128/stream.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "WDR 5 News",
+    "url": "https://www.wdr.de/realaudio/radio/nachrichten/nachrichten_wdr5.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Deutschlandfunk",
+    "url": "https://st01.sslstream.dlf.de/dlf/01/high/aac/stream.aac?aggregator=web"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "DLF Kultur",
+    "url": "https://st02.sslstream.dlf.de/dlf/02/high/aac/stream.aac"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "DLF Nova",
+    "url": "https://st03.sslstream.dlf.de/dlf/03/high/aac/stream.aac?aggregator=web"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Radio WMW",
+    "url": "http://www.surfmusik.de/m3u/radio-wmw,10992.m3u"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Radio BOB!",
+    "url": "http://streams.radiobob.de/bob-national/mp3-192/mediaplayer"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Schranz Hardtechno",
+    "url": "http://schranz.in:8000/stream"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Sunshine Live Techno",
+    "url": "https://stream.sunshine-live.de/techno/mp3-192/stream.sunshine-live.de/"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Sunshine Live G",
+    "url": "http://stream.sunshine-live.de/germante/mp3-192"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "HardBase.FM",
+    "url": "http://listen.hardbase.fm/tunein-aac-hd-pls"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Hardstyle + Hardcore",
+    "url": "http://stream.laut.fm/hardstyle-and-hardcore"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Technolovers Gabber",
+    "url": "https://stream.technolovers.fm/gabber?ref=radiobrowser"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "PSY Trance",
+    "url": "https://stream.technolovers.fm/psytrance?ref=radiobrowser"
+  },
+  {
+    "enabled": false,
+    "favorite": false,
+    "name": "Goa Trance Chillout",
+    "url": "http://opml.radiotime.com/Tune.ashx?id=s117843&"
+  },
+  {
+    "enabled": false,
+    "favorite": false,
+    "name": "Hirschmilch Psytrance",
+    "url": "http://hirschmilch.de:7000/psytrance.aac"
+  },
+  {
+    "enabled": false,
+    "favorite": false,
+    "name": "technoszene.com Radio",
+    "url": "http://stream.laut.fm/technoszene.m3u"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Hirschmilch Progressive",
+    "url": "https://hirschmilch.de/progressive/listen.pls"
+  },
+  {
+    "enabled": false,
+    "favorite": false,
+    "name": "Hirschmilch Electronic",
+    "url": "http://hirschmilch.de:7000/electronic.aac"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "RainWave Chiptune",
+    "url": "https://rainwave.cc/tune_in/4.ogg.m3u"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Game FM - Hardstyle Music",
+    "url": "http://stream.laut.fm/hardstyle-music"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Technolovers HARDSTYLE",
+    "url": "https://stream.technolovers.fm/hardstyle?ref=radiobrowser"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Tits.FM",
+    "url": "https://radio.titsrp.com/brainfuel"
+  },
+  {
+    "enabled": true,
+    "favorite": true,
+    "name": "Q-Dance Radio",
+    "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/Q_DANCE.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Real Hardstyle Radio (NL)",
+    "url": "https://stream.realhardstyle.nl/"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Hardcore Radio (NL)",
+    "url": "http://shoutcast1.hardcoreradio.nl/"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Masters Of Hardcore",
+    "url": "https://live.platinumradio.nl/listen/masters_of_hardcore/radio.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Kniteforce Radio (Oldskool Hardcore)",
+    "url": "https://kniteforce.out.airtime.pro/kniteforce_a"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "HappyHardcore.com",
+    "url": "https://www.happyhardcore.com/livestreams/p/u9/"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Hardcore Power Radio (Gabber)",
+    "url": "https://hardcorepower.beheerstream.nl/8012/stream"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "RauteMusik HardeR (Jumpstyle)",
+    "url": "http://harder-high.rautemusik.fm/"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Klubb (Jumpstyle / Hands Up)",
+    "url": "http://radio.promodj.com/klubb-192"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "SomaFM Metal Detector",
+    "url": "https://ice4.somafm.com/metal-128-aac"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "La Grosse Radio Métal",
+    "url": "http://hd.lagrosseradio.info/lagrosseradio-metal-192.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Thrashking Radio (Thrash Metal)",
+    "url": "http://thrashking.stream.laut.fm/thrashking"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "True Black Metal Radio",
+    "url": "http://trueblackmetalradio.com:666/radio"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "as.if.radio (Boom Bap)",
+    "url": "https://stream.as-if-records.com/listen/as.if.records/radio.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Planet HipHop (MRG.fm)",
+    "url": "http://listen.mrg.fm:8100/stream"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Radio Caprice - Old School Hip-Hop",
+    "url": "http://213.141.131.10:8002/oldschoolhiphop"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Deutschrap (laut.fm)",
+    "url": "http://stream.laut.fm/deutschrap"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "bigFM Oldschool Deutschrap",
+    "url": "https://stream.bigfm.de/oldschooldeutschrap/aac-128"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Kohina (Chiptune / Demoscene)",
+    "url": "https://kohina.duckdns.org/icecast/stream.ogg"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Kaaos Radio Chiptune",
+    "url": "http://stream.kaaosradio.fi:8000/chip"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Retro PC Game Music (JP)",
+    "url": "http://gyusyabu.ddo.jp:8000/"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "WALM 2 HD (Classical)",
+    "url": "https://icecast.walmradio.com:8443/walm2"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "Rai Radio Classica",
+    "url": "http://icestreaming.rai.it/5.mp3"
+  },
+  {
+    "enabled": true,
+    "favorite": false,
+    "name": "1.FM Otto's Baroque",
+    "url": "http://strm112.1.fm/baroque_mobile_aac"
+  }
+]
