@@ -56,8 +56,15 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
 
 - **Was:** Die „Sender suchen"-Funktion fragt die offene Community-API von
   <https://www.radio-browser.info> ab.
-- **Lizenz/Daten:** öffentliche, frei nutzbare Community-Datenbank (Public Domain / frei).
-  Nur Abfrage zur Laufzeit, keine Daten mitgeliefert.
+- **Lizenz/Daten:** Die API bezeichnet sich selbst als „completely free and open source".
+  Ein **expliziter Datenlizenztext** (CC0/ODbL o.ä.) wird in Doku/API nicht genannt — die
+  Daten gelten als frei nutzbar (auch kommerziell, Fork, eigener Server). Einzige **Bitte**
+  der Betreiber: einen *descriptive User-Agent* (`appname/version`) senden, damit sie
+  Entwickler erreichen können.
+- **Erfüllt:** Die App sendet bei jeder Abfrage den Header `User-Agent: MuckeBaby/1.0`
+  (`Sources/Views.swift` Suche, `Sources/ICYMetadataReader.swift` ICY-Reader).
+- Nur Abfrage zur Laufzeit, **keine** Daten mitgeliefert.
+- Quelle/Doku: <https://docs.radio-browser.info>.
 
 ## 5. Senderlisten & Streams
 
@@ -65,8 +72,12 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
   gehören den jeweiligen Sendern.
 - **Mitgeliefert:** `Resources/seed-stations.example.json` (generische Default-Liste).
   Daniels persönliche Liste (`Resources/seed-stations.json`) ist **gitignored**.
-- **Genre-Listen** (`Resources/genre-lists/`): kuratierte Sammlungen.
-  *Quelle noch dokumentieren* (radio-browser / manuell zusammengestellt).
+- **Genre-Listen** (`Resources/genre-lists/`): **handkuratierte** Sammlungen, je Eintrag nur
+  `{name, url}` (z.B. SomaFM, bekannte Genre-Sender). Manuell zusammengestellt — die Senderauswahl
+  erfolgte teils über die radio-browser-Suche und bekannte Stationen; es wurde **kein**
+  Datenbestand aus radio-browser exportiert/mitkopiert. Inhalt sind reine Stream-URLs (= Fakten,
+  nicht urheberrechtlich schützbar, s. o.) plus selbstvergebene Anzeigenamen. → Keine
+  Datenlizenzpflicht.
 - **Aufnahme-Funktion:** nimmt fremde Streams auf → urheberrechtliche Frage des **Nutzers**,
   nicht der Distribution. README warnt; für ein Release Default ggf. auf AUS (TODO D2).
 
@@ -100,6 +111,6 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
 - [ ] LGPL: VLCKit-Lizenztext + Hinweis + Quell-Link ins Release; keine GPL-only-Plugins.
 - [ ] KI-Mockups `design-proposal/marshall_amp_design_*.png` entfernen/gitignoren.
 - [ ] Frischen Snapshot statt voller Privat-Historie veröffentlichen (umgeht „marshall"-Historie).
-- [ ] Genre-Listen-Quelle hier eintragen.
+- [x] Genre-Listen-Quelle eingetragen (§5: handkuratiert, reine Stream-URLs, keine Lizenzpflicht).
 - [ ] Aufnahme-Default für Public erwägen (AUS), README-Warnung (TODO D2).
 - [ ] Mehrsprachige README (EN Default + DE), Topics/Description (globale Release-Regel).
