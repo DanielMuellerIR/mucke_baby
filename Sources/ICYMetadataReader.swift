@@ -108,14 +108,44 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         if let u = String(data: data, encoding: .utf8), !u.contains("\u{FFFD}") {
             return u
         }
-        // 2. Shift-JIS / CP932 — japanische Sender (z.B. „Retro PC Game Music (JP)").
-        //    Liefert nil bei ungueltigen Byte-Folgen, daher als zweite Wahl sicher.
+        // 2. Windows-1251 (Kyrillisch) — russische/bulgarische Sender. Muss VOR
+        //    Latin-1 (Schritt 4, bildet jedes Byte stumm ab) UND vor Shift-JIS
+        //    (Schritt 3, akzeptiert kyrillische Bytes faelschlich als Halbkatakana).
+        //    Nur per Heuristik, sonst wuerden westliche Latin-1-Titel zu Mojibake.
+        if looksLikeWindows1251(bytes) {
+            let cp1251 = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.windowsCyrillic.rawValue))
+            if let cyr = String(data: data, encoding: String.Encoding(rawValue: cp1251)),
+               cyr.unicodeScalars.contains(where: { (0x0400...0x04FF).contains($0.value) }) {
+                return cyr
+            }
+        }
+        // 3. Shift-JIS / CP932 — japanische Sender (z.B. „Retro PC Game Music (JP)").
+        //    Liefert nil bei ungueltigen Byte-Folgen, daher als dritte Wahl sicher.
         let cp932 = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.dosJapanese.rawValue))
         if let sj = String(data: data, encoding: String.Encoding(rawValue: cp932)) {
             return sj
         }
-        // 3. Latin-1 — bildet jedes einzelne Byte ab, daher letzter Fallback.
+        // 4. Latin-1 — bildet jedes einzelne Byte ab, daher letzter Fallback.
         return String(data: data, encoding: .isoLatin1) ?? String(decoding: bytes, as: UTF8.self)
+    }
+
+    // Heuristik: Sieht die Byte-Folge nach Windows-1251 (Kyrillisch) aus?
+    // In 1251 liegen die kyrillischen Buchstaben bei 0xC0–0xFF (А–я) plus
+    // 0xA8 (Ё) und 0xB8 (ё). Kyrillische Woerter sind Laeufe aufeinanderfolgender
+    // solcher Bytes; westliche Latin-1-Titel haben dort nur vereinzelte
+    // Akzentbuchstaben (é, ü…), nie lange Laeufe. Darum erst ab einem Lauf von
+    // >=3 als Kyrillisch werten — so bleiben ASCII- und Latin-1-Titel unberuehrt.
+    private func looksLikeWindows1251(_ bytes: [UInt8]) -> Bool {
+        var run = 0
+        for b in bytes {
+            if b >= 0xC0 || b == 0xA8 || b == 0xB8 {
+                run += 1
+                if run >= 3 { return true }
+            } else {
+                run = 0
+            }
+        }
+        return false
     }
 
     // Findet die erste Position der Byte-Folge `needle` in `haystack` ab `from`.
