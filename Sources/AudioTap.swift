@@ -385,17 +385,27 @@ final class AudioTap: ObservableObject {
         }
 
         var out = [Float](repeating: 0, count: AudioTap.bandCount)
+        var maxv: Float = 0
         for b in 0..<AudioTap.bandCount {
             let lo = binIndex(b, total: AudioTap.bandCount, half: half)
             let hi = max(lo + 1, binIndex(b + 1, total: AudioTap.bandCount, half: half))
             var acc: Float = 0
             for k in lo..<min(hi, half) { acc += mags[k] }
             let avg = acc / Float(max(1, hi - lo))
-            // Frequenz-Tilt: höhere Bänder haben natürlich viel weniger Energie als der Bass →
-            // progressiv stärker gewichten, damit Mitten/Höhen im Equalizer nicht „tot" sind.
-            let coeff = Float(0.0008 + Double(b) * 0.0016)
-            out[b] = min(1, logf(1 + avg * coeff))
+            // `mags` ist Magnitude-QUADRAT (vDSP_zvmags) → zurück auf lineare Magnitude. Sonst
+            // sättigt jede reale (Full-Scale-)Lautstärke sofort und ALLE Bänder kleben bei 1
+            // (= flache Vollwand, Bug). Milder Höhen-Tilt, weil der Bass viel mehr Energie trägt.
+            let mag = sqrtf(max(0, avg))
+            let tilt = 1.0 + Float(b) * 0.30
+            let v = mag * tilt
+            out[b] = v
+            if v > maxv { maxv = v }
         }
+        // Pro Frame auf den stärksten Wert normieren → der Equalizer zeigt IMMER die spektrale
+        // FORM (die Kontur wandert mit der Musik), statt bei lauter Musik als volle Wand zu kleben.
+        // Bei (Quasi-)Stille NICHT hochskalieren (sonst Rausch-Flimmern; `reactive` ruht ohnehin).
+        guard maxv > 1e-5 else { return [Float](repeating: 0, count: AudioTap.bandCount) }
+        for b in out.indices { out[b] = min(1, out[b] / maxv) }
         return out
     }
 
