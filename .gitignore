@@ -1,0 +1,28 @@
+build/
+*.app
+.DS_Store
+
+# VLCKit-Framework (wird von build.sh geladen, ~84 MB) — nicht ins Repo.
+.vendor/
+
+# Persoenliche Senderliste NICHT veroeffentlichen.
+# Fuer eine GitHub-Release wird seed-stations.example.json verwendet.
+Resources/seed-stations.json
+
+# Auf M5 generierte Icon-Kandidaten (Skript + Motive bleiben versioniert).
+icons/candidates/
+
+# Gemini/Antigravity-Artefakt im Design-Ordner
+design-proposal/.system_generated/
+
+# Scratch: MUCKE_SHOTS-Screenshots, Diag-Logs etc.
+tmp/
+
+# Marshall-Stil-Mockups: lokal behalten, nicht veröffentlichen (Trade-Dress; siehe THIRD-PARTY.md)
+design-proposal/marshall_amp_design_*.png
+design-proposal/shots/marshall.png
+# Fremde/persönliche untracked Datei
+macradio-sender.json
+
+# Interner Design-Scratch (Mockups, /Users-Pfade, gemini-brain-Links) — nicht veroeffentlichen
+design-proposal/

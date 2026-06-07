@@ -1,0 +1,7 @@
+[
+  {"id":"hardstyle","name":"Hardstyle & Hardcore","file":"hardstyle.json"},
+  {"id":"techno","name":"Techno & Hardtechno","file":"techno.json"},
+  {"id":"trance","name":"Trance & Psy","file":"trance.json"},
+  {"id":"oerr","name":"Öffentlich-rechtlich (DE)","file":"oeffentlich-rechtlich.json"},
+  {"id":"chill","name":"Chillout & Ambient","file":"chill.json"}
+]
