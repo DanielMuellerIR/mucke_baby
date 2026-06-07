@@ -170,6 +170,56 @@ struct PreferencesView: View {
     }
 }
 
+// MARK: - Willkommen (einmaliger Hinweis beim ersten Start)
+
+// Wird genau einmal gezeigt (UserDefaults-Key "didShowWelcome", gesetzt in ContentView).
+// Erklaert die zwei Dinge, die beim ersten Start sonst ueberraschen:
+//  1) macOS fragt evtl. nach der Berechtigung „Audio aufnehmen" — die App tappt dafuer
+//     NUR die eigene Tonausgabe, damit die Visualizer reagieren (kein Mikrofon).
+//  2) Der Mitschnitt der laufenden Streams ist ab Werk AN. Hier sofort abschaltbar.
+struct WelcomeView: View {
+    @Environment(\.dismiss) private var dismiss
+    // Selber Key wie in den Einstellungen — Aenderung hier wirkt sofort dort und umgekehrt.
+    @AppStorage("recordStreams") private var recordStreams = true
+
+    private var recordingsDir: URL {
+        FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Willkommen bei Mucke, Baby!").font(.title2.bold())
+            Text("Zwei Dinge kurz vorab — danach läuft alles ohne Nachfragen.")
+                .font(.subheadline).foregroundStyle(.secondary)
+
+            Form {
+                Section("Visualizer & Audio-Berechtigung") {
+                    Text("Die Visualizer tanzen zur Musik. Dafür „hört“ die App ihre eigene Tonausgabe ab (System-Audio-Tap). Beim ersten Mal fragt macOS deshalb einmalig nach der Berechtigung, Audio aufzunehmen. Es wird kein Mikrofon verwendet und nichts mitgehört außer der eigenen Wiedergabe.")
+                        .font(.callout)
+                }
+                Section("Mitschnitt der Streams") {
+                    Toggle("Laufende Streams mitschneiden", isOn: $recordStreams)
+                    Text("Ab Werk AN: Während des Hörens wird der Stream als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit abschaltbar — hier oder unter Einstellungen → Aufnahme.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Button("Aufnahme-Ordner zeigen") {
+                        try? FileManager.default.createDirectory(at: recordingsDir, withIntermediateDirectories: true)
+                        NSWorkspace.shared.activateFileViewerSelecting([recordingsDir])
+                    }
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Spacer()
+                Button("Los geht's") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 480)
+    }
+}
+
 // MARK: - Radio-Browser-Suche
 
 struct RBStation: Decodable, Identifiable {
