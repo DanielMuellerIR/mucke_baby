@@ -120,9 +120,14 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             }
         }
         // 3. Shift-JIS / CP932 — japanische Sender (z.B. „Retro PC Game Music (JP)").
-        //    Liefert nil bei ungueltigen Byte-Folgen, daher als dritte Wahl sicher.
+        //    CP932 akzeptiert leider auch westliche Latin-1-Akzente als gueltige
+        //    Doppelbytes (z.B. „Björk" => „Bjk", weil 0xF6 0x72 ein gueltiges Paar
+        //    bildet). Darum nur uebernehmen, wenn das Ergebnis wirklich japanische
+        //    Zeichen enthaelt (Hiragana/Katakana/Halbkatakana/CJK); sonst weiter
+        //    zu Latin-1 (Schritt 4).
         let cp932 = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.dosJapanese.rawValue))
-        if let sj = String(data: data, encoding: String.Encoding(rawValue: cp932)) {
+        if let sj = String(data: data, encoding: String.Encoding(rawValue: cp932)),
+           sj.unicodeScalars.contains(where: { isJapaneseScalar($0.value) }) {
             return sj
         }
         // 4. Latin-1 — bildet jedes einzelne Byte ab, daher letzter Fallback.
@@ -146,6 +151,16 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             }
         }
         return false
+    }
+
+    // Echtes japanisches Zeichen? Hiragana (0x3040–0x309F), Katakana (0x30A0–0x30FF),
+    // Halbbreite Katakana (0xFF61–0xFF9F) oder CJK-Ideogramme (0x4E00–0x9FFF).
+    // Westliche Latin-1-Akzente, die CP932 faelschlich als Doppelbyte schluckt,
+    // landen ausserhalb dieser Bereiche und werden so abgelehnt.
+    private func isJapaneseScalar(_ v: UInt32) -> Bool {
+        return (0x3040...0x30FF).contains(v)
+            || (0xFF61...0xFF9F).contains(v)
+            || (0x4E00...0x9FFF).contains(v)
     }
 
     // Findet die erste Position der Byte-Folge `needle` in `haystack` ab `from`.
