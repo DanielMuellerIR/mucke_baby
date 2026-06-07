@@ -77,6 +77,16 @@ elif [ -f Resources/seed-stations.example.json ]; then
   cp Resources/seed-stations.example.json "$APPDIR/Contents/Resources/seed-stations.json"
 fi
 
+# Lokalisierungen ins Bundle (de = Entwicklungssprache, en = Englisch). SwiftUI lokalisiert
+# String-Literale automatisch ueber Localizable.strings; InfoPlist.strings lokalisiert die
+# Berechtigungstexte (z.B. NSAudioCaptureUsageDescription).
+for lang in de en; do
+  if [ -d "Resources/$lang.lproj" ]; then
+    mkdir -p "$APPDIR/Contents/Resources/$lang.lproj"
+    cp Resources/"$lang".lproj/*.strings "$APPDIR/Contents/Resources/$lang.lproj/"
+  fi
+done
+
 # VLCKit-Framework ins Bundle (Install-Name nutzt @loader_path/../Frameworks).
 echo "Bündle VLCKit …"
 cp -R "$FWDIR/VLCKit.framework" "$APPDIR/Contents/Frameworks/"

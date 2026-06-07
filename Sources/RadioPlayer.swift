@@ -27,9 +27,13 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var currentStation: Station?
     @Published private(set) var isPlaying = false
     @Published private(set) var isLoading = false
-    @Published private(set) var statusText = "Bereit"
+    @Published private(set) var statusText = String(localized: "Bereit")
     @Published private(set) var nowPlayingTitle = ""
     @Published private(set) var lowDiskWarning = false   // Aufnahme wegen Platzmangel gestoppt
+    // Fehlerzustand getrennt vom Anzeigetext fuehren: `statusText` ist lokalisiert, darum
+    // darf die Zustandslogik NICHT auf seinen Wortlaut pruefen (frueher hasPrefix("Fehler")) —
+    // das brach in anderer Sprache. Stattdessen dieses Flag.
+    private var isErrorState = false
     // B2: Zeitpunkt, ab dem der aktuelle Sender wirklich spielt (erstes Audio).
     // Footer zeigt daraus die laufende Sender-Laufzeit. nil = spielt nicht.
     @Published private(set) var playStartedAt: Date?
@@ -78,7 +82,8 @@ final class RadioPlayer: ObservableObject {
 
         currentStation = station
         nowPlayingTitle = ""
-        statusText = "Lade …"
+        statusText = String(localized: "Lade …")
+        isErrorState = false
         isLoading = true
         isPlaying = false
         playStartedAt = nil
@@ -91,7 +96,7 @@ final class RadioPlayer: ObservableObject {
             if Task.isCancelled { return }
             guard let url = resolved else {
                 self.isLoading = false
-                self.statusText = "Ungültige URL"
+                self.statusText = String(localized: "Ungültige URL")
                 return
             }
             self.start(url: url)
@@ -133,7 +138,7 @@ final class RadioPlayer: ObservableObject {
         isLoading = false
         playStartedAt = nil
         currentStreamURL = nil
-        if !statusText.hasPrefix("Fehler") { statusText = "Gestoppt" }
+        if !isErrorState { statusText = String(localized: "Gestoppt") }
     }
 
     // Verlauf + zugehoerige Aufnahmen aelter als `cutoff` loeschen.
@@ -159,7 +164,8 @@ final class RadioPlayer: ObservableObject {
         isPlaying = true
         isLoading = false
         playStartedAt = Date()       // B2: Laufzeit ab erstem Audio
-        statusText = "Wiedergabe"
+        statusText = String(localized: "Wiedergabe")
+        isErrorState = false
         log.notice("status=playing \(self.currentStation?.name ?? "?", privacy: .public)")
     }
 
@@ -170,7 +176,7 @@ final class RadioPlayer: ObservableObject {
 
         switch state {
         case .opening, .buffering:
-            if !isPlaying { isLoading = true; statusText = "Puffert …" }
+            if !isPlaying { isLoading = true; statusText = String(localized: "Puffert …") }
         case .playing:
             handleTimeAdvanced()
         case .paused, .stopped, .ended:
@@ -178,14 +184,15 @@ final class RadioPlayer: ObservableObject {
             isLoading = false
             playStartedAt = nil
             history.closeCurrent()
-            if !statusText.hasPrefix("Fehler") { statusText = "Gestoppt" }
+            if !isErrorState { statusText = String(localized: "Gestoppt") }
             log.notice("status=stopped \(self.currentStation?.name ?? "?", privacy: .public)")
         case .error:
             isPlaying = false
             isLoading = false
             playStartedAt = nil
             history.closeCurrent()
-            statusText = "Fehler: Stream nicht abspielbar"
+            statusText = String(localized: "Fehler: Stream nicht abspielbar")
+            isErrorState = true
             log.notice("status=failed \(self.currentStation?.name ?? "?", privacy: .public)")
         @unknown default:
             break

@@ -1,0 +1,120 @@
+/* Mucke, Baby! — deutsche Strings (Entwicklungssprache).
+   Schluessel = deutscher Originaltext (SwiftUI lokalisiert String-Literale
+   automatisch ueber diese Tabelle). Werte hier identisch zum Schluessel; die
+   englische Fassung liegt in en.lproj/Localizable.strings. */
+
+/* --- Sender bearbeiten / hinzufuegen --- */
+"Sender hinzufügen" = "Sender hinzufügen";
+"Sender bearbeiten" = "Sender bearbeiten";
+"Name" = "Name";
+"Stream-URL" = "Stream-URL";
+"In Liste anzeigen" = "In Liste anzeigen";
+"Favorit (Autostart)" = "Favorit (Autostart)";
+"Löschen" = "Löschen";
+"Abbrechen" = "Abbrechen";
+"Sichern" = "Sichern";
+
+/* --- Einstellungen --- */
+"Einstellungen" = "Einstellungen";
+"Start" = "Start";
+"Beim Start Favorit sofort abspielen" = "Beim Start Favorit sofort abspielen";
+"Favorit: %@" = "Favorit: %@";
+"Kein Favorit gesetzt (Stern in der Bearbeiten-Ansicht)." = "Kein Favorit gesetzt (Stern in der Bearbeiten-Ansicht).";
+"Menüleiste" = "Menüleiste";
+"Zusätzlich Symbol in der Menüleiste anzeigen" = "Zusätzlich Symbol in der Menüleiste anzeigen";
+"Optional — Standard ist nur das normale Fenster." = "Optional — Standard ist nur das normale Fenster.";
+"Aufnahme" = "Aufnahme";
+"Laufende Streams mitschneiden" = "Laufende Streams mitschneiden";
+"⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart." = "⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart.";
+"Aufnahmen im Finder zeigen" = "Aufnahmen im Finder zeigen";
+"Sender Im-/Export (JSON)" = "Sender Im-/Export (JSON)";
+"Exportieren …" = "Exportieren …";
+"Importieren …" = "Importieren …";
+"Export schreibt die ganze Liste; Import fügt neue Sender hinzu (Dubletten per URL übersprungen)." = "Export schreibt die ganze Liste; Import fügt neue Sender hinzu (Dubletten per URL übersprungen).";
+"Daten" = "Daten";
+"Im Finder zeigen" = "Im Finder zeigen";
+"Fertig" = "Fertig";
+
+/* --- Willkommen (erster Start) --- */
+"Willkommen bei Mucke, Baby!" = "Willkommen bei Mucke, Baby!";
+"Zwei Dinge kurz vorab — danach läuft alles ohne Nachfragen." = "Zwei Dinge kurz vorab — danach läuft alles ohne Nachfragen.";
+"Visualizer & Audio-Berechtigung" = "Visualizer & Audio-Berechtigung";
+"Die Visualizer tanzen zur Musik. Dafür „hört“ die App ihre eigene Tonausgabe ab (System-Audio-Tap). Beim ersten Mal fragt macOS deshalb einmalig nach der Berechtigung, Audio aufzunehmen. Es wird kein Mikrofon verwendet und nichts mitgehört außer der eigenen Wiedergabe." = "Die Visualizer tanzen zur Musik. Dafür „hört“ die App ihre eigene Tonausgabe ab (System-Audio-Tap). Beim ersten Mal fragt macOS deshalb einmalig nach der Berechtigung, Audio aufzunehmen. Es wird kein Mikrofon verwendet und nichts mitgehört außer der eigenen Wiedergabe.";
+"Mitschnitt der Streams" = "Mitschnitt der Streams";
+"Ab Werk AN: Während des Hörens wird der Stream als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit abschaltbar — hier oder unter Einstellungen → Aufnahme." = "Ab Werk AN: Während des Hörens wird der Stream als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit abschaltbar — hier oder unter Einstellungen → Aufnahme.";
+"Aufnahme-Ordner zeigen" = "Aufnahme-Ordner zeigen";
+"Los geht's" = "Los geht's";
+
+/* --- Suche --- */
+"Sender suchen" = "Sender suchen";
+"Suchen" = "Suchen";
+"Zur Liste hinzufügen" = "Zur Liste hinzufügen";
+"Schließen" = "Schließen";
+
+/* --- Genre-Listen --- */
+"Kuratierte Genre-Listen" = "Kuratierte Genre-Listen";
+"Fertige Sender-Sammlungen. Import fügt nur neue Sender hinzu — Dubletten (gleiche URL) werden übersprungen." = "Fertige Sender-Sammlungen. Import fügt nur neue Sender hinzu — Dubletten (gleiche URL) werden übersprungen.";
+"%lld Sender" = "%lld Sender";
+"Importieren" = "Importieren";
+"Name, z. B. Hardstyle" = "Name, z. B. Hardstyle";
+
+/* --- Verlauf --- */
+"Verlauf" = "Verlauf";
+"Älter als 1 Tag löschen" = "Älter als 1 Tag löschen";
+"Älter als 1 Woche löschen" = "Älter als 1 Woche löschen";
+"Älter als 1 Monat löschen" = "Älter als 1 Monat löschen";
+"Gesamten Verlauf löschen" = "Gesamten Verlauf löschen";
+"Verlauf-Optionen" = "Verlauf-Optionen";
+"Verlauf ausblenden" = "Verlauf ausblenden";
+"Noch nichts gehört." = "Noch nichts gehört.";
+"In Apple Music suchen" = "In Apple Music suchen";
+"In Spotify / im Web suchen" = "In Spotify / im Web suchen";
+"Songtext anzeigen" = "Songtext anzeigen";
+"Als Datei (harter Schnitt) …" = "Als Datei (harter Schnitt) …";
+"Als Datei (ein-/ausgefadet) …" = "Als Datei (ein-/ausgefadet) …";
+"Song aus Aufnahme exportieren (oder per Drag&Drop aus der Liste ziehen)" = "Song aus Aufnahme exportieren (oder per Drag&Drop aus der Liste ziehen)";
+
+/* --- Songtext --- */
+"Im Web suchen" = "Im Web suchen";
+
+/* --- Kopfleiste / Menue / Transport --- */
+"Schrift größer" = "Schrift größer";
+"Schrift kleiner" = "Schrift kleiner";
+"Originalgröße" = "Originalgröße";
+"Nächstes Thema" = "Nächstes Thema";
+"Lautstärke: %lld % — ziehen zum Drehen" = "Lautstärke: %lld % — ziehen zum Drehen";
+"Lautstärke: %lld %" = "Lautstärke: %lld %";
+"Sender hinzufügen …" = "Sender hinzufügen …";
+"Genre-Liste importieren …" = "Genre-Liste importieren …";
+"Hinzufügen" = "Hinzufügen";
+"Laufzeit" = "Laufzeit";
+"Sender nicht erreichbar" = "Sender nicht erreichbar";
+"Als Favorit/Autostart setzen" = "Als Favorit/Autostart setzen";
+"Bearbeiten" = "Bearbeiten";
+"Stop" = "Stop";
+"Play" = "Play";
+"Beenden" = "Beenden";
+
+/* --- Status (Player) --- */
+"Bereit" = "Bereit";
+"Lade …" = "Lade …";
+"Ungültige URL" = "Ungültige URL";
+"Gestoppt" = "Gestoppt";
+"Wiedergabe" = "Wiedergabe";
+"Puffert …" = "Puffert …";
+"Fehler: Stream nicht abspielbar" = "Fehler: Stream nicht abspielbar";
+
+/* --- Meldungen (Suche, Im-/Export, Songtext, Song-Export) --- */
+"%lld Sender exportiert." = "%lld Sender exportiert.";
+"Export fehlgeschlagen: %@" = "Export fehlgeschlagen: %@";
+"Datei nicht lesbar (erwartet: JSON-Array mit {name,url})." = "Datei nicht lesbar (erwartet: JSON-Array mit {name,url}).";
+"%lld neue Sender importiert." = "%lld neue Sender importiert.";
+"Ungültige Anfrage" = "Ungültige Anfrage";
+"Keine Treffer." = "Keine Treffer.";
+"Suche fehlgeschlagen: %@" = "Suche fehlgeschlagen: %@";
+"Kein Songtext gefunden (Interpret/Titel unklar)." = "Kein Songtext gefunden (Interpret/Titel unklar).";
+"Kein Songtext gefunden." = "Kein Songtext gefunden.";
+"Exportiere …" = "Exportiere …";
+"Ausschnitt zu kurz." = "Ausschnitt zu kurz.";
+"Export nicht möglich." = "Export nicht möglich.";
+"Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg)." = "Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg).";

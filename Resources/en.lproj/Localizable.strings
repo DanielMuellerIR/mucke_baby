@@ -1,0 +1,120 @@
+/* Mucke, Baby! — deutsche Strings (Entwicklungssprache).
+   Schluessel = deutscher Originaltext (SwiftUI lokalisiert String-Literale
+   automatisch ueber diese Tabelle). Werte hier identisch zum Schluessel; die
+   englische Fassung liegt in en.lproj/Localizable.strings. */
+
+/* --- Sender bearbeiten / hinzufuegen --- */
+"Sender hinzufügen" = "Add Station";
+"Sender bearbeiten" = "Edit Station";
+"Name" = "Name";
+"Stream-URL" = "Stream URL";
+"In Liste anzeigen" = "Show in List";
+"Favorit (Autostart)" = "Favorite (Autostart)";
+"Löschen" = "Delete";
+"Abbrechen" = "Cancel";
+"Sichern" = "Save";
+
+/* --- Einstellungen --- */
+"Einstellungen" = "Settings";
+"Start" = "Startup";
+"Beim Start Favorit sofort abspielen" = "Play favorite immediately on startup";
+"Favorit: %@" = "Favorite: %@";
+"Kein Favorit gesetzt (Stern in der Bearbeiten-Ansicht)." = "No favorite set (star in the edit view).";
+"Menüleiste" = "Menu Bar";
+"Zusätzlich Symbol in der Menüleiste anzeigen" = "Also show icon in menu bar";
+"Optional — Standard ist nur das normale Fenster." = "Optional — default is only the normal window.";
+"Aufnahme" = "Recording";
+"Laufende Streams mitschneiden" = "Record active streams";
+"⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart." = "⚠️ ON by default: records continuously (raw audio). Stops automatically if less than 10 GB free. Location: ~/Music/MuckeBaby/Aufnahmen/. Takes effect from the next station start.";
+"Aufnahmen im Finder zeigen" = "Show recordings in Finder";
+"Sender Im-/Export (JSON)" = "Station Import/Export (JSON)";
+"Exportieren …" = "Export…";
+"Importieren …" = "Import…";
+"Export schreibt die ganze Liste; Import fügt neue Sender hinzu (Dubletten per URL übersprungen)." = "Export writes the entire list; import adds new stations (duplicates by URL are skipped).";
+"Daten" = "Data";
+"Im Finder zeigen" = "Show in Finder";
+"Fertig" = "Done";
+
+/* --- Willkommen (erster Start) --- */
+"Willkommen bei Mucke, Baby!" = "Welcome to Mucke, Baby!";
+"Zwei Dinge kurz vorab — danach läuft alles ohne Nachfragen." = "Two quick things first — then everything will run without further prompts.";
+"Visualizer & Audio-Berechtigung" = "Visualizer & Audio Permissions";
+"Die Visualizer tanzen zur Musik. Dafür „hört“ die App ihre eigene Tonausgabe ab (System-Audio-Tap). Beim ersten Mal fragt macOS deshalb einmalig nach der Berechtigung, Audio aufzunehmen. Es wird kein Mikrofon verwendet und nichts mitgehört außer der eigenen Wiedergabe." = "The visualizers dance to the music. To do this, the app \"listens\" to its own audio output (system audio tap). macOS will therefore ask for permission to record audio once. No microphone is used and nothing is recorded except for the playback itself.";
+"Mitschnitt der Streams" = "Stream Recording";
+"Ab Werk AN: Während des Hörens wird der Stream als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit abschaltbar — hier oder unter Einstellungen → Aufnahme." = "ON by default: while listening, the stream is saved as an audio file so that nothing is lost. Location: ~/Music/MuckeBaby/Aufnahmen/. Stops automatically if less than 10 GB free space remains. Can be disabled at any time — here or under Settings → Recording.";
+"Aufnahme-Ordner zeigen" = "Show recording folder";
+"Los geht's" = "Let's go";
+
+/* --- Suche --- */
+"Sender suchen" = "Search for stations";
+"Suchen" = "Search";
+"Zur Liste hinzufügen" = "Add to list";
+"Schließen" = "Close";
+
+/* --- Genre-Listen --- */
+"Kuratierte Genre-Listen" = "Curated Genre Lists";
+"Fertige Sender-Sammlungen. Import fügt nur neue Sender hinzu — Dubletten (gleiche URL) werden übersprungen." = "Ready-made station collections. Import only adds new stations — duplicates (same URL) are skipped.";
+"%lld Sender" = "%lld stations";
+"Importieren" = "Import";
+"Name, z. B. Hardstyle" = "Name, e.g., Hardstyle";
+
+/* --- Verlauf --- */
+"Verlauf" = "History";
+"Älter als 1 Tag löschen" = "Delete older than 1 day";
+"Älter als 1 Woche löschen" = "Delete older than 1 week";
+"Älter als 1 Monat löschen" = "Delete older than 1 month";
+"Gesamten Verlauf löschen" = "Clear all history";
+"Verlauf-Optionen" = "History Options";
+"Verlauf ausblenden" = "Hide history";
+"Noch nichts gehört." = "Nothing played yet.";
+"In Apple Music suchen" = "Search in Apple Music";
+"In Spotify / im Web suchen" = "Search in Spotify / web";
+"Songtext anzeigen" = "Show lyrics";
+"Als Datei (harter Schnitt) …" = "As file (hard cut)…";
+"Als Datei (ein-/ausgefadet) …" = "As file (fade in/out)…";
+"Song aus Aufnahme exportieren (oder per Drag&Drop aus der Liste ziehen)" = "Export song from recording (or drag & drop from the list)";
+
+/* --- Songtext --- */
+"Im Web suchen" = "Search web";
+
+/* --- Kopfleiste / Menue / Transport --- */
+"Schrift größer" = "Increase font size";
+"Schrift kleiner" = "Decrease font size";
+"Originalgröße" = "Original size";
+"Nächstes Thema" = "Next theme";
+"Lautstärke: %lld % — ziehen zum Drehen" = "Volume: %lld% — drag to rotate";
+"Lautstärke: %lld %" = "Volume: %lld%";
+"Sender hinzufügen …" = "Add station…";
+"Genre-Liste importieren …" = "Import genre list…";
+"Hinzufügen" = "Add";
+"Laufzeit" = "Duration";
+"Sender nicht erreichbar" = "Station unavailable";
+"Als Favorit/Autostart setzen" = "Set as favorite/autostart";
+"Bearbeiten" = "Edit";
+"Stop" = "Stop";
+"Play" = "Play";
+"Beenden" = "Quit";
+
+/* --- Status (Player) --- */
+"Bereit" = "Ready";
+"Lade …" = "Loading…";
+"Ungültige URL" = "Invalid URL";
+"Gestoppt" = "Stopped";
+"Wiedergabe" = "Playing";
+"Puffert …" = "Buffering…";
+"Fehler: Stream nicht abspielbar" = "Error: Stream cannot be played";
+
+/* --- Meldungen (Suche, Im-/Export, Songtext, Song-Export) --- */
+"%lld Sender exportiert." = "%lld stations exported.";
+"Export fehlgeschlagen: %@" = "Export failed: %@";
+"Datei nicht lesbar (erwartet: JSON-Array mit {name,url})." = "File not readable (expected: JSON array with {name,url}).";
+"%lld neue Sender importiert." = "%lld new stations imported.";
+"Ungültige Anfrage" = "Invalid request";
+"Keine Treffer." = "No matches.";
+"Suche fehlgeschlagen: %@" = "Search failed: %@";
+"Kein Songtext gefunden (Interpret/Titel unklar)." = "No lyrics found (artist/title unclear).";
+"Kein Songtext gefunden." = "No lyrics found.";
+"Exportiere …" = "Exporting…";
+"Ausschnitt zu kurz." = "Clip too short.";
+"Export nicht möglich." = "Export not possible.";
+"Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg)." = "Recording not readable (ogg/opus require ffmpeg).";

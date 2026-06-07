@@ -63,7 +63,7 @@ struct LyricsView: View {
         // Interpret (ohne feat./&) und bereinigter Titel erhoehen die Trefferquote.
         let queries = SongLink.lyricsQueries(artist: artist, title: title)
         guard !queries.isEmpty else {
-            loading = false; error = "Kein Songtext gefunden (Interpret/Titel unklar)."; return
+            loading = false; error = String(localized: "Kein Songtext gefunden (Interpret/Titel unklar)."); return
         }
         for q in queries {
             guard let url = URL(string: "https://api.lyrics.ovh/v1/\(enc(q.artist))/\(enc(q.title))")
@@ -74,7 +74,7 @@ struct LyricsView: View {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if !lyr.isEmpty { text = lyr; loading = false; return }
         }
-        error = "Kein Songtext gefunden."
+        error = String(localized: "Kein Songtext gefunden.")
         loading = false
     }
 
