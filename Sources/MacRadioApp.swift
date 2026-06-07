@@ -277,6 +277,10 @@ struct ContentView: View {
     @State private var showingGenres = false
     @State private var editStation: Station?
     @State private var didAutoplay = false
+    // Einmaliger Willkommens-Hinweis beim allerersten Start (Audio-Berechtigung +
+    // Default-AN-Mitschnitt erklaeren). Flag persistiert, damit er nur einmal kommt.
+    @AppStorage("didShowWelcome") private var didShowWelcome = false
+    @State private var showingWelcome = false
     // Lautstärke bei Beginn einer Knopf-Drehung (knob-Themes) — für relatives Ziehen.
     @State private var knobDragStart: Double? = nil
 
@@ -326,7 +330,17 @@ struct ContentView: View {
         // Gemeinsame Modifier
         .onAppear { player.setVolume(Float(volume)) }
         .onChange(of: volume) { _, v in player.setVolume(Float(v)) }
-        .task { autoplayIfNeeded(); health.checkAll(store.stations) }
+        .task {
+            // Allererster Start: erst den Willkommens-Hinweis zeigen, Autoplay erst beim
+            // Schliessen (onDismiss) — sonst legt sich der macOS-Audio-Prompt ueber den Text.
+            if !didShowWelcome {
+                showingWelcome = true
+                didShowWelcome = true
+            } else {
+                autoplayIfNeeded()
+            }
+            health.checkAll(store.stations)
+        }
         .onChange(of: store.stations.count) { _, _ in health.checkAll(store.stations) }
         // Zuletzt gespielten Sender merken (für „beim Start fortsetzen").
         .onChange(of: player.currentStation?.id) { _, id in
@@ -339,6 +353,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingPrefs) { PreferencesView() }
         .sheet(isPresented: $showingSearch) { SearchView() }
         .sheet(isPresented: $showingGenres) { GenreListsView() }
+        .sheet(isPresented: $showingWelcome, onDismiss: { autoplayIfNeeded() }) { WelcomeView() }
         // Cmd+"=" als zweite Zoom-in-Taste (Layout-unabhaengig), unsichtbar verdrahtet.
         .background {
             Button("") { uiZoom = min(uiZoom + 1, 5); uiLog.notice("zoom= -> \(uiZoom, privacy: .public)") }
