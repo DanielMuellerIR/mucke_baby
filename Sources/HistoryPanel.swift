@@ -184,7 +184,7 @@ struct HistoryPanel: View {
         panel.allowedContentTypes = [.mpeg4Audio]
         panel.nameFieldStringValue = exportName(e) + ".m4a"
         guard panel.runModal() == .OK, let dest = panel.url else { return }
-        exportMsg = "Exportiere …"
+        exportMsg = String(localized: "Exportiere …")
         Task {
             do {
                 try await SongExporter.export(source: info.url, offset: info.offset,

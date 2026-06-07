@@ -4,6 +4,14 @@
 <dict>
     <key>CFBundleName</key>
     <string>Mucke, Baby!</string>
+    <!-- Entwicklungssprache Deutsch; zusaetzlich Englisch lokalisiert (de/en.lproj). -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>de</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>de</string>
+        <string>en</string>
+    </array>
     <key>CFBundleDisplayName</key>
     <string>Mucke, Baby!</string>
     <key>CFBundleIdentifier</key>

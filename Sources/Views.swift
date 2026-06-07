@@ -151,9 +151,9 @@ struct PreferencesView: View {
         guard panel.runModal() == .OK, let url = panel.url, let data = store.exportData() else { return }
         do {
             try data.write(to: url)
-            ioMessage = "\(store.stations.count) Sender exportiert."
+            ioMessage = String(localized: "\(store.stations.count) Sender exportiert.")
         } catch {
-            ioMessage = "Export fehlgeschlagen: \(error.localizedDescription)"
+            ioMessage = String(localized: "Export fehlgeschlagen: \(error.localizedDescription)")
         }
     }
 
@@ -165,8 +165,8 @@ struct PreferencesView: View {
         guard panel.runModal() == .OK, let url = panel.url, let data = try? Data(contentsOf: url) else { return }
         let n = store.importData(data)
         ioMessage = n >= 0
-            ? "\(n) neue Sender importiert."
-            : "Datei nicht lesbar (erwartet: JSON-Array mit {name,url})."
+            ? String(localized: "\(n) neue Sender importiert.")
+            : String(localized: "Datei nicht lesbar (erwartet: JSON-Array mit {name,url}).")
     }
 }
 
@@ -308,15 +308,15 @@ struct SearchView: View {
             .init(name: "order", value: "votes"),
             .init(name: "reverse", value: "true"),
         ]
-        guard let url = c.url else { error = "Ungültige Anfrage"; return }
+        guard let url = c.url else { error = String(localized: "Ungültige Anfrage"); return }
         var req = URLRequest(url: url)
         req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
         do {
             let (data, _) = try await URLSession.shared.data(for: req)
             results = try JSONDecoder().decode([RBStation].self, from: data)
-            if results.isEmpty { error = "Keine Treffer." }
+            if results.isEmpty { error = String(localized: "Keine Treffer.") }
         } catch {
-            self.error = "Suche fehlgeschlagen: \(error.localizedDescription)"
+            self.error = String(localized: "Suche fehlgeschlagen: \(error.localizedDescription)")
         }
     }
 }

@@ -10,9 +10,9 @@ enum SongExporter {
         case tooShort, noSession, notReadable, failed(String)
         var errorDescription: String? {
             switch self {
-            case .tooShort:    return "Ausschnitt zu kurz."
-            case .noSession:   return "Export nicht möglich."
-            case .notReadable: return "Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg)."
+            case .tooShort:    return String(localized: "Ausschnitt zu kurz.")
+            case .noSession:   return String(localized: "Export nicht möglich.")
+            case .notReadable: return String(localized: "Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg).")
             case .failed(let m): return m
             }
         }
