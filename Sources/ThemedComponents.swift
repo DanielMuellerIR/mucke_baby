@@ -882,7 +882,10 @@ private final class ArraySmoother {
         if values.count != target.count {           // erste Runde / Größenwechsel → direkt setzen
             values = target.map { CGFloat($0) }; lastT = t; return values
         }
-        let dt = lastT == 0 ? (1.0 / 60.0) : min(0.1, t - lastT)
+        // dt auf [0, 0.1] clampen: springt `t` zurück (Pause→Play, Theme-Wechsel, TimelineView-
+        // Reset), wäre t−lastT negativ → die exp-Glättung liefe RÜCKWÄRTS und der Visualizer
+        // bliebe am Anschlag hängen ("Vollausschlag, kein Ton"). max(0,…) verhindert das.
+        let dt = lastT == 0 ? (1.0 / 60.0) : max(0, min(0.1, t - lastT))
         lastT = t
         for i in values.indices {
             let tgt = CGFloat(target[i])
@@ -919,7 +922,7 @@ private struct SingleVUMeter: View {
     /// Attack (hoch) schnell, Release (runter) langsamer — aber IMMER sofort sinkend (kein Halten),
     /// nur die Sink-GESCHWINDIGKEIT ist geringer als die maximale Steig-Geschwindigkeit.
     private func advanceNeedle() -> Double {
-        let dt = ball.lastT == 0 ? (1.0 / 60.0) : min(0.1, t - ball.lastT)
+        let dt = ball.lastT == 0 ? (1.0 / 60.0) : max(0, min(0.1, t - ball.lastT))   // ≥0: kein Rückwärts-Hängen
         ball.lastT = t
         let target = targetLevel
         // Raten pro Sekunde; exponentielle Annäherung → butterweich bei 60 fps. Attack schnell
@@ -1172,6 +1175,24 @@ private struct WovenPattern: View {
 
 // MARK: - MidiNotesVisualizer
 
+/// RGB-Komponenten 0…1 (für Farb-Interpolation im Spektrogramm).
+private typealias RGB = (r: Double, g: Double, b: Double)
+
+/// Scrollende Energie-Historie für das Black-MIDI-Spektrogramm. Referenztyp (via `@State`
+/// persistiert), wird im `body` fortgeschrieben — invalidiert die View NICHT.
+private final class SpectrogramBuffer {
+    var rows: [[CGFloat]] = []      // [0] = neueste Zeile (oben)
+    var lastT: Double = 0
+    func push(_ vals: [CGFloat], t: Double, maxRows: Int, interval: Double) {
+        if lastT != 0, t < lastT { lastT = t; return }        // Zeit-Reset → nur Marke nachziehen
+        if lastT == 0 || t - lastT >= interval {
+            rows.insert(vals, at: 0)
+            if rows.count > maxRows { rows.removeLast(rows.count - maxRows) }
+            lastT = t
+        }
+    }
+}
+
 /// Fallende Neon-Noten: kleine gerundete Rechtecke regnen in Palette-Farben
 /// über einem feinen Raster herunter. Deterministische Pseudo-Zufallspositionen.
 /// „Black MIDI"-Piano-Roll: dichte, neonfarbene Notensäulen fallen über ein Raster nach unten
@@ -1186,110 +1207,85 @@ private struct MidiNotesVisualizer: View {
     let gridColor: Color
     let audioTap: AudioTap
 
-    private let lanes = 26          // „Klaviertasten"-Spuren — viele → dichte Wand
-    private let barLanes = 24       // Balken im unteren Spektrum-Streifen
+    private let barLanes = 24       // Frequenz-Bänder: oben Spektrogramm-Spuren UND unten Balken
+    private let spectroRows = 140   // Höhe der scrollenden Spektrogramm-Historie (Zeilen)
 
-    @State private var laneSmoother = ArraySmoother()   // geglättete Energie je Notenspur
-    @State private var barSmoother  = ArraySmoother()   // geglättete Höhen der unteren Balken
+    @State private var barSmoother = ArraySmoother()    // geglättete Band-Höhen (oben+unten)
+    @State private var spectro = SpectrogramBuffer()    // scrollende Energie-Historie je Band
 
     var body: some View {
         TimelineView(.animation) { context in
-            // Konstanter, sanfter Notenfall (gleichmäßig, „weich regnen") — t läuft immer weiter,
-            // auch leise. WO/WIE HELL es regnet, steuert das echte Spektrum (laneE), passend zu
-            // den Balken unten. Pausiert → eingefroren.
             let t = isPlaying ? context.date.timeIntervalSinceReferenceDate : 0
             let active = audioTap.reactive
             let bands = audioTap.bands
 
-            // Ziel-Energie je Notenspur aus dem echten Spektrum (sonst 0 = kein Regen), geglättet.
-            let laneTargets: [Float] = (active && !bands.isEmpty)
-                ? (0..<lanes).map { bands[min(bands.count - 1, $0 * bands.count / lanes)] }
-                : [Float](repeating: 0, count: lanes)
-            let laneE = laneSmoother.step(toward: laneTargets, t: t, attack: 16, release: 6)
-
-            // Ziel-Höhe je unterem Balken (echtes Spektrum, sonst Ruhe), geglättet.
+            // Eine Energie pro Frequenz-Band (echtes Spektrum, sonst 0), geglättet. Dieselben
+            // Werte speisen OBEN das Spektrogramm UND UNTEN die Balken → wo unten Ausschlag ist,
+            // entsteht oben eine Linie; wo 0 ist, bleibt es leer.
             let barTargets: [Float] = (active && !bands.isEmpty)
-                ? (0..<barLanes).map { min(1, max(0.04, bands[min(bands.count - 1, $0 * bands.count / barLanes)])) }
-                : [Float](repeating: 0.04, count: barLanes)
+                ? (0..<barLanes).map { min(1, max(0, bands[min(bands.count - 1, $0 * bands.count / barLanes)])) }
+                : [Float](repeating: 0, count: barLanes)
             let barVals = barSmoother.step(toward: barTargets, t: t, attack: 38, release: 12)
 
-            // Split: OBEN regnen die Noten (Piano-Roll), darunter Freiraum, UNTEN das Spektrum.
             VStack(spacing: 0) {
                 Canvas { ctx, size in
-                    drawNotes(ctx, size, t: t, laneE: laneE)
+                    // Scrollende Historie hier fortschreiben (Canvas-Closure ist kein ViewBuilder):
+                    // neue Zeile oben, ältere wandern nach unten weg.
+                    if isPlaying { spectro.push(barVals, t: t, maxRows: spectroRows, interval: 0.05) }
+                    drawSpectro(ctx, size, rows: spectro.rows)
                 }
-                .frame(maxHeight: .infinity)        // nimmt den Hauptteil ein
-
-                Spacer(minLength: 6)                // Freiraum zwischen Noten und Balken
-
-                Canvas { ctx, size in
-                    drawBars(ctx, size, vals: barVals)
-                }
-                .frame(height: 34)                  // schmaler Spektrum-Streifen unten
+                    .frame(maxHeight: .infinity)        // großes scrollendes Spektrogramm
+                Spacer(minLength: 6)
+                Canvas { ctx, size in drawBars(ctx, size, vals: barVals) }
+                    .frame(height: 34)                  // schmaler Spektrum-Streifen unten
             }
         }
     }
 
-    /// Zeichnet die regnenden Noten + Raster + Trefferlinie in den oberen Canvas.
-    /// `laneE` = geglättete Energie (0…1) je Spur aus dem echten Spektrum: bestimmt, WO und WIE
-    /// HELL es regnet (laute Frequenzbänder → dichte, helle Noten; stille → kaum sichtbar).
-    private func drawNotes(_ ctx: GraphicsContext, _ size: CGSize, t: Double, laneE: [CGFloat]) {
+    /// Scrollendes Spektrogramm: je Band (Spalte) eine Historie farbiger Zellen. Energie 0 →
+    /// LÜCKE (keine Linie); sonst Farbe nach Energie-HÖHE (niedrig=color2 → mittel=color1 → hoch=weiß).
+    /// Ändert sich die Energie, ändert sich die Zellenfarbe → die „Linie" wirkt segmentiert/dynamisch.
+    /// Keine horizontale Trefferlinie (auf Wunsch entfernt).
+    private func drawSpectro(_ ctx: GraphicsContext, _ size: CGSize, rows: [[CGFloat]]) {
         drawGrid(ctx, size)
-
-        let laneW = size.width / CGFloat(lanes)
-        for l in 0..<lanes {
-            // Pro Spur eigener, stabiler Zufalls-Strom (LCG, Seed aus Spurindex) →
-            // dieselbe Notenfolge jedes Frame, nur der Scroll-Offset wandert.
-            var seed: UInt32 = 0x9E37_79B1 &+ UInt32(l) &* 2_654_435_761
-            func next() -> Double {
-                seed = seed &* 1_664_525 &+ 1_013_904_223
-                return Double(seed) / Double(UInt32.max)
-            }
-            // KONSTANTER sanfter Fall (kein Audio-Tempo mehr) → gleichmäßiges, weiches Regnen.
-            let speed = isPlaying ? (40.0 + next() * 26.0) : 0    // px/s, nur kleine Spur-Varianz
-            let tapeH = Double(size.height) * 2.4                 // länger als Sichtfeld → Wrap unsichtbar
-            let offset = t * speed
-            let base = l % 2 == 0 ? color1 : color2
-            // Sichtbarkeit dieser Spur aus dem (geglätteten) echten Pegel. Stille Spur → kein Regen.
-            let e = l < laneE.count ? Double(laneE[l]) : 0
-            let vis = min(1, e * 2.4)                              // leichter Boost für sichtbaren Hub
-            if vis < 0.04 { continue }                            // praktisch still → diese Spur trocken
-
-            // Notenband entlang der Spur erzeugen (Lücke → Note → Lücke …).
-            var cur = 0.0
-            while cur < tapeH {
-                let gap = 5 + next() * 34
-                let len = 7 + next() * 64
-                cur += gap
-                let noteTop = cur
-                cur += len
-                // Bildschirm-Y mit Wrap; der Sprung passiert unterhalb des Sichtfelds.
-                let y = (noteTop + offset).truncatingRemainder(dividingBy: tapeH)
-                guard y < Double(size.height) else { continue }
-                let x = CGFloat(l) * laneW + laneW * 0.12
-                let w = laneW * 0.76
-                let rect = CGRect(x: x, y: y, width: w, height: len)
-                // Trefferlinien-Nähe → heller (als ob die Note „anschlägt").
-                let hot = y > Double(size.height) * 0.74
-                let baseOp = (hot ? 0.95 : 0.72) * vis            // Helligkeit folgt dem Pegel
-                // weiches Neon-Halo
-                ctx.fill(Path(roundedRect: rect.insetBy(dx: -1.6, dy: -1.6), cornerRadius: 3),
-                         with: .color(base.opacity(0.22 * vis)))
-                ctx.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(base.opacity(baseOp)))
-                if hot {   // kleiner weißer Glanz auf „heißen" Noten
-                    ctx.fill(Path(roundedRect: rect, cornerRadius: 2),
-                             with: .color(.white.opacity(0.25 * vis)))
-                }
+        guard !rows.isEmpty else { return }
+        let laneW = size.width / CGFloat(barLanes)
+        let rowH = size.height / CGFloat(spectroRows)
+        let c2 = rgb(color2), c1 = rgb(color1)          // Endpunkte einmal in RGB (teuer pro Zelle)
+        let shown = min(rows.count, spectroRows)
+        for r in 0..<shown {
+            let row = rows[r]
+            let y = CGFloat(r) * rowH                    // r=0 oben (neueste), scrollt nach unten
+            for l in 0..<min(barLanes, row.count) {
+                let e = Double(row[l])
+                if e < 0.05 { continue }                 // 0-Ausschlag → keine Linie (Lücke)
+                let col = energyColor(e, low: c2, mid: c1)
+                let x = CGFloat(l) * laneW + laneW * 0.18
+                let rect = CGRect(x: x, y: y, width: laneW * 0.64, height: max(1, rowH - 0.5))
+                ctx.fill(Path(rect), with: .color(col.opacity(0.92)))
             }
         }
+    }
 
-        // Leuchtende Trefferlinie nahe unten (klassischer Piano-Roll-Anschlag).
-        let hy = size.height * 0.86
-        var line = Path()
-        line.move(to: CGPoint(x: 0, y: hy))
-        line.addLine(to: CGPoint(x: size.width, y: hy))
-        ctx.stroke(line, with: .color(.white.opacity(0.55)), lineWidth: 1)
-        ctx.stroke(line, with: .color(color1.opacity(0.35)), lineWidth: 4)
+    /// Energie-Höhe → Farbe: 0…0.5 von `low` (cyan) nach `mid` (magenta), 0.5…1 von `mid` nach weiß.
+    private func energyColor(_ e: Double, low: RGB, mid: RGB) -> Color {
+        if e < 0.5 {
+            let f = e / 0.5
+            return Color(red: low.r + (mid.r - low.r) * f,
+                         green: low.g + (mid.g - low.g) * f,
+                         blue: low.b + (mid.b - low.b) * f)
+        } else {
+            let f = (e - 0.5) / 0.5
+            return Color(red: mid.r + (1 - mid.r) * f,
+                         green: mid.g + (1 - mid.g) * f,
+                         blue: mid.b + (1 - mid.b) * f)
+        }
+    }
+
+    /// SwiftUI-Color → sRGB-Komponenten (für die Farb-Interpolation).
+    private func rgb(_ c: Color) -> RGB {
+        let n = NSColor(c).usingColorSpace(.sRGB) ?? .white
+        return RGB(Double(n.redComponent), Double(n.greenComponent), Double(n.blueComponent))
     }
 
     /// Unterer Balken-Streifen — echtes Spektrum (FFT-Bänder), bereits frame-weise geglättet
@@ -1313,7 +1309,7 @@ private struct MidiNotesVisualizer: View {
 
     /// Feines Cyber-Raster (Spurlinien senkrecht + Takte waagrecht) direkt im Canvas.
     private func drawGrid(_ ctx: GraphicsContext, _ size: CGSize) {
-        let hSpacing = size.width / CGFloat(lanes)
+        let hSpacing = size.width / CGFloat(barLanes)
         var x: CGFloat = 0
         while x <= size.width {
             var p = Path(); p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: size.height))
