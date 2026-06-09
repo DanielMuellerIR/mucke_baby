@@ -45,7 +45,7 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
 
 - **Was:** Theme-Texturen (`Resources/themes/<id>/*.png`, 10 Stück) und das App-Icon
   (`Resources/AppIcon.icns`, Master in `icons/`).
-- **Erzeugung:** lokal auf eigener Hardware (M5) mit **mflux + Z-Image-Turbo**
+- **Erzeugung:** lokal auf eigener Hardware mit **mflux + Z-Image-Turbo**
   (Tongyi-MAI / Alibaba). Protokoll: `design-proposal/.asset-log.md`, `icons/motifs.md`.
 - **Modell-Lizenz:** **Apache-2.0** (Tongyi-MAI/Z-Image-Turbo, HuggingFace) → Modell **und
   dessen Outputs** dürfen kommerziell genutzt, verändert und verteilt werden.
@@ -96,7 +96,7 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
     Repo nehmen (lokal behalten/gitignore), **und** statt der vollständigen Privat-Historie
     einen **frischen Snapshot** (neue Historie) veröffentlichen. Das umgeht jede
     History-Frage ohne riskanten `git filter-repo` (der alle Hashes umschreibt und das
-    interne minipc-Backup bräche).
+    interne Backup-Remote bräche).
 
 ## 7. Eigenständiger Code
 

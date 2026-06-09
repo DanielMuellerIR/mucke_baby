@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# App-Icon-Kandidaten erzeugen — AUF M5 ausfuehren (mflux + Z-Image-Turbo).
+# App-Icon-Kandidaten erzeugen (mflux + Z-Image-Turbo).
 # 8 Motive x 3 Seeds = 24 Bilder nach icons/candidates/.
-# Verfahren/Modell: ~/git/theplan/knowledge/local-llm/image-gen.md
+# Verfahren/Modell: siehe lokalen Wissensindex (knowledge/local-llm/image-gen.md).
 #
-# Voraussetzung auf M5: mflux installiert (`mflux-generate` im PATH).
+# Voraussetzung: mflux installiert (`mflux-generate` im PATH).
 # Falls dein mflux-Z-Image-Aufruf anders heisst, MODEL/STEPS unten anpassen.
 set -euo pipefail
 cd "$(dirname "$0")/.."

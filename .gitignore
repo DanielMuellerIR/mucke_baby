@@ -9,7 +9,7 @@ build/
 # Fuer eine GitHub-Release wird seed-stations.example.json verwendet.
 Resources/seed-stations.json
 
-# Auf M5 generierte Icon-Kandidaten (Skript + Motive bleiben versioniert).
+# Generierte Icon-Kandidaten (Skript + Motive bleiben versioniert).
 icons/candidates/
 
 # Gemini/Antigravity-Artefakt im Design-Ordner

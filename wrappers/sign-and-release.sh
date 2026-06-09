@@ -16,7 +16,7 @@
 #      (App-spezifisches Passwort INTERAKTIV eingeben, NIE als CLI-Argument.)
 #
 # Aufruf:  bash wrappers/sign-and-release.sh
-# Wissen:  ~/git/theplan/knowledge/macos-app-distribution.md
+# Wissen:  siehe lokalen Wissensindex (knowledge/macos-app-distribution.md)
 
 set -euo pipefail
 

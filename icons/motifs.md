@@ -1,8 +1,8 @@
 # App-Icon — 8 Motive (zur Auswahl)
 
-Stand: 2026-06-07. Generierung läuft auf **M5** (mflux + Z-Image-Turbo, frei/kein Token).
-Je Motiv **3 Varianten** über Seeds `7 42 123`. Quelle des Verfahrens:
-`~/git/theplan/knowledge/local-llm/image-gen.md`.
+Stand: 2026-06-07. Generierung via mflux + Z-Image-Turbo (frei/kein Token).
+Je Motiv **3 Varianten** über Seeds `7 42 123`. Verfahren: siehe lokalen Wissensindex
+(`knowledge/local-llm/image-gen.md`).
 
 Gemeinsamer Stil-Rahmen (in jedem Prompt): *macOS app icon, rounded-square (squircle),
 centered, flat vector with subtle depth and soft inner shadow, no text, no letters,
@@ -19,5 +19,5 @@ high contrast, crisp at small sizes, 1024×1024*.
 | 7 | headphones   | Kopfhörer | schlanke Kopfhörer + kleiner Sendebogen, freundlich | Teal/Türkis |
 | 8 | bolt-wave    | Hardstyle-Blitz | Blitz als Soundwave (Hardstyle-Energie), dezenter IT-Akzent | Grün-Weiß-Rot auf Dunkel |
 
-Erzeugen: `bash icons/generate-on-m5.sh` (auf M5). Ergebnis in `icons/candidates/`.
+Erzeugen: `bash icons/generate-icons.sh`. Ergebnis in `icons/candidates/`.
 Danach Auswahl → finales Motiv als `.icns` bauen (Skript-Hinweis am Ende der generate-Datei).

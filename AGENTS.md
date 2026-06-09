@@ -67,7 +67,7 @@ build/MacRadio.app/Contents/MacOS/MacRadio
 
 ## Wichtige Entscheidungen / Stolpersteine
 
-- **Seed-Daten:** `Resources/seed-stations.json` = Daniels 26 Sender (**gitignored**,
+- **Seed-Daten:** `Resources/seed-stations.json` = personalisierte Sender-Liste (**gitignored**,
   nicht veröffentlichen). `Resources/seed-stations.example.json` = generische Default-Liste
   für eine GitHub-Release. `build.sh` nimmt die persönliche, falls vorhanden, sonst das Beispiel.
 - **Favorit + Autostart:** „Hardstyle radio Italy" steht oben (Wunsch), ist aber **tot**: der
@@ -94,20 +94,20 @@ build/MacRadio.app/Contents/MacOS/MacRadio
 
 ## Quelle des Imports
 
-`~/Nextcloud/BCK/Radio++ Mint Applet Radiostationen/einstellungen export 2025-05-26.json`
-(Feld `tree.value` = die 26 echten Sender; `last-volume` 77, `last-url` = Hardstyle Italy).
+Exportdatei aus dem Radio++-Applet (Feld `tree.value` = die Sender; `last-volume` 77,
+`last-url` = Hardstyle Italy). Exportpfad und Gerät: siehe Projekt-Wissensindex.
 
 ## Noch offen / bewusst weggelassen
 
 - YouTube-Download (Radio++-Feature) — kein Radio-Kern, weggelassen.
-- **App-Icon:** 8 Motive entworfen (`icons/motifs.md`); Erzeugung läuft auf **M5** via
-  `icons/generate-on-m5.sh` (mflux + Z-Image-Turbo, je 3 Varianten). Auswahl → `.icns` noch offen.
+- **App-Icon:** 8 Motive entworfen (`icons/motifs.md`); Erzeugung via
+  `icons/generate-icons.sh` (mflux + Z-Image-Turbo, je 3 Varianten). Auswahl → `.icns` noch offen.
 - **Release (signiert + notarisiert + DMG):** `bash wrappers/sign-and-release.sh` →
   baut, signiert mit Developer ID (Hardened Runtime), erzeugt DMG mit Hintergrundbild
   (`assets/generate-dmg-background.swift` → `assets/dmg-background.png`), notarisiert
   (Keychain-Profil `fftabsNotary`, env `NOTARY_PROFILE` überschreibbar) und stapelt das
   Ticket. Ergebnis: `build/Mucke-Baby-<version>.dmg`, Gatekeeper-clean. Voraussetzungen +
-  Rezept: `~/git/theplan/knowledge/macos-app-distribution.md`. **Audio-Reaktivität** nutzt
+  Rezept: siehe Projekt-Wissensindex (`knowledge/macos-app-distribution.md`). **Audio-Reaktivität** nutzt
   einen CoreAudio Process-Tap (`NSAudioCaptureUsageDescription` in Info.plist) → beim ersten
   Start einmaliger macOS-Erlaubnis-Dialog (mit Developer-ID-Signatur dauerhaft gemerkt).
 - **Lizenzen/Fremdbestandteile: siehe [`THIRD-PARTY.md`](THIRD-PARTY.md).** Kurz: VLCKit
@@ -158,10 +158,11 @@ Toolbar-Inhalte erzwingt (U1). Persistiert als `@AppStorage("selectedTheme")` = 
   **`stack`** war früher `marshall` — umbenannt wg. Markenrecht (Marshall = eingetragene
   Marke); Serif- statt Schreibschrift-Titel (kein Logo-Nachbau). Migration alter
   `selectedTheme`-Werte in `Theme.theme(raw:)`. Texturen unter `Resources/themes/stack/`.
-- Spec: `design-proposal/THEME-PLAN.md`. **Material-Texturen per img2img auf M5** (mflux/
+- Spec: `design-proposal/THEME-PLAN.md`. **Material-Texturen per img2img** (mflux/
   Z-Image, `design-proposal/.asset-log.md`), gebündelt unter `Resources/themes/<id>/`,
   via `ThemedSurface` mit Kontrast-Scrim gezeigt. Fehlt eine PNG → **prozedurale Canvas-
-  Textur als Fallback** (Code läuft also auch ohne Assets).
+  Textur als Fallback** (Code läuft also auch ohne Assets). Generierungsgerät + ssh-Stolperstein:
+  siehe Projekt-Wissensindex.
 
 **Themes visuell testen (agent-tauglich, ohne Screen-Recording-Recht):**
 ```bash
@@ -170,19 +171,3 @@ MUCKE_SHOTS="$PWD/design-proposal/shots" "build/Mucke, Baby!.app/Contents/MacOS/
 # -> design-proposal/shots/<theme>.png je Theme, App beendet sich selbst.
 ```
 
-## Stolperstein: M5-Bildgenerierung (2026-06-07, gelöst)
-
-Theme-Texturen wurden per **img2img auf M5** (mflux) erzeugt. Während des ersten Laufs
-**brach der ssh-Zugang zu M5** (persistente `publickey`-Ablehnung, KEX ok) — vermutlich
-ausgelöst durch zu viele parallele ssh-Verbindungen des Generierungs-Workers. Nach
-Wiederkehr des Zugangs sauber zu Ende generiert. **Lehren für den nächsten M5-Job:**
-- **Eine ssh-Verbindung wiederverwenden** (ControlMaster): jedes `ssh`/`scp` mit
-  `-o ControlPath=/tmp/m5cm-%C` (einmal `-o ControlMaster=auto -o ControlPersist=600`),
-  **sequenziell** generieren, keine parallelen Verbindungs-Stürme.
-- **zsh splittet unquotierte Variablen NICHT** → ssh-Optionen inline schreiben, nicht
-  `S="-o ... -o ..."; ssh $S` (gibt „controlmaster extra arguments").
-- mflux: `~/llm-imagegen/.venv/bin/mflux-generate-z-image`, img2img via `--image-path`
-  `--image-strength` (niedriger = mehr Veränderung). UI-/Text-freie Texturen am besten aus
-  **flachen Farb-Inits** (`ffmpeg color=`) statt aus Mockup-Crops (sonst bleiben Knöpfe/Schrift).
-- Falls ssh doch wieder bricht: auf M5 `ls -la ~/.ssh/authorized_keys`, `chmod 700 ~/.ssh;
-  chmod 600 ~/.ssh/authorized_keys`, M3-Key prüfen.
