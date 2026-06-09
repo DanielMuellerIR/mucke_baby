@@ -7,7 +7,7 @@ Stand: 2026-06-07 (v1.7.18, HEAD df1f94a). Projektfakten in `AGENTS.md`. Diese L
 Session 2026-06-07 (Teil 3) erledigt: **Mojibake-Fix** (ICY-Titel via Fallback-Kette
 UTF-8→Shift-JIS/CP932→Latin-1), **Acid/Fanzine echtes Oszilloskop** (aus `audioTap.waveform`),
 **Black-MIDI-Split** (Noten oben + Spektrum-Balken unten). Alle drei: Build grün +
-Headless-Render geprüft, committet + auf backup-remote gepusht. Backup wieder online.
+Headless-Render geprüft, committet + auf internes Backup-Remote gepusht. Backup wieder online.
 
 **Nur noch LIVE zu prüfen (nicht self-testbar):**
 - Mojibake: Sender „Retro PC Game Music (JP)" → japanische Zeichen statt `?u?????`.
@@ -42,8 +42,8 @@ Headless-Render geprüft, committet + auf backup-remote gepusht. Backup wieder o
 ## Projekt-Umbenennung mac_radio → mucke_baby (offen, nächste Session)
 
 Kurzname/Repo/Ordner sollen `mucke_baby` heißen (Anzeigename bleibt „Mucke, Baby!").
-- [x] popo-Backup-Repo umbenannt: `git/mac_radio.git` → `git/mucke_baby.git`, lokale
-  Remote-URL `backup-remote` nachgezogen (2026-06-07).
+- [x] Backup-Repo umbenannt: `git/mac_radio.git` → `git/mucke_baby.git`, lokale
+  Remote-URL auf internes Backup-Remote nachgezogen (2026-06-07).
 - [ ] **Ordner** `~/git/mac_radio` → `~/git/mucke_baby` (macht Daniel nach Sessionende;
   im laufenden Betrieb ungesund). Git ist pfadunabhängig → danach keine Remote-Änderung nötig.
 - [ ] **Entscheiden: interne Refs anfassen oder Kontinuität wahren?** EXE `MacRadio`,
@@ -101,8 +101,8 @@ Kurzname/Repo/Ordner sollen `mucke_baby` heißen (Anzeigename bleibt „Mucke, B
 - [x] **Console-Layout** (3 Spalten Stations|Stage|History + Transport) für die Design-Themes;
   `schlicht` behält das classic-Layout. `StageView` + `VisualizerView` + `ConsoleTransportBar`.
 - [x] **Prozedurale Material-Texturen** (Canvas) statt Bitmaps — lokal, scharf, kontrastsicher.
-- [x] **T1 — M5-ssh** kam wieder; Lehren (ControlMaster, sequenziell, inline-Opts) in AGENTS.md.
-- [x] **T2 — img2img-Theme-Texturen** auf dem Mac erzeugt (mflux/Z-Image), gebündelt unter
+- [x] **T1 — Bildgenerierungs-ssh** wieder verfügbar; Lehren (ControlMaster, sequenziell, inline-Opts) im Projekt-Wissensindex.
+- [x] **T2 — img2img-Theme-Texturen** erzeugt (mflux/Z-Image), gebündelt unter
   `Resources/themes/`, via `ThemedSurface` + Kontrast-Scrim gezeigt; prozedural = Fallback.
   Log: `design-proposal/.asset-log.md`.
 - [ ] **T3 — Feinschliff Designtreue** (optional): echte geriffelte Knöpfe (marshall),
@@ -160,7 +160,7 @@ Kurzname/Repo/Ordner sollen `mucke_baby` heißen (Anzeigename bleibt „Mucke, B
   (globale Regel mehrsprachige README).
 - [ ] **D2 — Aufnahme-Default für Public.** Für eine Veröffentlichung Default auf AUS
   erwägen (aktuell AN, README warnt).
-- [ ] **D3 — Alternativen recherchieren** (eigenes intern-Todo): welche Mac-Apps können
+- [ ] **D3 — Alternativen recherchieren** (eigenes Todo im zentralen Wissensindex): welche Mac-Apps können
   Stream-Aufnahme + Song-Export, zu welchen Konditionen? (Daniel fand früher nichts
   Kostenloses ohne Gängelung.)
 
