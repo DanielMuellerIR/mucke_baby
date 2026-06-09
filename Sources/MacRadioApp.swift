@@ -390,31 +390,41 @@ struct ContentView: View {
             // Platz fuer die schwebenden Ampel-Buttons (hiddenTitleBar laesst sie oben links)
             Color.clear.frame(width: 68, height: 1)
 
-            // App-Titel groß + Version (Titel darf NICHT klein sein — Daniel-Wunsch)
+            // App-Titel groß + Version (Titel darf NICHT klein sein — Daniel-Wunsch).
+            // .layoutPriority(1): Titel gibt erst nach, wenn Stopp-Label + Slider schon
+            // kollabiert/geschrumpft sind. .lineLimit(1) statt .fixedSize() — Titel bleibt
+            // groß, kürzt im absoluten Extremfall mit „…" statt die Ampel zu überlappen.
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text("Mucke, Baby!")
                     .font(theme.font(.title, size: 18 * uiFontScale, weight: .bold))
                     .tracking(theme.fonts.tracking)
                     .foregroundStyle(headerInkStrong)
-                    .fixedSize()
+                    .lineLimit(1)             // groß bleiben, aber im Extremfall kürzen statt überlappen
                 // Version: lesbar, aber dezent — textSecondary statt textDim (war kaum lesbar).
                 Text("v\(AppInfo.version)")
                     .font(theme.font(.label, size: 11 * uiFontScale, weight: .medium))
                     .foregroundStyle(headerInk)
-                    .fixedSize()
+                    .lineLimit(1)
             }
+            .layoutPriority(1)            // Titel gibt erst als Letztes nach (rechtes Cluster zuerst)
 
             Spacer(minLength: 12)
 
-            // Transport: Play/Stop (Daniel-Wunsch: Stopp oben). MIT Text-Label — ein nacktes
-            // Quadrat ist ohne Kontext nicht eindeutig.
+            // Transport: Play/Stop (Daniel-Wunsch: Stopp oben). Bei Platzmangel fällt das
+            // Text-Label weg — nur das Icon bleibt (Daniel-Wunsch). ViewThatFits nimmt die
+            // erste Variante, die in die verfügbare Breite passt.
             Button { if let s = player.currentStation { player.toggle(s) } } label: {
-                HStack(spacing: 5) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 5) {
+                        Image(systemName: player.isPlaying ? "stop.fill" : "play.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(player.isPlaying ? "Stopp" : "Wiedergabe")
+                            .font(theme.font(.label, size: 11 * uiFontScale, weight: .semibold))
+                            .lineLimit(1)         // kein .fixedSize() — verhindert künstliches Aufblähen
+                    }
+                    // Fallback: nacktes Icon (Tooltip via .help unten gibt den Kontext)
                     Image(systemName: player.isPlaying ? "stop.fill" : "play.fill")
                         .font(.system(size: 13, weight: .semibold))
-                    Text(player.isPlaying ? "Stopp" : "Wiedergabe")
-                        .font(theme.font(.label, size: 11 * uiFontScale, weight: .semibold))
-                        .fixedSize()
                 }
                 .foregroundStyle(onGoldHeader ? headerInkStrong : theme.palette.playActive)
                 .frame(height: 24)
@@ -506,7 +516,8 @@ struct ContentView: View {
                 Image(systemName: "speaker.fill")
                     .font(.system(size: 10)).foregroundStyle(theme.palette.textDim)
                 Slider(value: $volume, in: 0...1)
-                    .frame(width: 96)
+                    // Darf bei Platzmangel schmaler werden, aber nicht unter ~60 pt (noch bedienbar).
+                    .frame(minWidth: 60, idealWidth: 96, maxWidth: 96)
                     .tint(theme.palette.accent)
                 Image(systemName: "speaker.wave.3.fill")
                     .font(.system(size: 10)).foregroundStyle(theme.palette.textDim)
@@ -654,8 +665,9 @@ struct ContentView: View {
         VStack(spacing: 0) {
             // Spalten-Kopf: nur Titel (Suche/Hinzufügen/Bearbeiten sitzen in der Kopfleiste).
             HStack(spacing: 8) {
-                // Im midi-Theme heißt der Header "STATIONS.EXE" (Terminal-Stil)
-                SectionHeader(theme.id == .midi ? "STATIONS.EXE" : "STATIONS")
+                // Header der Senderliste — in allen Themes "STATIONS" (kein .EXE;
+                // Windows-Endung entfernt, Daniel-Wunsch 2026-06-09).
+                SectionHeader("STATIONS")
                 Spacer()
                 if editing {
                     Text(theme.fonts.uppercaseHeaders ? "BEARBEITEN" : "Bearbeiten")
