@@ -110,6 +110,12 @@ Exportdatei aus dem Radio++-Applet (Feld `tree.value` = die Sender; `last-volume
   Rezept: siehe Projekt-Wissensindex (`knowledge/macos-app-distribution.md`). **Audio-Reaktivität** nutzt
   einen CoreAudio Process-Tap (`NSAudioCaptureUsageDescription` in Info.plist) → beim ersten
   Start einmaliger macOS-Erlaubnis-Dialog (mit Developer-ID-Signatur dauerhaft gemerkt).
+  **GitHub-Release (opt-in):** `bash wrappers/sign-and-release.sh --publish` setzt den
+  git-Tag `vX.Y.Z`, erstellt das Release auf GitHub und lädt das DMG als Asset hoch.
+  Release-Notes werden automatisch aus dem passenden `CHANGELOG.md`-Abschnitt gezogen.
+  Ohne `--publish` läuft das Script wie bisher (nur lokales DMG, kein Push). Vor dem
+  ersten `--publish`-Lauf: `gh auth status` prüfen + remote `github` muss zeigen auf
+  `github.com/DanielMuellerIR/mucke_baby`.
 - **Lizenzen/Fremdbestandteile: siehe [`THIRD-PARTY.md`](THIRD-PARTY.md).** Kurz: VLCKit
   = LGPL (Hinweis+Dynamic-Linking, erfüllbar); KI-Texturen/Icon (Z-Image-Turbo) = Apache-2.0
   (kommerziell frei); Fonts = System; Marke „Marshall"→„Stack" entschärft. Kommerziell möglich.

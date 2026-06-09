@@ -16,6 +16,7 @@
 #      (App-spezifisches Passwort INTERAKTIV eingeben, NIE als CLI-Argument.)
 #
 # Aufruf:  bash wrappers/sign-and-release.sh
+#          bash wrappers/sign-and-release.sh --publish   # setzt git-Tag + lädt DMG zu GitHub hoch
 # Wissen:  siehe lokalen Wissensindex (knowledge/macos-app-distribution.md)
 
 set -euo pipefail
@@ -138,6 +139,45 @@ echo "==> Stapele Ticket"
 xcrun stapler staple "$DMG_PATH"
 xcrun stapler validate "$DMG_PATH"
 spctl --assess --type open --context context:primary-signature -v "$DMG_PATH" || true
+
+# ---------- 5. (optional) GitHub-Release veröffentlichen ----------
+# Nur mit --publish. Setzt Tag vX.Y.Z, erstellt das Release, lädt das DMG hoch
+# und entnimmt die Release-Notes aus dem passenden CHANGELOG.md-Abschnitt.
+# Öffentliches Pushen ist rückfragepflichtig → daher opt-in, nicht Default.
+PUBLISH=0
+for arg in "$@"; do [ "$arg" = "--publish" ] && PUBLISH=1; done
+
+if [ "$PUBLISH" = "1" ]; then
+  TAG="v${APP_VERSION}"
+  REPO="DanielMuellerIR/mucke_baby"
+  echo "==> Veröffentliche GitHub-Release $TAG"
+  command -v gh >/dev/null || { echo "FEHLER: gh CLI fehlt (brew install gh)" >&2; exit 1; }
+
+  # Release-Notes aus CHANGELOG.md ziehen: Zeilen ab "## [VERSION]" bis zum nächsten "## [".
+  NOTES_FILE="$BUILD_DIR/release-notes-${APP_VERSION}.md"
+  awk -v ver="$APP_VERSION" '
+    $0 ~ "^## \\[" ver "\\]" { grab=1; next }
+    grab && /^## \[/         { exit }
+    grab                     { print }
+  ' "$PROJECT_ROOT/CHANGELOG.md" > "$NOTES_FILE"
+  [ -s "$NOTES_FILE" ] || echo "Mucke, Baby! $TAG" > "$NOTES_FILE"
+
+  # git-Tag setzen (idempotent) und pushen.
+  if ! git -C "$PROJECT_ROOT" rev-parse "$TAG" >/dev/null 2>&1; then
+    git -C "$PROJECT_ROOT" tag -a "$TAG" -m "Mucke, Baby! $TAG"
+    git -C "$PROJECT_ROOT" push github "$TAG"
+  fi
+
+  # Release anlegen — oder, falls es schon existiert, nur das Asset aktualisieren.
+  if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+    gh release upload "$TAG" "$DMG_PATH" -R "$REPO" --clobber
+  else
+    gh release create "$TAG" "$DMG_PATH" -R "$REPO" \
+      --title "Mucke, Baby! $TAG" \
+      --notes-file "$NOTES_FILE"
+  fi
+  echo "==> Release online: https://github.com/$REPO/releases/tag/$TAG"
+fi
 
 echo
 echo "==> Fertig"
