@@ -1,6 +1,6 @@
 # Mucke, Baby! — Offene Todos
 
-Stand: 2026-06-07 (v1.7.18, HEAD df1f94a). Projektfakten in `AGENTS.md`. Diese Liste = was noch offen ist.
+Stand: 2026-06-09 (v1.7.31). Projektfakten in `AGENTS.md`. Diese Liste = was noch offen ist.
 
 ## START HIER — nächste Session
 
@@ -156,6 +156,10 @@ Kurzname/Repo/Ordner sollen `mucke_baby` heißen (Anzeigename bleibt „Mucke, B
 
 ## Release / Doku
 
+- [x] **GitHub-Release-Infrastruktur (2026-06-09, v1.7.31):** `CHANGELOG.md` angelegt (Keep a
+  Changelog, Englisch). `wrappers/sign-and-release.sh --publish` baut, setzt git-Tag, lädt DMG
+  hoch, zieht Release-Notes aus CHANGELOG. Ohne `--publish` unverändert lokales DMG.
+  **Nächster Schritt (Daniel):** `gh auth status` prüfen, dann `bash wrappers/sign-and-release.sh --publish`.
 - [ ] **D1 — README.de.md** (deutsche Fassung) + Sprachumschalt-Zeile, falls GitHub-Release
   (globale Regel mehrsprachige README).
 - [ ] **D2 — Aufnahme-Default für Public.** Für eine Veröffentlichung Default auf AUS
