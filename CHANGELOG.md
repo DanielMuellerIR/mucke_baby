@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.36] - 2026-06-10
+### Changed
+- History action buttons (Apple Music, Spotify, Lyrics, Export) now show a text label beneath the icon; the Apple Music button uses the Apple logo glyph. All four labels are bottom-aligned (a fixed icon box evens out differing SF Symbol glyph heights).
+- History selection highlight now uses the theme's own selection color instead of the macOS system highlight color, which could clash with a theme. The list no longer relies on the built-in (system-tinted) selection.
+- Refreshed the README theme screenshots to reflect the current UI (volume control moved into the footer).
+
 ## [1.7.35] - 2026-06-10
 ### Changed
 - Volume control moved from the header into the footer, next to the playback time (all themes). In the header it overlapped the macOS title region (`.fullSizeContentView`), where the native window-drag intercepts the mouse-down before the control receives it — so the Retro/GuitarAmp knob dragged the window instead of turning. The footer is outside that region, so a plain drag gesture works reliably.
