@@ -227,57 +227,6 @@ private struct NonDraggableArea: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Grosses AppKit-Hit-Target fuer den Lautstaerke-Knopf in der Titelregion.
-///
-/// Warum AppKit statt SwiftUI-DragGesture: Die Kopfleiste liegt wegen
-/// `.fullSizeContentView` in der macOS-Titelregion. Wenn ein SwiftUI-Control dort den
-/// Mouse-Down nicht sofort als echte View-Hit-Zone gewinnt, interpretiert AppKit den
-/// Klick als Fensterziehen. Diese NSView ist selbst das Hit-Target, setzt
-/// `mouseDownCanMoveWindow=false` und schreibt die Lautstaerke direkt in das Binding.
-private struct VolumeKnobHitTarget: NSViewRepresentable {
-    @Binding var volume: Double
-
-    final class View: NSView {
-        var readVolume: () -> Double = { 0 }
-        var writeVolume: (Double) -> Void = { _ in }
-
-        private var startVolume: Double = 0
-        private var startPoint: NSPoint?
-
-        override var mouseDownCanMoveWindow: Bool { false }
-        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-        override func mouseDown(with event: NSEvent) {
-            startVolume = readVolume()
-            startPoint = event.locationInWindow
-        }
-
-        override func mouseDragged(with event: NSEvent) {
-            guard let startPoint else { return }
-            let point = event.locationInWindow
-            // Gleiches Drehgefuehl wie bisher: nach oben oder rechts ziehen macht lauter.
-            let delta = Double((-(point.y - startPoint.y) + (point.x - startPoint.x)) / 120)
-            writeVolume(min(1, max(0, startVolume + delta)))
-        }
-
-        override func mouseUp(with event: NSEvent) {
-            startPoint = nil
-        }
-    }
-
-    func makeNSView(context: Context) -> View {
-        let view = View()
-        view.readVolume = { volume }
-        view.writeVolume = { volume = $0 }
-        return view
-    }
-
-    func updateNSView(_ nsView: View, context: Context) {
-        nsView.readVolume = { volume }
-        nsView.writeVolume = { volume = $0 }
-    }
-}
-
 /// Feine waagrechte Bürstlinien für die gebürstete Goldplatte (GuitarAmp-Kopf).
 /// Deterministisch (LCG-Hash, kein random) und CPU-schonend.
 private struct BrushedGoldSheen: View {
@@ -328,6 +277,8 @@ struct ContentView: View {
     @State private var showingGenres = false
     @State private var editStation: Station?
     @State private var didAutoplay = false
+    // Startwert der Lautstaerke beim Beginn eines Knopf-Drags (knob-Themes). nil = kein Drag aktiv.
+    @State private var knobDragStart: Double? = nil
     // Einmaliger Willkommens-Hinweis beim allerersten Start (Audio-Berechtigung +
     // Default-AN-Mitschnitt erklaeren). Flag persistiert, damit er nur einmal kommt.
     @AppStorage("didShowWelcome") private var didShowWelcome = false
@@ -535,16 +486,29 @@ struct ContentView: View {
     @ViewBuilder
     private var headerVolume: some View {
         if theme.control == .knob {
-            // Der sichtbare Knopf bleibt klein, aber das AppKit-Hit-Target ist breit und
-            // kopfhoch. Dadurch bekommt der Knopf den Mouse-Down statt der Fenster-Titelregion.
+            // Der sichtbare Knopf ist klein (38 pt). Damit er bedienbar ist, wird das KLICK-/
+            // ZIEH-Target per Padding deutlich vergrößert (horizontal viel Platz, vertikal durch
+            // die Kopfhöhe begrenzt) — contentShape macht das gesamte gepolsterte Rechteck
+            // greifbar. (Daniel: Target war fast unbedienbar.)
+            // Sichtbarer Knopf klein (38pt), aber GROSSES Klick-/Ziehtarget: füllt die ganze
+            // Kopfhöhe und viel Breite. `NonDraggableArea` im Hintergrund verhindert, dass der
+            // Klick stattdessen das Fenster verschiebt (Knopf liegt in der Titelregion).
             KnobView(value: volume, label: "VOL", tint: theme.palette.accent, diameter: 38)
-                .allowsHitTesting(false)
-                .frame(width: 104)
-                .frame(maxHeight: .infinity)
-                .overlay {
-                    VolumeKnobHitTarget(volume: $volume)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                .frame(maxHeight: .infinity)          // volle Kopfhöhe greifbar
+                .padding(.horizontal, 30)
+                .contentShape(Rectangle())
+                .background(NonDraggableArea())
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { g in
+                            let start = knobDragStart ?? volume
+                            if knobDragStart == nil { knobDragStart = volume }
+                            // hoch ODER rechts ziehen = lauter (Drehgefühl)
+                            let delta = Double((-g.translation.height + g.translation.width) / 120)
+                            volume = min(1, max(0, start + delta))
+                        }
+                        .onEnded { _ in knobDragStart = nil }
+                )
                 .help("Lautstärke: \(Int(volume * 100)) % — ziehen zum Drehen")
         } else {
             HStack(spacing: 6) {
