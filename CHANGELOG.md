@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.32] - 2026-06-10
+### Changed
+- Refined bitmap material assets for the Acid Rave, Retro, Fanzine, GuitarAmp, and Danish themes.
+
 ## [1.7.31] - 2026-06-09
 ### Fixed
 - Adaptive header bar: title no longer overlaps the traffic-light buttons at narrow window widths.
