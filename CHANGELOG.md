@@ -5,9 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.35] - 2026-06-10
+### Changed
+- Volume control moved from the header into the footer, next to the playback time (all themes). In the header it overlapped the macOS title region (`.fullSizeContentView`), where the native window-drag intercepts the mouse-down before the control receives it — so the Retro/GuitarAmp knob dragged the window instead of turning. The footer is outside that region, so a plain drag gesture works reliably.
+
 ## [1.7.34] - 2026-06-10
 ### Fixed
-- Volume knob in the Retro and GuitarAmp themes is draggable again — the previous AppKit hit-target overlay let clicks fall through to the window-drag region. Restored the proven SwiftUI drag gesture backed by a non-draggable AppKit area.
+- Volume knob in the Retro and GuitarAmp themes is draggable again (superseded by 1.7.35, which moves the control into the footer — the header sits in the non-interactive window-drag region).
 
 ## [1.7.33] - 2026-06-10
 ### Fixed

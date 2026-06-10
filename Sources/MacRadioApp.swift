@@ -214,19 +214,6 @@ private struct WindowConfigurator: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Macht einen Bereich NICHT fenster-verschiebbar. Da unsere Kopfleiste über der (transparenten,
-/// fullSizeContentView-)Titelregion liegt, würde ein Mausklick dort sonst das Fenster ziehen statt
-/// das Steuerelement zu bedienen — genau das passierte beim Lautstärkeknopf. Eine NSView mit
-/// `mouseDownCanMoveWindow=false` unter dem Knopf unterbindet den Fenster-Drag, der Klick landet
-/// auf der Geste.
-private struct NonDraggableArea: NSViewRepresentable {
-    final class View: NSView {
-        override var mouseDownCanMoveWindow: Bool { false }
-    }
-    func makeNSView(context: Context) -> NSView { View() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
 /// Feine waagrechte Bürstlinien für die gebürstete Goldplatte (GuitarAmp-Kopf).
 /// Deterministisch (LCG-Hash, kein random) und CPU-schonend.
 private struct BrushedGoldSheen: View {
@@ -433,10 +420,8 @@ struct ContentView: View {
             .disabled(player.currentStation == nil)
             .help(player.isPlaying ? "Stopp" : "Wiedergabe")
 
-            // Laufzeit sitzt jetzt im Fuß (war hier doppelt) → spart Platz in der Kopfleiste.
-
-            // Lautstaerke (Daniel-Wunsch: oben)
-            headerVolume
+            // Laufzeit + Lautstaerke sitzen jetzt im Fuß (neben der Zeit) — in der Titelregion
+            // der Kopfleiste fing der native Fenster-Drag den Knopf-Mouse-Down ab.
 
             Rectangle().fill(theme.palette.divider).frame(width: 1, height: 20)
             headerActions
@@ -481,24 +466,21 @@ struct ContentView: View {
         }
     }
 
-    /// Lautstaerke in der Kopfleiste. knob-Themes (retro/stack): drehbarer Goldknopf
-    /// (ziehen = drehen, fotorealistische Textur). Sonst Slider mit Speaker-Icons.
+    /// Lautstaerke-Regler im Fuß (neben der Laufzeit). knob-Themes (retro/stack): drehbarer
+    /// Goldknopf (ziehen = drehen), sonst Slider mit Speaker-Icons.
+    ///
+    /// Warum jetzt im Fuß: In der Kopfleiste lag der Regler über der (wegen `.fullSizeContentView`)
+    /// transparenten macOS-Titelregion. Dort fängt der native Fenster-Drag den Mouse-Down ab,
+    /// BEVOR eine SwiftUI-Geste (oder eine NSView mit `mouseDownCanMoveWindow=false`) ihn sieht —
+    /// der Knopf zog also das Fenster statt zu drehen. Der Fuß liegt außerhalb der Titelregion,
+    /// dort genügt eine schlichte SwiftUI-DragGesture.
     @ViewBuilder
-    private var headerVolume: some View {
+    private var volumeControl: some View {
         if theme.control == .knob {
-            // Der sichtbare Knopf ist klein (38 pt). Damit er bedienbar ist, wird das KLICK-/
-            // ZIEH-Target per Padding deutlich vergrößert (horizontal viel Platz, vertikal durch
-            // die Kopfhöhe begrenzt) — contentShape macht das gesamte gepolsterte Rechteck
-            // greifbar. (Daniel: Target war fast unbedienbar.)
-            // Sichtbarer Knopf klein (38pt), aber GROSSES Klick-/Ziehtarget: füllt die ganze
-            // Kopfhöhe und viel Breite. `NonDraggableArea` im Hintergrund verhindert, dass der
-            // Klick stattdessen das Fenster verschiebt (Knopf liegt in der Titelregion).
-            KnobView(value: volume, label: "VOL", tint: theme.palette.accent, diameter: 38)
-                .frame(maxHeight: .infinity)          // volle Kopfhöhe greifbar
-                .padding(.horizontal, 30)
+            KnobView(value: volume, label: "VOL", tint: theme.palette.accent, diameter: 30)
+                .padding(.horizontal, 6)
                 .contentShape(Rectangle())
-                .background(NonDraggableArea())
-                .highPriorityGesture(
+                .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { g in
                             let start = knobDragStart ?? volume
@@ -589,6 +571,10 @@ struct ContentView: View {
                 .fixedSize()
                 .help("Laufzeit")
             }
+
+            // Lautstaerke-Regler — neben der Laufzeit (außerhalb der Titelregion bedienbar).
+            volumeControl
+                .fixedSize()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
