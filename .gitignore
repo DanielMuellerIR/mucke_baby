@@ -18,9 +18,6 @@ design-proposal/.system_generated/
 # Scratch: MUCKE_SHOTS-Screenshots, Diag-Logs etc.
 tmp/
 
-# Marshall-Stil-Mockups: lokal behalten, nicht veröffentlichen (Trade-Dress; siehe THIRD-PARTY.md)
-design-proposal/marshall_amp_design_*.png
-design-proposal/shots/marshall.png
 # Fremde/persönliche untracked Datei
 macradio-sender.json
 
