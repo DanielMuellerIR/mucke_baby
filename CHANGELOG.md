@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.34] - 2026-06-10
+### Fixed
+- Volume knob in the Retro and GuitarAmp themes is draggable again — the previous AppKit hit-target overlay let clicks fall through to the window-drag region. Restored the proven SwiftUI drag gesture backed by a non-draggable AppKit area.
+
 ## [1.7.33] - 2026-06-10
 ### Fixed
 - Retro history action icons now use dark ink on the parchment background.
