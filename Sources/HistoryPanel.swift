@@ -22,6 +22,7 @@ struct HistoryPanel: View {
     @State private var selection: SongEntry.ID?
     @State private var lyricsFor: SongEntry?
     @State private var exportMsg = ""
+    @State private var showExportChoice = false
 
     // Verlauf-Tinte: auf der hellen Pergament-Textur (retro) waere der dunkle
     // Theme-Text unlesbar -> dort eine dunkle Tinte erzwingen. Sonst der normale
@@ -29,6 +30,25 @@ struct HistoryPanel: View {
     private var historyInk: Color { theme.id == .retro ? Color(hex: "#2A2018") : theme.palette.textPrimary }
     private var historyInkDim: Color { theme.id == .retro ? Color(hex: "#5C4A38") : theme.palette.textSecondary }
     private var historyActionInk: Color { theme.id == .retro ? Color(hex: "#6B5432") : theme.palette.textSecondary }
+
+    /// Beschriftung eines Verlauf-Aktions-Buttons: Icon oben, kurzer Text darunter.
+    /// Vertikal, damit die vier Buttons auch in der schmalen Verlauf-Spalte nebeneinander passen.
+    @ViewBuilder
+    private func historyActionLabel(_ system: String, _ text: String) -> some View {
+        VStack(spacing: 2) {
+            // Feste Icon-Box: SF-Symbole haben unterschiedliche Glyphenhoehen (z.B. „text.quote"
+            // ist niedriger als „music.note") -> ohne fixe Hoehe sitzt der Text je Button anders.
+            // Gleich hohe Box + .bottom-Ausrichtung der Reihe -> alle Labels exakt unten buendig.
+            Image(systemName: system).font(.system(size: 13))
+                .frame(height: 15)
+            Text(text)
+                .themedFont(theme, .label, size: 9 * uiFontScale)
+                .lineLimit(1)
+        }
+        .foregroundStyle(historyActionInk)
+        .frame(minWidth: 38)
+        .contentShape(Rectangle())
+    }
 
     private func clean(_ comp: Calendar.Component, _ value: Int) {
         let cutoff = Calendar.current.date(byAdding: comp, value: -value, to: Date()) ?? Date()
@@ -83,12 +103,20 @@ struct HistoryPanel: View {
                 Spacer()
             } else {
                 ScrollViewReader { proxy in
-                    List(selection: $selection) {
+                    List {
                         ForEach(history.entries) { entry in
-                            SongRow(entry: entry).tag(entry.id).id(entry.id)
-                                // `.draggable` (statt `.onDrag`) vertraegt sich mit der
-                                // List-Klick-Selektion; der Export laeuft erst beim Drop
-                                // (off-main), blockiert also den Klick nicht.
+                            SongRow(entry: entry).id(entry.id)
+                                // Selektion manuell (kein `List(selection:)`): macOS faerbt das
+                                // eingebaute Inset-Highlight mit der SYSTEM-Highlight-Farbe, die
+                                // `.tint` nicht zuverlaessig ueberschreibt und oft nicht zum Theme
+                                // passt. Stattdessen eigener, theme-getoenter Zeilenhintergrund.
+                                .listRowBackground(
+                                    selection == entry.id ? theme.palette.selection : Color.clear
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture { selection = entry.id }
+                                // `.draggable` (statt `.onDrag`) vertraegt sich mit dem Tap;
+                                // der Export laeuft erst beim Drop (off-main), blockiert den Klick nicht.
                                 .draggable(DraggableSong(entry: entry, recorder: player.recorder))
                         }
                     }
@@ -98,10 +126,6 @@ struct HistoryPanel: View {
                     // unlesbare Tinte (dunkle Schrift lag auf dem dunklen List-Default-Material,
                     // Creme nur als „Rahmen") und macht alle Themes konsistent.
                     .scrollContentBackground(.hidden)
-                    // Selektions-Highlight in der Theme-Farbe statt System-Akzent (Bug 2:
-                    // bei z.B. Black MIDI zog die List das orange System-Orange). schlicht:
-                    // accent == .accentColor → bleibt der native System-Akzent.
-                    .tint(theme.palette.accent)
                     .onChange(of: history.entries) { _, _ in
                         if let last = history.entries.last?.id {
                             withAnimation { proxy.scrollTo(last, anchor: .bottom) }
@@ -114,37 +138,40 @@ struct HistoryPanel: View {
             }
 
             Divider()
-            // Aktionen fuer den ausgewaehlten Titel (kompakt, icon-only).
-            HStack(spacing: 10) {
+            // Aktionen fuer den ausgewaehlten Titel — Icon UND Text (Daniel-Wunsch).
+            // Vertikal (Icon oben, Label unten) bleibt schmal genug fuer die enge Spalte.
+            // .bottom: alle Labels liegen unten buendig (Icon-Box gleicht Glyphenhoehen aus).
+            HStack(alignment: .bottom, spacing: 4) {
+                // Apple Music: das Apple-Logo-Zeichen (U+F8FF) statt des Wortes „Apple".
                 Button { if let e = selectedEntry { openInMusic(e) } } label: {
-                    Image(systemName: "music.note")
-                        .foregroundStyle(historyActionInk)
+                    historyActionLabel("music.note", "\u{F8FF} Music")
                 }.buttonStyle(.plain).help("In Apple Music suchen").disabled(!selectedIsLookup)
                 Button { if let e = selectedEntry { openInSpotify(e) } } label: {
-                    Image(systemName: "music.note.list")
-                        .foregroundStyle(historyActionInk)
+                    historyActionLabel("music.note.list", "Spotify")
                 }.buttonStyle(.plain).help("In Spotify / im Web suchen").disabled(!selectedIsLookup)
                 Button { lyricsFor = selectedEntry } label: {
-                    Image(systemName: "text.quote")
-                        .foregroundStyle(historyActionInk)
+                    historyActionLabel("text.quote", "Lyrics")
                 }.buttonStyle(.plain).help("Songtext anzeigen").disabled(!selectedIsLookup)
-                Menu {
+                // Plain-Button (statt Menu) — der borderlessButton-Menustil rendert sein Label
+                // groesser/horizontal und ignoriert die kleine Schrift; so saehe „Export" anders
+                // aus als die anderen drei. Die zwei Export-Varianten kommen in einen Dialog.
+                Button { showExportChoice = true } label: {
+                    historyActionLabel("square.and.arrow.up", "Export")
+                }
+                .buttonStyle(.plain)
+                .help("Song aus Aufnahme exportieren (oder per Drag&Drop aus der Liste ziehen)")
+                .confirmationDialog("Song exportieren", isPresented: $showExportChoice, titleVisibility: .visible) {
                     Button("Als Datei (harter Schnitt) …") { exportToFile(.hardCut) }
                     Button("Als Datei (ein-/ausgefadet) …") { exportToFile(.faded) }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(historyActionInk)
+                    Button("Abbrechen", role: .cancel) {}
                 }
-                .menuStyle(.borderlessButton).fixedSize()
-                .help("Song aus Aufnahme exportieren (oder per Drag&Drop aus der Liste ziehen)")
-                Spacer()
+                Spacer(minLength: 0)
                 if !exportMsg.isEmpty {
                     Text(exportMsg)
                         .themedFont(theme, .label, size: 10 * uiFontScale)
                         .foregroundColor(theme.palette.textSecondary).lineLimit(1)
                 }
             }
-            .controlSize(.large)
             .disabled(selectedEntry == nil)
             .padding(8)
         }
