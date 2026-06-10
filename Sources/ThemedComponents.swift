@@ -674,6 +674,7 @@ public struct VisualizerView: View {
                 needleColor: isRetro ? Color(hex: "#7A2E12") : theme.palette.accent,
                 faceColor: isRetro ? Color(hex: "#F2E8CE") : theme.palette.stageBackground,
                 textColor: isRetro ? Color(hex: "#5C4A2E") : theme.palette.textSecondary,
+                bezelStyle: isRetro ? .brushedSteel : .polishedGold,
                 audioTap: audioTap
             )
 
@@ -817,6 +818,12 @@ private struct ScopeShape: Shape {
 
 // MARK: - VUMeterVisualizer
 
+/// Material der einzelnen VU-Meter-Einfassung.
+private enum VUMeterBezelStyle {
+    case brushedSteel
+    case polishedGold
+}
+
 /// Analoges VU-Nadel-Meter (ein oder zwei Gauge-Halbkreise mit Skala und Nadel).
 /// Wenn isPlaying: Nadel schlägt aus. Wenn pausiert: Nadel ruht links.
 private struct VUMeterVisualizer: View {
@@ -825,6 +832,7 @@ private struct VUMeterVisualizer: View {
     let needleColor: Color
     let faceColor: Color
     let textColor: Color
+    let bezelStyle: VUMeterBezelStyle
     let audioTap: AudioTap
 
     var body: some View {
@@ -859,6 +867,7 @@ private struct VUMeterVisualizer: View {
         SingleVUMeter(
             t: t, channel: channel, isPlaying: isPlaying,
             needleColor: needleColor, faceColor: faceColor, textColor: textColor,
+            bezelStyle: bezelStyle,
             audioTap: audioTap
         )
     }
@@ -905,6 +914,7 @@ private struct SingleVUMeter: View {
     let needleColor: Color
     let faceColor: Color
     let textColor: Color
+    let bezelStyle: VUMeterBezelStyle
     let audioTap: AudioTap
 
     @State private var ball = NeedleBallistics()
@@ -947,11 +957,34 @@ private struct SingleVUMeter: View {
             let cx = w / 2
             // Bogen-Band [cy−r, cy] vertikal in der Zelle zentrieren → cy = h/2 + r/2.
             let cy = h / 2 + radius / 2
+            let bezelRadius = radius * 1.10
+            let bezelGradient = LinearGradient(
+                colors: bezelStyle == .brushedSteel
+                    ? [Color(hex: "#E1D6BE"), Color(hex: "#8B7B5D"), Color(hex: "#30281B")]
+                    : [Color(hex: "#F6D878"), Color(hex: "#C79B38"), Color(hex: "#6F4D12")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            let innerShadow = bezelStyle == .brushedSteel
+                ? Color(hex: "#241B12").opacity(0.35)
+                : Color.black.opacity(0.46)
 
             ZStack {
-                // Hintergrundscheibe
+                // 1) Eigenes Gehaeuse pro Meter: kein grosser gemeinsamer Kasten mehr.
+                GaugeArc(cx: cx, cy: cy, radius: bezelRadius)
+                    .fill(bezelGradient)
+                    .shadow(color: .black.opacity(0.50), radius: 7, y: 3)
+
+                // 2) Dunkle Einlass-Fase zwischen Metall und Skalenblatt.
+                GaugeArc(cx: cx, cy: cy, radius: radius * 1.04)
+                    .fill(innerShadow)
+
+                // 3) Skalenblatt.
                 GaugeArc(cx: cx, cy: cy, radius: radius)
                     .fill(faceColor.opacity(0.85))
+                    .shadow(color: .white.opacity(bezelStyle == .brushedSteel ? 0.18 : 0.05),
+                            radius: 2, x: -1, y: -1)
+                    .shadow(color: .black.opacity(0.22), radius: 2, x: 1, y: 1)
 
                 // Skalierungs-Striche
                 GaugeTicks(cx: cx, cy: cy, radius: radius, count: 11)
@@ -968,6 +1001,20 @@ private struct SingleVUMeter: View {
                 NeedleShape(cx: cx, cy: cy, radius: radius * 0.85, fraction: level)
                     .stroke(needleColor,
                             style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .shadow(color: .black.opacity(0.25), radius: 1.5, x: 1, y: 1)
+
+                // Kleine Achskappe macht den Zeiger analoger und verdeckt den Ursprung.
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [needleColor.opacity(0.95), Color.black.opacity(0.55)],
+                            center: UnitPoint(x: 0.35, y: 0.30),
+                            startRadius: 0,
+                            endRadius: max(4, radius * 0.055)
+                        )
+                    )
+                    .frame(width: max(7, radius * 0.075), height: max(7, radius * 0.075))
+                    .position(x: cx, y: cy)
 
                 // Kanal-Label
                 Text(channel == 0 ? "L" : "R")

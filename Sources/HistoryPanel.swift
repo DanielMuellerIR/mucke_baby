@@ -28,6 +28,7 @@ struct HistoryPanel: View {
     // Haupt-/Nebentext aus der Palette.
     private var historyInk: Color { theme.id == .retro ? Color(hex: "#2A2018") : theme.palette.textPrimary }
     private var historyInkDim: Color { theme.id == .retro ? Color(hex: "#5C4A38") : theme.palette.textSecondary }
+    private var historyActionInk: Color { theme.id == .retro ? Color(hex: "#6B5432") : theme.palette.textSecondary }
 
     private func clean(_ comp: Calendar.Component, _ value: Int) {
         let cutoff = Calendar.current.date(byAdding: comp, value: -value, to: Date()) ?? Date()
@@ -66,9 +67,9 @@ struct HistoryPanel: View {
                     Button("Älter als 1 Monat löschen") { clean(.month, 1) }
                     Divider()
                     Button("Gesamten Verlauf löschen", role: .destructive) { history.clear() }
-                } label: { Image(systemName: "ellipsis.circle") }
+                } label: { Image(systemName: "ellipsis.circle").foregroundStyle(historyActionInk) }
                     .menuStyle(.borderlessButton).fixedSize().help("Verlauf-Optionen")
-                Button { onClose() } label: { Image(systemName: "sidebar.trailing") }
+                Button { onClose() } label: { Image(systemName: "sidebar.trailing").foregroundStyle(historyActionInk) }
                     .buttonStyle(.plain).help("Verlauf ausblenden")
             }
             .padding(10)
@@ -117,18 +118,22 @@ struct HistoryPanel: View {
             HStack(spacing: 10) {
                 Button { if let e = selectedEntry { openInMusic(e) } } label: {
                     Image(systemName: "music.note")
-                }.help("In Apple Music suchen").disabled(!selectedIsLookup)
+                        .foregroundStyle(historyActionInk)
+                }.buttonStyle(.plain).help("In Apple Music suchen").disabled(!selectedIsLookup)
                 Button { if let e = selectedEntry { openInSpotify(e) } } label: {
                     Image(systemName: "music.note.list")
-                }.help("In Spotify / im Web suchen").disabled(!selectedIsLookup)
+                        .foregroundStyle(historyActionInk)
+                }.buttonStyle(.plain).help("In Spotify / im Web suchen").disabled(!selectedIsLookup)
                 Button { lyricsFor = selectedEntry } label: {
                     Image(systemName: "text.quote")
-                }.help("Songtext anzeigen").disabled(!selectedIsLookup)
+                        .foregroundStyle(historyActionInk)
+                }.buttonStyle(.plain).help("Songtext anzeigen").disabled(!selectedIsLookup)
                 Menu {
                     Button("Als Datei (harter Schnitt) …") { exportToFile(.hardCut) }
                     Button("Als Datei (ein-/ausgefadet) …") { exportToFile(.faded) }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
+                        .foregroundStyle(historyActionInk)
                 }
                 .menuStyle(.borderlessButton).fixedSize()
                 .help("Song aus Aufnahme exportieren (oder per Drag&Drop aus der Liste ziehen)")

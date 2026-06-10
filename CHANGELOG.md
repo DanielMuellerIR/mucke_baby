@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.33] - 2026-06-10
+### Fixed
+- Retro history action icons now use dark ink on the parchment background.
+- Volume knobs in the Retro and GuitarAmp themes have a larger non-draggable hit target.
+
+### Changed
+- Retro and GuitarAmp VU meters now use individual material bezels instead of a shared panel.
+- GuitarAmp header plate now uses a brighter polished brass asset and stronger surface treatment.
+
 ## [1.7.32] - 2026-06-10
 ### Changed
 - Refined bitmap material assets for the Acid Rave, Retro, Fanzine, GuitarAmp, and Danish themes.

@@ -227,6 +227,57 @@ private struct NonDraggableArea: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
+/// Grosses AppKit-Hit-Target fuer den Lautstaerke-Knopf in der Titelregion.
+///
+/// Warum AppKit statt SwiftUI-DragGesture: Die Kopfleiste liegt wegen
+/// `.fullSizeContentView` in der macOS-Titelregion. Wenn ein SwiftUI-Control dort den
+/// Mouse-Down nicht sofort als echte View-Hit-Zone gewinnt, interpretiert AppKit den
+/// Klick als Fensterziehen. Diese NSView ist selbst das Hit-Target, setzt
+/// `mouseDownCanMoveWindow=false` und schreibt die Lautstaerke direkt in das Binding.
+private struct VolumeKnobHitTarget: NSViewRepresentable {
+    @Binding var volume: Double
+
+    final class View: NSView {
+        var readVolume: () -> Double = { 0 }
+        var writeVolume: (Double) -> Void = { _ in }
+
+        private var startVolume: Double = 0
+        private var startPoint: NSPoint?
+
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func mouseDown(with event: NSEvent) {
+            startVolume = readVolume()
+            startPoint = event.locationInWindow
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let startPoint else { return }
+            let point = event.locationInWindow
+            // Gleiches Drehgefuehl wie bisher: nach oben oder rechts ziehen macht lauter.
+            let delta = Double((-(point.y - startPoint.y) + (point.x - startPoint.x)) / 120)
+            writeVolume(min(1, max(0, startVolume + delta)))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            startPoint = nil
+        }
+    }
+
+    func makeNSView(context: Context) -> View {
+        let view = View()
+        view.readVolume = { volume }
+        view.writeVolume = { volume = $0 }
+        return view
+    }
+
+    func updateNSView(_ nsView: View, context: Context) {
+        nsView.readVolume = { volume }
+        nsView.writeVolume = { volume = $0 }
+    }
+}
+
 /// Feine waagrechte Bürstlinien für die gebürstete Goldplatte (GuitarAmp-Kopf).
 /// Deterministisch (LCG-Hash, kein random) und CPU-schonend.
 private struct BrushedGoldSheen: View {
@@ -281,9 +332,6 @@ struct ContentView: View {
     // Default-AN-Mitschnitt erklaeren). Flag persistiert, damit er nur einmal kommt.
     @AppStorage("didShowWelcome") private var didShowWelcome = false
     @State private var showingWelcome = false
-    // Lautstärke bei Beginn einer Knopf-Drehung (knob-Themes) — für relatives Ziehen.
-    @State private var knobDragStart: Double? = nil
-
     // Aktives Theme aus dem Environment (von MacRadioApp injiziert).
     @Environment(\.theme) private var theme
     // Schriftfaktor (CMD +/−/0) — die Kopfleiste skaliert mit.
@@ -459,12 +507,12 @@ struct ContentView: View {
             // optionale Goldtextur als Korn (blendMode .overlay), feine waagrechte Bürstlinien,
             // oben Glanzkante / unten Schattenkante (3D-Bevel der Platte).
             LinearGradient(
-                colors: [Color(hex: "#E6C86C"), Color(hex: "#C8A246"), Color(hex: "#9C7A2E")],
+                colors: [Color(hex: "#F7D97A"), Color(hex: "#D5A642"), Color(hex: "#94691C")],
                 startPoint: .top, endPoint: .bottom
             )
             .overlay {
                 if let gold = theme.image(theme.accentTexture) {
-                    gold.resizable().scaledToFill().opacity(0.28).blendMode(.overlay)
+                    gold.resizable().scaledToFill().opacity(0.62).blendMode(.overlay)
                 }
             }
             .overlay { BrushedGoldSheen() }
@@ -487,29 +535,16 @@ struct ContentView: View {
     @ViewBuilder
     private var headerVolume: some View {
         if theme.control == .knob {
-            // Der sichtbare Knopf ist klein (38 pt). Damit er bedienbar ist, wird das KLICK-/
-            // ZIEH-Target per Padding deutlich vergrößert (horizontal viel Platz, vertikal durch
-            // die Kopfhöhe begrenzt) — contentShape macht das gesamte gepolsterte Rechteck
-            // greifbar. (Daniel: Target war fast unbedienbar.)
-            // Sichtbarer Knopf klein (38pt), aber GROSSES Klick-/Ziehtarget: füllt die ganze
-            // Kopfhöhe und viel Breite. `NonDraggableArea` im Hintergrund verhindert, dass der
-            // Klick stattdessen das Fenster verschiebt (Knopf liegt in der Titelregion).
+            // Der sichtbare Knopf bleibt klein, aber das AppKit-Hit-Target ist breit und
+            // kopfhoch. Dadurch bekommt der Knopf den Mouse-Down statt der Fenster-Titelregion.
             KnobView(value: volume, label: "VOL", tint: theme.palette.accent, diameter: 38)
-                .frame(maxHeight: .infinity)          // volle Kopfhöhe greifbar
-                .padding(.horizontal, 30)
-                .contentShape(Rectangle())
-                .background(NonDraggableArea())
-                .highPriorityGesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { g in
-                            let start = knobDragStart ?? volume
-                            if knobDragStart == nil { knobDragStart = volume }
-                            // hoch ODER rechts ziehen = lauter (Drehgefühl)
-                            let delta = Double((-g.translation.height + g.translation.width) / 120)
-                            volume = min(1, max(0, start + delta))
-                        }
-                        .onEnded { _ in knobDragStart = nil }
-                )
+                .allowsHitTesting(false)
+                .frame(width: 104)
+                .frame(maxHeight: .infinity)
+                .overlay {
+                    VolumeKnobHitTarget(volume: $volume)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
                 .help("Lautstärke: \(Int(volume * 100)) % — ziehen zum Drehen")
         } else {
             HStack(spacing: 6) {
@@ -860,10 +895,10 @@ struct StageView: View {
             // Buehnen-Hintergrundflaeche
             ThemedSurface(.stage)
 
-            if theme.id == .retro {
-                // Retro: VU-Meter in ein eingelassenes Mess-Panel mit gebürstetem Metall-
-                // Bezel fassen, dahinter warmes Bernstein-Röhrenglühen (Vintage-Amp-Wärme).
-                retroMeterStage
+            if theme.id == .retro || theme.id == .stack {
+                // Retro/GuitarAmp: kein grosser Kasten mehr. Die Materialflaeche der Stage
+                // bleibt sichtbar, nur die einzelnen VU-Meter bekommen eigene Einfassungen.
+                vuMeterStage
             } else {
                 // Visualizer füllt die Stage
                 VisualizerView(isPlaying: player.isPlaying)
@@ -872,52 +907,21 @@ struct StageView: View {
         }
     }
 
-    /// Retro-Bühne: Amber-Glow + eingefasstes VU-Mess-Panel.
-    private var retroMeterStage: some View {
-        let amber = theme.palette.accent
+    /// VU-Bühne: Materialhintergrund der Stage behalten, VU-Meter direkt darauf platzieren.
+    private var vuMeterStage: some View {
         let playing = player.isPlaying
         return ZStack {
-            // 1) Weiter, warmer Halo über der ganzen Bühne (sichtbar im Rand um das Panel).
-            RadialGradient(
-                gradient: Gradient(colors: [Color(hex: "#E08A2E").opacity(playing ? 0.22 : 0.10), .clear]),
-                center: .center, startRadius: 30, endRadius: 380
-            )
-            .blendMode(.screen)
+            if theme.id == .retro {
+                // Nur Retro bekommt den warmen Roehren-Halo auf dem Holz/Metall-Hintergrund.
+                RadialGradient(
+                    gradient: Gradient(colors: [Color(hex: "#E08A2E").opacity(playing ? 0.20 : 0.08), .clear]),
+                    center: .center, startRadius: 30, endRadius: 420
+                )
+                .blendMode(.screen)
+            }
 
-            // 2) VU-Meter im eingelassenen, von innen warm beleuchteten Mess-Panel.
             VisualizerView(isPlaying: playing)
-                .padding(16)
-                // Panel-Fläche: dunkle Glasscheibe mit Amber-Backlight (Röhren-Hinterleuchtung)
-                // hinter den cremefarbenen Skalen + innerem Schatten oben (Tiefe).
-                .background(
-                    ZStack {
-                        Color(hex: "#17120B")
-                        RadialGradient(
-                            gradient: Gradient(colors: [amber.opacity(playing ? 0.32 : 0.15),
-                                                        amber.opacity(playing ? 0.10 : 0.05), .clear]),
-                            center: .center, startRadius: 0, endRadius: 240
-                        )
-                        .blendMode(.screen)
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(LinearGradient(colors: [.black.opacity(0.65), .clear],
-                                                   startPoint: .top, endPoint: .center),
-                                    lineWidth: 3)
-                    }
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                // Gebürsteter Metall-Bezel (warmer Stahl/Bronze-Verlauf).
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(
-                            LinearGradient(colors: [Color(hex: "#7A6A4E"), Color(hex: "#2C2418"),
-                                                    Color(hex: "#6A5A40")],
-                                           startPoint: .top, endPoint: .bottom),
-                            lineWidth: 6)
-                )
-                // Schlagschatten → Panel liegt auf der Bühne auf.
-                .shadow(color: .black.opacity(0.55), radius: 8, y: 3)
-                .padding(.horizontal, 26)
-                .padding(.vertical, 30)
+                .padding(theme.id == .retro ? 26 : 22)
         }
     }
 }
