@@ -8,6 +8,12 @@ A native macOS internet‑radio player (SwiftUI + VLCKit) with seven hand‑craf
 
 > The app's UI is in German; this README is English.
 
+## Download
+
+**[➜ Download the latest signed & notarized DMG](https://github.com/DanielMuellerIR/mucke_baby/releases/latest)** — open it, drag *Mucke, Baby!* into Applications and double‑click. Signed with a Developer ID and notarized by Apple, so it opens without a Gatekeeper warning. Requires macOS 14.2 or newer (Apple Silicon).
+
+Prefer to build from source? See [Run it](#run-it-cli--headlessfriendly) below.
+
 ## Screenshots
 
 <p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave theme — neon oscilloscope"></p>
