@@ -6,6 +6,12 @@
 
 Ein nativer macOS-Internetradio-Player (SwiftUI + VLCKit) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Eine Mac-Umsetzung der Idee hinter dem Linux-Mint-Applet **Radio++**.
 
+## Download
+
+**[➜ Aktuelles signiertes & notarisiertes DMG herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/latest)** — öffnen, „Mucke, Baby!“ in den Programme-Ordner ziehen und doppelklicken. Mit Developer ID signiert und von Apple notarisiert, öffnet also ohne Gatekeeper-Warnung. Benötigt macOS 14.2 oder neuer (Apple Silicon).
+
+Lieber selbst aus dem Quellcode bauen? Siehe [Starten](#starten-kommandozeile--headless-tauglich) weiter unten.
+
 ## Screenshots
 
 <p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave — Neon-Oszilloskop"></p>
