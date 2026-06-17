@@ -10,12 +10,12 @@ final class PlayerDelegateShim: NSObject, VLCMediaPlayerDelegate {
     var onState: (() -> Void)?
     var onTime: (() -> Void)?
 
-    func mediaPlayerStateChanged(_ aNotification: Notification!) {
+    func mediaPlayerStateChanged(_ aNotification: Notification) {
         DispatchQueue.main.async { self.onState?() }
     }
     // Zeit laeuft -> zuverlaessiges "spielt jetzt"-Signal (state bleibt bei
     // Live-Streams oft auf .buffering haengen).
-    func mediaPlayerTimeChanged(_ aNotification: Notification!) {
+    func mediaPlayerTimeChanged(_ aNotification: Notification) {
         DispatchQueue.main.async { self.onTime?() }
     }
 }
@@ -37,8 +37,8 @@ final class RadioPlayer: ObservableObject {
     // B2: Zeitpunkt, ab dem der aktuelle Sender wirklich spielt (erstes Audio).
     // Footer zeigt daraus die laufende Sender-Laufzeit. nil = spielt nicht.
     @Published private(set) var playStartedAt: Date?
-    // Aufgelöste Direkt-Stream-URL des laufenden Senders. Der Audio-Analyse-Player (AudioTap)
-    // dekodiert dieselbe URL parallel (stumm) für die Visualizer-Reaktivität.
+    // Aufgelöste Direkt-Stream-URL des laufenden Senders. Der AudioTap dekodiert NICHT parallel;
+    // er nutzt diese Published-URL nur als Start/Stop-Signal und tappt dann die Prozessausgabe.
     @Published private(set) var currentStreamURL: URL?
 
     let history = SongHistory()
@@ -109,7 +109,7 @@ final class RadioPlayer: ObservableObject {
         player.media = media
         player.audio?.volume = Int32(desiredVolume * 100)
         player.play()
-        currentStreamURL = url   // Analyse-Player (AudioTap) hängt sich an dieselbe URL
+        currentStreamURL = url   // AudioTap starten: er tappt die eigene Prozessausgabe
 
         // ICY-Reader: Now-Playing-Titel + (bei aktivierter Aufnahme) Audio mitschneiden.
         let recorder = self.recorder
@@ -177,6 +177,8 @@ final class RadioPlayer: ObservableObject {
         switch state {
         case .opening, .buffering:
             if !isPlaying { isLoading = true; statusText = String(localized: "Puffert …") }
+        case .esAdded:
+            break
         case .playing:
             handleTimeAdvanced()
         case .paused, .stopped, .ended:

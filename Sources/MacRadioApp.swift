@@ -9,7 +9,8 @@ struct MacRadioApp: App {
     @StateObject private var store = Store()
     @StateObject private var player = RadioPlayer()
     @StateObject private var health = StationHealth()
-    // Audio-Reaktivität der Visualizer (CoreAudio Process-Tap auf die eigene Ausgabe).
+    // Audio-Reaktivität der Visualizer (CoreAudio Process-Tap auf die eigene Ausgabe,
+    // vor der Analyse gegen die App-Lautstaerke normalisiert).
     @StateObject private var audioTap = AudioTap()
     // Nur fuer headless Theme-Screenshots aktiv (Env MUCKE_SHOTS); sonst No-Op.
     @NSApplicationDelegateAdaptor(MuckeAppDelegate.self) private var appDelegate
@@ -275,6 +276,8 @@ struct ContentView: View {
     // Schriftfaktor (CMD +/−/0) — die Kopfleiste skaliert mit.
     @Environment(\.uiFontScale) private var uiFontScale
     // Audio-Reaktivität (Process-Tap) — wird beim Start angeworfen, von den Visualizern gelesen.
+    // Der Tap sieht die Prozessausgabe nach dem Lautstaerkeregler; deshalb bekommt er den
+    // Reglerwert, um die Analyse wieder auf Originalpegel zu normalisieren.
     @EnvironmentObject private var audioTap: AudioTap
 
     // Kopf-Vordergrund: Bei GuitarAmp liegt die Kopfleiste auf einer HELLEN Goldplatte → die
@@ -314,8 +317,16 @@ struct ContentView: View {
         // klein genug, dass der Mittelbereich (Stage, Schwelle 780) beim Schmalziehen ausblendet.
         .frame(minWidth: 620, minHeight: 420)
         // Gemeinsame Modifier
-        .onAppear { player.setVolume(Float(volume)) }
-        .onChange(of: volume) { _, v in player.setVolume(Float(v)) }
+        .onAppear {
+            let v = Float(volume)
+            player.setVolume(v)
+            audioTap.setOutputVolume(v)
+        }
+        .onChange(of: volume) { _, v in
+            let fv = Float(v)
+            player.setVolume(fv)
+            audioTap.setOutputVolume(fv)
+        }
         .task {
             // Allererster Start: erst den Willkommens-Hinweis zeigen, Autoplay erst beim
             // Schliessen (onDismiss) — sonst legt sich der macOS-Audio-Prompt ueber den Text.
@@ -332,7 +343,7 @@ struct ContentView: View {
         .onChange(of: player.currentStation?.id) { _, id in
             if let id { lastStationID = id.uuidString }
         }
-        // Audio-Analyse-Player (Visualizer-Reaktivität) an die laufende Stream-URL koppeln.
+        // AudioTap ist URL-agnostisch; die laufende Stream-URL ist nur das Start/Stop-Signal.
         .onChange(of: player.currentStreamURL) { _, url in audioTap.setStream(url) }
         .sheet(isPresented: $showingAdd) { StationEditView(station: nil) }
         .sheet(item: $editStation) { st in StationEditView(station: st) }

@@ -12,6 +12,7 @@ EXE="MuckeBaby"
 BUNDLE="Mucke, Baby!"
 BUILD="build"
 APPDIR="$BUILD/$BUNDLE.app"
+MODULE_CACHE="$BUILD/module-cache"   # projektlokal: funktioniert auch in Sandbox/Agent-Umgebungen
 SDK="$(xcrun --show-sdk-path)"
 TARGET="arm64-apple-macos14.2"   # CoreAudio Process-Tap (AudioTap) braucht 14.2+
 
@@ -33,11 +34,12 @@ fi
 
 # --- Bundle-Geruest -----------------------------------------------------
 rm -rf "$BUILD"/*.app          # alte Bundles (auch frueheres MacRadio.app) weg
-mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources" "$APPDIR/Contents/Frameworks"
+mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources" "$APPDIR/Contents/Frameworks" "$MODULE_CACHE"
 
 echo "Kompiliere …"
 swiftc -O -parse-as-library \
   -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$MODULE_CACHE" \
   -F "$FWDIR" -framework VLCKit \
   -framework SwiftUI -framework AppKit -framework CoreAudio \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \

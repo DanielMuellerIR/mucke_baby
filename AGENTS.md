@@ -39,6 +39,8 @@ build/MacRadio.app/Contents/MacOS/MacRadio
 - `Store.swift` — Senderliste laden/speichern, CRUD, Favorit, Seed-Import, **Genre-Listen-Import**.
 - `RadioPlayer.swift` — VLCKit-Wrapper: play/stop, Status, Volume. „Spielt"-Signal über
   `mediaPlayerTimeChanged` (state bleibt bei Live-Streams oft auf `.buffering` hängen).
+- `AudioTap.swift` — CoreAudio Process-Tap auf die eigene Prozessausgabe für Visualizer;
+  Analyse normalisiert gegen den App-Lautstärkeregler (bei 0 % bleibt echte Stille).
 - `ICYMetadataReader.swift` — liest den Now-Playing-Titel (ICY `StreamTitle`) per eigener
   Zweitverbindung (`Icy-MetaData:1`, `icy-metaint`). **VLCKit liefert die Live-Metadaten nicht.**
 - `SongHistory.swift` — Wiedergabeverlauf (`verlauf.json`): pro Titel Eintrag mit Start/Ende.
@@ -84,6 +86,9 @@ build/MacRadio.app/Contents/MacOS/MacRadio
   Frühere AVFoundation-Engine konnte das nicht; deshalb der Wechsel (2026-06-07).
 - **„Spielt"-Erkennung:** `VLCMediaPlayer.state` bleibt bei Live-Streams oft auf `.buffering`
   hängen, obwohl Audio läuft → als playing gilt das erste `mediaPlayerTimeChanged`-Event.
+- **Visualizer-Pegel:** CoreAudio Process-Tap sieht die VLC-Ausgabe nach dem App-Lautstärkeregler.
+  `AudioTap` rechnet den Regler vor RMS/FFT/Waveform wieder heraus (Floor 1 % gegen
+  Rausch-/Rundungsaufblasen). Bei komplett stummem Output ist kein Signal rekonstruierbar.
 - **Now-Playing:** VLCKit gibt den ICY-`StreamTitle` NICHT über `metaData` heraus (immer leer,
   `title` = nur Mount-Name) → eigener `ICYMetadataReader` liest ihn aus einer Zweitverbindung.
 - **VLC-`stop()` ist asynchron:** in `play()` NICHT aufrufen, sonst würgt der späte Stop die
@@ -178,4 +183,3 @@ defaults write de.danielmuller.macradio selectedTheme -string schlicht   # in sc
 MUCKE_SHOTS="$PWD/design-proposal/shots" "build/Mucke, Baby!.app/Contents/MacOS/MacRadio"
 # -> design-proposal/shots/<theme>.png je Theme, App beendet sich selbst.
 ```
-

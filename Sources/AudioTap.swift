@@ -1,7 +1,9 @@
 // AudioTap.swift — Audio-Reaktivität für die Theme-Visualizer.
 //
 // ANSATZ (Variante C, CoreAudio Process-Tap, macOS 14.4+): Wir tappen die TONAUSGABE des EIGENEN
-// Prozesses ab — also exakt das, was der sichtbare VLCKit-Player gerade auf die Boxen gibt.
+// Prozesses ab — also denselben, bereits von CoreAudio getakteten Output wie der sichtbare
+// VLCKit-Player. Der Tap liegt NACH der VLC-Lautstaerke; vor der Analyse rechnen wir den
+// App-Regler darum wieder heraus, damit der Visualizer auch bei leiser Wiedergabe ausschlaegt.
 // Vorteile gegenüber dem früheren zweiten libVLC-Player (Variante B):
 //   • PERFEKT SYNCHRON — es ist dasselbe Audio, kein zweiter Stream mit eigenem Puffer/Versatz.
 //   • DURCHGEHEND FLÜSSIG — CoreAudio liefert regelmäßige kleine Puffer (kein 10-Hz-Geruckel).
@@ -37,6 +39,7 @@ final class AudioTap: ObservableObject {
     private var _bands = [Float](repeating: 0, count: AudioTap.bandCount)
     private var _wave = [Float](repeating: 0, count: AudioTap.waveCount)   // Oszilloskop-Kurve −1…1
     private var _silentRuns = 0            // aufeinanderfolgende stille Callback-Aufrufe
+    private var _outputVolume: Float = 1   // App-Lautstaerke 0…1; wird aus dem Tap herausgerechnet
     private var loggedSignal = false       // einmaliges Log, sobald echtes Audio ankommt
 
     private(set) var isActive = false      // läuft der Tap gerade?
@@ -56,6 +59,11 @@ final class AudioTap: ObservableObject {
     private var window = [Float]()
     private var sampleRing = [Float]()     // gleitendes Mono-Fenster
     private var ringFill = 0
+    // Bei extrem kleiner Lautstaerke wuerde 1/volume Rauschen und Rundungsreste massiv
+    // aufblasen. Bis 1 % wird exakt kompensiert; darunter bleibt der Visualizer sichtbar,
+    // aber nicht mehr mathematisch vollstaendig rekonstruierbar. Bei 0 % gibt es im Tap
+    // tatsaechlich nur Stille.
+    private let minimumRecoverableOutputVolume: Float = 0.01
 
     init() { setupFFT() }
     deinit { stop(); if let s = fftSetup { vDSP_destroy_fftsetup(s) } }
@@ -92,6 +100,16 @@ final class AudioTap: ObservableObject {
     }
 
     // MARK: Steuerung — Tap läuft, solange ein Sender spielt
+
+    /// Aktuelle Hoer-Lautstaerke der App. Der Process-Tap sieht das Signal NACH diesem Regler;
+    /// fuer die Visualizer-Analyse rechnen wir ihn wieder heraus, damit die optische Dynamik
+    /// nicht kleiner wird, nur weil leise gehoert wird.
+    func setOutputVolume(_ volume: Float) {
+        let clamped = max(0, min(1, volume))
+        os_unfair_lock_lock(&lock)
+        _outputVolume = clamped
+        os_unfair_lock_unlock(&lock)
+    }
 
     /// Wird bei jedem Senderwechsel mit der aktuellen Stream-URL gerufen. Der Tap ist
     /// URL-AGNOSTISCH (er greift die Ausgabe ab, egal welcher Sender) → wir starten ihn einmal,
@@ -296,20 +314,22 @@ final class AudioTap: ObservableObject {
 
     // MARK: Audio-Analyse (läuft auf dem CoreAudio-IO-Thread — schlank halten!)
 
-    /// Mono-Float-PCM (−1…1) → RMS + FFT + Oszilloskop-Kurve → publizieren.
+    /// Mono-Float-PCM (−1…1) → Lautstaerke-normalisieren → RMS + FFT + Oszilloskop-Kurve
+    /// → publizieren. Die Normalisierung betrifft NUR den Visualizer, nicht die Wiedergabe.
     private func feedMono(_ mono: [Float]) {
-        let frames = mono.count
+        let analysisMono = volumeNormalized(mono)
+        let frames = analysisMono.count
         guard frames > 0 else { return }
 
         var meanSq: Float = 0
-        vDSP_measqv(mono, 1, &meanSq, vDSP_Length(frames))
+        vDSP_measqv(analysisMono, 1, &meanSq, vDSP_Length(frames))
         let rms = sqrtf(meanSq)
         // Pegel-Kurve: moderater Gain (Headroom gegen Dauer-Anschlag) PLUS sanfte Kompression
         // (^0.7) — hebt leise Passagen (z.B. leise Klassik) sichtbar an, ohne laute Stellen
         // ständig ins Clipping zu treiben. Die Ballistik (Attack/Release) macht die Nadel selbst.
         let lvl = min(1, powf(rms * 3.5, 0.7))
 
-        pushSamples(mono)
+        pushSamples(analysisMono)
         let newBands = computeBands()
         // Oszilloskop-Schnappschuss: gleitendes Fenster auf `waveCount` Punkte herunterrechnen.
         var wave = [Float](repeating: 0, count: waveCount)
@@ -330,6 +350,28 @@ final class AudioTap: ObservableObject {
         if let nb = newBands { _bands = nb }
         _wave = wave
         os_unfair_lock_unlock(&lock)
+    }
+
+    /// Rechnet den App-Lautstaerkeregler aus den getappten Samples heraus. Beispiel:
+    /// VLC spielt mit 25 % → der Tap liefert 0.25x-Amplitude → Analyse bekommt wieder 1.0x.
+    private func volumeNormalized(_ mono: [Float]) -> [Float] {
+        os_unfair_lock_lock(&lock)
+        let outputVolume = _outputVolume
+        os_unfair_lock_unlock(&lock)
+
+        guard outputVolume > 0.0001 else { return mono }
+        var gain = 1 / max(outputVolume, minimumRecoverableOutputVolume)
+        guard abs(gain - 1) > 0.001 else { return mono }
+
+        var normalized = mono
+        vDSP_vsmul(normalized, 1, &gain, &normalized, 1, vDSP_Length(normalized.count))
+
+        // Nach der Rueckrechnung auf den normalen Float-PCM-Bereich begrenzen. Das schuetzt
+        // vor kurzzeitigen Spitzen, ohne reale Musikdynamik fuer den Visualizer zu verlieren.
+        var lo: Float = -1
+        var hi: Float = 1
+        vDSP_vclip(normalized, 1, &lo, &hi, &normalized, 1, vDSP_Length(normalized.count))
+        return normalized
     }
 
     // MARK: FFT

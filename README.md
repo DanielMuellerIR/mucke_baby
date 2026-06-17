@@ -50,7 +50,7 @@ open "build/Mucke, Baby!.app"                    # launch
 
 - Plays **all codecs** via VLCKit/libVLC (mp3, aac, **ogg, opus**, flac, …).
 - **Seven themes**, each with its own layout, textures and visualizer: Standard, Acid Rave, Retro, Fanzine, GuitarAmp, Danish, Black MIDI.
-- **Audio‑reactive visualizers** — analog VU needles, oscilloscope, spectrum bars and a piano‑roll — driven by a **CoreAudio process tap** on the app's own output, so the picture is perfectly in sync with the sound and stays smooth (~90 Hz).
+- **Audio‑reactive visualizers** — analog VU needles, oscilloscope, spectrum bars and a piano‑roll — driven by a **CoreAudio process tap** on the app's own output. The tapped signal is normalized before analysis, so lowering the app volume does not shrink the visuals; the picture stays perfectly in sync and smooth (~90 Hz).
 - **Now‑playing** artist/title via a built‑in ICY metadata reader (selectable & copyable), with correct decoding of non‑UTF‑8 stations (UTF‑8 → Shift‑JIS/CP932 → Latin‑1, e.g. Japanese senders).
 - **History panel** ("Verlauf") — every track with start/end times and station, kept across station switches.
 - **Optional stream recording** (off by default) — records the playing stream to `~/Music/MuckeBaby/Aufnahmen/`, with per‑song extraction; auto‑stops when less than 10 GB is free.
@@ -63,7 +63,7 @@ open "build/Mucke, Baby!.app"                    # launch
 
 ### Audio‑reactivity permission
 
-The visualizers read the app's own audio output through a CoreAudio process tap. On first launch macOS asks once for audio‑recording permission; granting it is required for the reactive visuals (with a Developer‑ID signature the grant is remembered permanently). Without it the app still plays — the visualizers just idle.
+The visualizers read the app's own audio output through a CoreAudio process tap. On first launch macOS asks once for audio‑recording permission; granting it is required for the reactive visuals (with a Developer‑ID signature the grant is remembered permanently). The app volume is compensated before analysis; at full mute there is no signal to recover. Without permission the app still plays — the visualizers just idle.
 
 ## Data
 
