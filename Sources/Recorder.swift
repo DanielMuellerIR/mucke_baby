@@ -66,12 +66,11 @@ final class Recorder: @unchecked Sendable {
     // Songwechsel: Rollover, falls die laufende Datei aelter als 24 h ist.
     func songBoundary(at date: Date = Date()) {
         q.async {
-            guard let start = self.fileStart, var last = self.clips.last, last.end == nil else { return }
+            guard let start = self.fileStart, let last = self.clips.last, last.end == nil else { return }
             if date.timeIntervalSince(start) > 24 * 3600 {
                 let station = last.station, ext = last.ext
                 self._close(at: date)
                 self._begin(station: station, ext: ext, at: date)
-                _ = last   // (nur zur Klarheit)
             }
         }
     }

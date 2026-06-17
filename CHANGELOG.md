@@ -4,6 +4,8 @@ All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Changed
+- Visualizers now normalize the tapped app output against the app volume, so lowering listening volume no longer reduces visualizer amplitude. Fully muted output still has no recoverable signal.
 
 ## [1.7.37] - 2026-06-17
 ### Changed
