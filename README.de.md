@@ -4,7 +4,7 @@
 
 ![Mucke, Baby!](icons/social-s123.png)
 
-Ein nativer macOS-Internetradio-Player (SwiftUI + VLCKit) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Ursprünglich vom Linux-Mint-Applet **Radio++** inspiriert — inzwischen ein eigenständiges Projekt, mit Verlauf, Stream-Aufnahme (inkl. songweiser Extraktion), Direktlinks zu Apple Music / Spotify und mehr.
+Ein nativer macOS-Internetradio-Player (SwiftUI + VLCKit) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Ursprünglich vom Linux-Mint-Applet **Radio++** inspiriert — inzwischen ein eigenständiges Projekt, mit Verlauf, Stream-Aufnahme (inkl. songweiser Extraktion), Direktlinks zu Apple Music / Spotify und mehr. Es gibt auch einen iPhone-Ableger: [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
 
 ## Download
 
