@@ -278,14 +278,14 @@ struct Theme: Identifiable {
         backgroundTexture: "bg-tolex.png", accentTexture: "plate-gold.png")
 
     // 5 — danish: seidenmattes Alu (LIGHT), Eiche/Wolle, ultra-thin Sans, minimal-Equalizer.
-    // (Stoff-Scheibe entfernt — Daniel: „Kreis raus"; Kontrast angehoben.)
+    // (Stoff-Scheibe entfernt — Kreis bewusst weggelassen; Kontrast angehoben.)
     static let danish = Theme(
         id: .danish, name: "Danish", colorScheme: .light, layout: .console,
         palette: ThemePalette(
             windowBackground: Color(hex: "#ECEAE6"),
             panelBackground:  Color(hex: "#F3F1EE"),
             stageBackground:  Color(hex: "#EFEDE9"),
-            // Kontrast nochmals angehoben (Daniel: nicht-fette Schrift zu blass): Sekundär-/Dim-
+            // Kontrast nochmals angehoben (nicht-fette Schrift zu blass): Sekundär-/Dim-
             // Texte deutlich dunkler — die dünne Schriftstärke braucht kräftigere Farbe.
             textPrimary: Color(hex: "#1A1A1A"), textSecondary: Color(hex: "#332F2A"),
             textDim: Color(hex: "#514C44"),

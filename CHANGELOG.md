@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.37] - 2026-06-17
+### Changed
+- Stream recording is now **off by default**. Enabling it in Settings (or the welcome screen) persists across app restarts, as before; only a fresh install now starts with recording disabled.
+- README reworded: the app is described as *inspired by* the Linux Mint "Radio++" applet rather than a reimplementation of it, reflecting features it has grown beyond the original (history, recording with per-song extraction, Apple Music / Spotify links, themes, audio-reactive visualizers).
+
 ## [1.7.36] - 2026-06-10
 ### Changed
 - History action buttons (Apple Music, Spotify, Lyrics, Export) now show a text label beneath the icon; the Apple Music button uses the Apple logo glyph. All four labels are bottom-aligned (a fixed icon box evens out differing SF Symbol glyph heights).

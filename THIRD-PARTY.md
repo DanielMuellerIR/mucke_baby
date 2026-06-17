@@ -71,7 +71,7 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
 - **Stream-URLs** sind Fakten (nicht urheberrechtlich schützbar). Die **Streams selbst**
   gehören den jeweiligen Sendern.
 - **Mitgeliefert:** `Resources/seed-stations.example.json` (generische Default-Liste).
-  Daniels persönliche Liste (`Resources/seed-stations.json`) ist **gitignored**.
+  Die persönliche Senderliste (`Resources/seed-stations.json`) ist **gitignored**.
 - **Genre-Listen** (`Resources/genre-lists/`): **handkuratierte** Sammlungen, je Eintrag nur
   `{name, url}` (z.B. SomaFM, bekannte Genre-Sender). Manuell zusammengestellt — die Senderauswahl
   erfolgte teils über die radio-browser-Suche und bekannte Stationen; es wurde **kein**
@@ -79,7 +79,7 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
   nicht urheberrechtlich schützbar, s. o.) plus selbstvergebene Anzeigenamen. → Keine
   Datenlizenzpflicht.
 - **Aufnahme-Funktion:** nimmt fremde Streams auf → urheberrechtliche Frage des **Nutzers**,
-  nicht der Distribution. README warnt; für ein Release Default ggf. auf AUS (TODO D2).
+  nicht der Distribution. Standardmäßig **AUS**; der Nutzer aktiviert sie bewusst.
 
 ## 6. Marke „Marshall" → „Stack" (erledigt) + Git-Historie
 
@@ -100,9 +100,9 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
 
 ## 7. Eigenständiger Code
 
-- App-Code ist eine eigene SwiftUI-Implementierung. Funktions-**Nachbau** des Linux-Mint-
-  Applets „Radio++" (Features/Ideen sind frei) — **kein** Code/Asset von dort übernommen.
-  Die Seed-Liste stammt aus Daniels eigenem Radio++-Export.
+- App-Code ist eine eigene SwiftUI-Implementierung. Vom Linux-Mint-Applet „Radio++"
+  **inspiriert** (Features/Ideen sind frei) — **kein** Code/Asset von dort übernommen.
+  Die mitgelieferte Beispiel-Senderliste ist generisch.
 
 ---
 

@@ -294,7 +294,7 @@ struct ContentView: View {
             // 3-Spalten-Layout (Stations | Stage+Visualizer | Verlauf). Standard = minimalste
             // Skin. Spalten werden responsiv ein-/ausgeblendet (s. consoleBody).
             consoleBody
-            // Fuß: aktueller Titel groß + kopierbar (Daniel-Wunsch). Transport/Lautstärke
+            // Fuß: aktueller Titel groß + kopierbar. Transport/Lautstärke
             // sitzen oben in der Kopfleiste — hier NUR die Now-Playing-Anzeige.
             Rectangle().fill(theme.palette.divider).frame(height: 1)
             nowPlayingFooter
@@ -306,8 +306,8 @@ struct ContentView: View {
         // beginnt die Kopfleiste ganz oben; die Ampel-Buttons liegen INLINE darüber (die
         // headerBar reserviert links 68 pt Platz für sie). (TODO #2)
         .ignoresSafeArea(.container, edges: .top)
-        // Kein blauer Fokus-Rahmen auf den Buttons (Daniel: „sieht doof aus, gilt für alle
-        // Buttons"). Gilt fürs ganze Fensterinhalt; Sheets (Eingabefelder) sind eigene
+        // Kein blauer Fokus-Rahmen auf den Buttons (sieht bewusst schlicht aus, gilt für alle
+        // Buttons). Gilt fürs ganze Fensterinhalt; Sheets (Eingabefelder) sind eigene
         // Präsentationen und behalten ihren Fokus-Ring.
         .focusEffectDisabled()
         // Mindestbreite: so breit, dass die Kopfleiste (Titel + Controls) nicht clippt, aber
@@ -360,7 +360,7 @@ struct ContentView: View {
     private func autoplayIfNeeded() {
         guard autoplay, !didAutoplay else { return }
         didAutoplay = true
-        // Zuletzt gespielten Sender bevorzugen (Daniel-Wunsch); sonst Favorit, sonst erster.
+        // Zuletzt gespielten Sender bevorzugen; sonst Favorit, sonst erster.
         let last = store.enabledStations.first { $0.id.uuidString == lastStationID }
         if let target = last ?? store.favorite ?? store.enabledStations.first {
             player.play(target)
@@ -376,7 +376,7 @@ struct ContentView: View {
             // Platz fuer die schwebenden Ampel-Buttons (hiddenTitleBar laesst sie oben links)
             Color.clear.frame(width: 68, height: 1)
 
-            // App-Titel groß + Version (Titel darf NICHT klein sein — Daniel-Wunsch).
+            // App-Titel groß + Version (Titel darf NICHT klein sein).
             // .layoutPriority(1): Titel gibt erst nach, wenn Stopp-Label + Slider schon
             // kollabiert/geschrumpft sind. .lineLimit(1) statt .fixedSize() — Titel bleibt
             // groß, kürzt im absoluten Extremfall mit „…" statt die Ampel zu überlappen.
@@ -396,8 +396,8 @@ struct ContentView: View {
 
             Spacer(minLength: 12)
 
-            // Transport: Play/Stop (Daniel-Wunsch: Stopp oben). Bei Platzmangel fällt das
-            // Text-Label weg — nur das Icon bleibt (Daniel-Wunsch). ViewThatFits nimmt die
+            // Transport: Play/Stop (Stopp oben). Bei Platzmangel fällt das
+            // Text-Label weg — nur das Icon bleibt. ViewThatFits nimmt die
             // erste Variante, die in die verfügbare Breite passt.
             Button { if let s = player.currentStation { player.toggle(s) } } label: {
                 ViewThatFits(in: .horizontal) {
@@ -433,8 +433,8 @@ struct ContentView: View {
         .background { headerBackground }
     }
 
-    /// Kopfleisten-Hintergrund. Stack: gebürstete Goldplatte über dunklem Grund (Daniel-Wunsch
-    /// „echte Leiste aus gebürstetem Gold" = die obere Bedienleiste). Sonst Theme-Panel.
+    /// Kopfleisten-Hintergrund. Stack: gebürstete Goldplatte über dunklem Grund
+    /// (echte Leiste aus gebürstetem Gold = die obere Bedienleiste). Sonst Theme-Panel.
     @ViewBuilder
     private var headerBackground: some View {
         if theme.id == .stack {
@@ -610,7 +610,7 @@ struct ContentView: View {
     private var consoleBody: some View {
         // Responsiv: Stations | (Stage) | (Verlauf). Die Stage (Visualizer) wird unter einer
         // Breiten-Schwelle KOMPLETT ausgeblendet — nicht nur versteckt, sondern nicht gerendert
-        // → die TimelineView-Animation läuft dann gar nicht (keine Performance, Daniel-Wunsch).
+        // → die TimelineView-Animation läuft dann gar nicht (kein Performance-Overhead).
         GeometryReader { geo in
             let W = geo.size.width
             // Schwelle: unter STAGE_MIN ist zu wenig Platz für einen sinnvollen Visualizer.
@@ -651,7 +651,7 @@ struct ContentView: View {
             // Spalten-Kopf: nur Titel (Suche/Hinzufügen/Bearbeiten sitzen in der Kopfleiste).
             HStack(spacing: 8) {
                 // Header der Senderliste — in allen Themes "STATIONS" (kein .EXE;
-                // Windows-Endung entfernt, Daniel-Wunsch 2026-06-09).
+                // Windows-Endung bewusst entfernt, 2026-06-09).
                 SectionHeader("STATIONS")
                 Spacer()
                 if editing {

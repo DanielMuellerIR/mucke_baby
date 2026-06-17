@@ -75,7 +75,7 @@ struct PreferencesView: View {
 
     @AppStorage("autoplayOnLaunch") private var autoplay = true
     @AppStorage("menuBarMode") private var menuBarMode = false
-    @AppStorage("recordStreams") private var recordStreams = true
+    @AppStorage("recordStreams") private var recordStreams = false
     @State private var ioMessage = ""
 
     private var recordingsDir: URL {
@@ -104,7 +104,7 @@ struct PreferencesView: View {
                 }
                 Section("Aufnahme") {
                     Toggle("Laufende Streams mitschneiden", isOn: $recordStreams)
-                    Text("⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart.")
+                    Text("Standardmäßig AUS. Wenn aktiviert: zeichnet durchgehend auf (Roh-Audio), stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button("Aufnahmen im Finder zeigen") {
                         try? FileManager.default.createDirectory(at: recordingsDir, withIntermediateDirectories: true)
@@ -180,7 +180,7 @@ struct PreferencesView: View {
 struct WelcomeView: View {
     @Environment(\.dismiss) private var dismiss
     // Selber Key wie in den Einstellungen — Aenderung hier wirkt sofort dort und umgekehrt.
-    @AppStorage("recordStreams") private var recordStreams = true
+    @AppStorage("recordStreams") private var recordStreams = false
 
     private var recordingsDir: URL {
         FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
@@ -200,7 +200,7 @@ struct WelcomeView: View {
                 }
                 Section("Mitschnitt der Streams") {
                     Toggle("Laufende Streams mitschneiden", isOn: $recordStreams)
-                    Text("Ab Werk AN: Während des Hörens wird der Stream als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit abschaltbar — hier oder unter Einstellungen → Aufnahme.")
+                    Text("Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar.")
                         .font(.callout).foregroundStyle(.secondary)
                     Button("Aufnahme-Ordner zeigen") {
                         try? FileManager.default.createDirectory(at: recordingsDir, withIntermediateDirectories: true)
