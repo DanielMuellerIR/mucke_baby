@@ -97,7 +97,8 @@ cp -R "$FWDIR/VLCKit.framework" "$APPDIR/Contents/Frameworks/"
 # jedem ad-hoc-Build wechselnden cdhash (sonst fragt macOS staendig neu). Kein --timestamp
 # (braucht Netz, fuer lokale Builds unnoetig; die Release-Signatur in wrappers/ stempelt). Sonst
 # ad-hoc-Fallback. VLCKit wird mit derselben Identitaet signiert (Library-Validation).
-DEVID="Developer ID Application: Daniel Mueller (9QSWKSR4NQ)"
+# Signier-Identitaet ueberschreibbar (CI/anderer Account); Team-ID = Default-Fallback.
+DEVID="${CODESIGN_IDENTITY:-Developer ID Application: Daniel Mueller (${APPLE_TEAM_ID:-9QSWKSR4NQ})}"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "$DEVID"; then
   codesign --force --options runtime --sign "$DEVID" "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null 2>&1 || true
   codesign --force --options runtime --sign "$DEVID" "$APPDIR" >/dev/null 2>&1 || true

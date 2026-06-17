@@ -22,9 +22,10 @@
 set -euo pipefail
 
 # ---------- Konstanten ----------
-IDENTITY="Developer ID Application: Daniel Mueller (9QSWKSR4NQ)"
+# Team-ID/Identitaet ueberschreibbar (CI/anderer Account); Default als Fallback.
+TEAM_ID="${APPLE_TEAM_ID:-9QSWKSR4NQ}"
+IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Daniel Mueller ($TEAM_ID)}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-fftabsNotary}"
-TEAM_ID="9QSWKSR4NQ"
 
 APP_NAME="Mucke, Baby!"            # Bundle-/Anzeigename (mit Komma + Leerzeichen!)
 VOLNAME="Mucke, Baby!"            # DMG-Volume-Name (= /Volumes/<name>)
