@@ -4,7 +4,7 @@
 
 ![Mucke, Baby!](icons/social-s123.png)
 
-Ein nativer macOS-Internetradio-Player (SwiftUI + VLCKit) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Eine Mac-Umsetzung der Idee hinter dem Linux-Mint-Applet **Radio++**.
+Ein nativer macOS-Internetradio-Player (SwiftUI + VLCKit) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Ursprünglich vom Linux-Mint-Applet **Radio++** inspiriert — inzwischen ein eigenständiges Projekt, mit Verlauf, Stream-Aufnahme (inkl. songweiser Extraktion), Direktlinks zu Apple Music / Spotify und mehr.
 
 ## Download
 
@@ -51,6 +51,8 @@ open "build/Mucke, Baby!.app"                    # starten
 - **Audio-reaktive Visualizer** — analoge VU-Nadeln, Oszilloskop, Spektrum-Balken und eine Piano-Roll — gespeist von einem **CoreAudio-Process-Tap** auf die eigene Tonausgabe. Dadurch ist das Bild perfekt synchron zum Ton und bleibt flüssig (~90 Hz).
 - **Now-Playing** (Interpret/Titel) über einen eingebauten ICY-Metadaten-Leser (markier- und kopierbar), mit korrekter Dekodierung von Nicht-UTF-8-Sendern (UTF-8 → Shift-JIS/CP932 → Latin-1, z. B. japanische Sender).
 - **Verlauf** — jeder Titel mit Start-/Endzeit und Sender, auch über Senderwechsel hinweg.
+- **Optionale Stream-Aufnahme** (standardmäßig aus) — schneidet den laufenden Stream nach `~/Music/MuckeBaby/Aufnahmen/` mit, inkl. songweiser Extraktion; stoppt automatisch bei unter 10 GB frei.
+- **Direktlinks** aus dem Verlauf, um einen Titel in Apple Music oder Spotify nachzuschlagen.
 - Senderliste mit Play/Stop, Ein-/Ausblenden und Umsortieren pro Sender; ein **Favorit**, der beim Start automatisch spielt.
 - Sender hinzufügen / bearbeiten / löschen; **kuratierte Genre-Listen** per Klick importieren.
 - Playlist-Auflösung für `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
@@ -71,17 +73,6 @@ Die Sender liegen in einer editierbaren JSON-Datei:
 
 Beim ersten Start wird sie aus `Resources/seed-stations.json` befüllt, falls vorhanden, sonst aus der generischen `Resources/seed-stations.example.json` (die einzige mitgelieferte Liste).
 
-## ⚠️ Aufnahme ist standardmäßig AN
-
-Dieser Build **schneidet den laufenden Stream dauerhaft auf die Platte mit** (roher Audio-Dump in `~/Music/MuckeBaby/Aufnahmen/`) — bewusst für den privaten Gebrauch des Autors. Zu beachten:
-
-- Während ein Sender spielt, wird ständig geschrieben → **der Plattenverbrauch wächst**. Die Aufnahme **stoppt automatisch, wenn weniger als 10 GB frei** sind.
-- Pro Sender wird eine neue Datei begonnen; lange Einzelsender-Sitzungen rollen nach 24 h beim nächsten Titelwechsel über.
-- Die Aufnahme **öffnet eine zweite Verbindung** (Metadaten + Audio) für den Dump.
-- **Das Aufnehmen von Radiostreams kann rechtlich eingeschränkt sein** — je nach Land und Verwendung; das liegt in der Verantwortung des Nutzers.
-
-Abschalten unter **Einstellungen → Aufnahme** (oder `recordStreams = false`). Für eine öffentliche Veröffentlichung sollte der Standard auf AUS erwogen werden.
-
 ## Fremdbestandteile & Lizenzen
 
 Vollständige Aufstellung in [`THIRD-PARTY.md`](THIRD-PARTY.md). Kurz:
@@ -98,4 +89,4 @@ macOS **14.2+**, Apple Silicon, Xcode Command Line Tools (`xcode-select --instal
 
 ---
 
-*Status: privates Projekt. Funktionaler Nachbau der Idee hinter „Radio++" — es wurde kein Code und kein Asset von dort übernommen.*
+*Status: privates Projekt. Ursprünglich vom Linux-Mint-Applet „Radio++" angestoßen und inzwischen weit darüber hinausgewachsen — es wurde kein Code und kein Asset von Radio++ übernommen.*

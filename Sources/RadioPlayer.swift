@@ -51,9 +51,9 @@ final class RadioPlayer: ObservableObject {
     private var lastState: VLCMediaPlayerState?
     private var resolveTask: Task<Void, Never>?
 
-    // Mitschnitt Default AN (Daniel-Wunsch; README warnt davor).
+    // Mitschnitt standardmaessig AUS; in den Einstellungen aktivierbar.
     static var recordingEnabled: Bool {
-        UserDefaults.standard.object(forKey: "recordStreams") as? Bool ?? true
+        UserDefaults.standard.object(forKey: "recordStreams") as? Bool ?? false
     }
 
     init() {

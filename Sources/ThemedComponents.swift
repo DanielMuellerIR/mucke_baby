@@ -114,7 +114,7 @@ public struct ThemedSurface: View {
             case .panel:
                 if theme.id == .danish {
                     // Danish: Senderliste + Historie sollen KEINE gebürstete Aluminium-Textur
-                    // tragen (Daniel: Textur nur in Kopf/Fuß, dort über die .window-Fläche).
+                    // tragen (Textur bewusst nur in Kopf/Fuß, dort über die .window-Fläche).
                     // Darum deckende Panel-Farbe, kein Fenster-Durchschein, kein Alu-Overlay
                     // → ruhige, edle Flächen mit klarem Textkontrast.
                     baseColor
@@ -667,7 +667,7 @@ public struct VisualizerView: View {
         case .vu:
             // retro und stack teilen die VU-Mechanik, sehen aber unterschiedlich aus:
             // retro = cremefarbenes Vintage-Zifferblatt mit dunkler Nadel; stack = dunkles
-            // Zifferblatt mit Goldnadel (Daniel: „nicht bei beiden gleich aussehen").
+            // Zifferblatt mit Goldnadel (bewusst unterschiedliche Gestaltung).
             let isRetro = theme.id == .retro
             VUMeterVisualizer(
                 isPlaying: isPlaying,
@@ -920,7 +920,7 @@ private struct SingleVUMeter: View {
     @State private var ball = NeedleBallistics()
 
     /// Ziel-Pegel der Nadel (0…1). NUR bei echtem Signal der gemessene Pegel; sonst Ruhe (0) —
-    /// kein künstliches Zeitprogramm mehr (Daniel: lieber warten bis echte Pegel da sind, als
+    /// kein künstliches Zeitprogramm mehr (bewusst: lieber warten bis echte Pegel da sind, als
     /// Fake-Bewegung zeigen, etwa während der Analyse-Player nach Senderwechsel erst anläuft).
     private var targetLevel: Double {
         guard isPlaying, audioTap.reactive else { return 0.0 }
@@ -1375,7 +1375,7 @@ private struct MidiNotesVisualizer: View {
 // MARK: - BarsVisualizer
 
 /// Equalizer-Balken aus dem ECHTEN Spektrum (FFT-Bänder), pro Frame geglättet → butterweich.
-/// Kein Signal → Ruhe (flache Sockel), kein Fake-Zeitprogramm (Daniel: lieber warten).
+/// Kein Signal → Ruhe (flache Sockel), kein Fake-Zeitprogramm (bewusst: lieber warten).
 private struct BarsVisualizer: View {
 
     let isPlaying: Bool

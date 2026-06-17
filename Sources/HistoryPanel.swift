@@ -138,7 +138,7 @@ struct HistoryPanel: View {
             }
 
             Divider()
-            // Aktionen fuer den ausgewaehlten Titel — Icon UND Text (Daniel-Wunsch).
+            // Aktionen fuer den ausgewaehlten Titel — Icon UND Text.
             // Vertikal (Icon oben, Label unten) bleibt schmal genug fuer die enge Spalte.
             // .bottom: alle Labels liegen unten buendig (Icon-Box gleicht Glyphenhoehen aus).
             HStack(alignment: .bottom, spacing: 4) {

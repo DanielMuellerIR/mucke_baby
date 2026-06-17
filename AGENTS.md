@@ -11,7 +11,7 @@ des Linux-Mint-Applets **Radio++**.
 ## Vision / Zweck
 
 Schlanker Radioplayer als normales Fenster-App. Sender abspielen, verwalten,
-suchen. Menüleisten-Modus optional. Privat für Daniel; ggf. später GitHub-Release.
+suchen. Menüleisten-Modus optional.
 
 ## Tech-Stack
 
@@ -122,17 +122,19 @@ Exportdatei aus dem Radio++-Applet (Feld `tree.value` = die Sender; `last-volume
 
 ## Todos (später)
 
-**→ Vollständige, priorisierte Liste in `TODO.md`** (Bugs, Visualizer, Recorder-Export-Test,
-Icons, Release). Highlights: Verlauf-Platzhalter pro Session (sonst Mitschnitt ohne ICY-Titel
-nicht erreichbar), Footer-Laufzeit, Visualizer (Metal/RetroOutrun/CoreAudio-Tap).
+Offene Punkte (Auszug): audio-reaktiver Metal-Visualizer (V1–V4: Metal-Renderer,
+RetroOutrun-Shader, CoreAudio-Tap), Recorder-Export-Laufzeittest, Theme-Feinschliff,
+UI-Kopfzeile ohne Toolbar-Kapsel. Die vollständige, priorisierte Roadmap wird projektextern
+gepflegt (nicht im öffentlichen Repo).
 
 - **Alternativen recherchieren:** Welche Mac-Apps können Stream-Aufnahme + Song-Export, zu
-  welchen Konditionen (Preis, nervig/nicht)? Daniel hat früher nichts Kostenloses ohne
-  Gängelung gefunden — Stand der Dinge prüfen, Vergleich dokumentieren.
+  welchen Konditionen (Preis, Einschränkungen)? Bisher keine kostenlose Lösung ohne
+  Einschränkungen bekannt — Stand der Dinge prüfen, Vergleich dokumentieren.
 
 ## Recorder (Aufnahme) — Design (Stand 2026-06-07, im Bau)
 
-- **Default AN** (Daniel-Wunsch) — **README warnt** vor Dauer-Mitschnitt (Disk/Recht).
+- **Default AUS** — der Nutzer aktiviert den Mitschnitt bewusst; einmal gesetzt, bleibt die
+  Wahl über App-Neustarts hinweg erhalten (Disk-/Rechte-Hinweis in den Einstellungen).
 - **Kein Extra-Download:** der `ICYMetadataReader` lädt den Stream ohnehin komplett (für die
   Metadaten); beim Aufnehmen schreibt er die reinen Audio-Bytes (Metadaten-Blöcke raus) in eine
   Datei → direkt abspielbarer Roh-Dump, 0 zusätzliche Bandbreite.
