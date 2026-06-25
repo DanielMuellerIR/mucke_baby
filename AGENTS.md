@@ -135,6 +135,36 @@ gepflegt (nicht im öffentlichen Repo).
 - **Alternativen recherchieren:** Welche Mac-Apps können Stream-Aufnahme + Song-Export, zu
   welchen Konditionen (Preis, Einschränkungen)? Bisher keine kostenlose Lösung ohne
   Einschränkungen bekannt — Stand der Dinge prüfen, Vergleich dokumentieren.
+  (ex-intern #35)
+
+- **Nächste Bau-Schritte (Recorder/Verlauf):** (ex-intern #36)
+  - Verlauf-Platzhalter pro Sender-Session anlegen (ohne laufende Session fehlt der
+    Einstiegspunkt im Verlauf-Panel; ohne ICY-Titel ist der Mitschnitt sonst nicht erreichbar).
+  - Footer-Laufzeit anzeigen.
+  - Visualizer (nativ Metal, RetroOutrun-Shader aus `p_fraktal`, audio-reaktiv via CoreAudio-Tap).
+  - Recorder-Export zur Laufzeit testen.
+  - Weitere Schritte: Details lagen in `TODO.md` — Datei nicht vorhanden im Repo;
+    offene Recorder-Implementierungsschritte aus dem Design-Abschnitt oben
+    (Default AUS, ICYMetadataReader-Schreibpfad, Disk-Schutz, Retention, Schnitt/Export)
+    als nächste Implementierungseinheit nehmen.
+
+- **GitHub-Sichtbarkeit erhöhen:** (ex-intern #145)
+  Mucke Baby ist Flaggschiff-Projekt für die Promotion auf GitHub.
+  1. Demo-GIF erstellen, bevorzugt mit Theme „Black MIDI" (Daniels Favorit).
+  2. README erste Bildschirmseite + GitHub-Description auf „5-Sekunden-Klick" prüfen:
+     Ein-Satz-Was+Warum oben, Demo-GIF früh eingebettet, Copy-paste-Install-Befehl,
+     Topics gesetzt.
+  3. Danach auf passenden Kanälen + Awesome-Lists einreichen.
+
+- **Awesome-Lists — Ressourcen-Referenz:** (ex-intern #146)
+  Folgende Listen existieren für GitHub-Repo-Einreichungen (primär für Claude-Code-Tools):
+  - <https://github.com/hesreallyhim/awesome-claude-code> (Haupt-Liste: Skills, Hooks,
+    Slash-Commands, Plugins; PR-Einreichungsprozess dokumentiert)
+  - <https://github.com/travisvn/awesome-claude-skills>
+  - <https://github.com/ComposioHQ/awesome-claude-skills>
+  **Wichtig:** Diese Listen passen NICHT für mucke_baby (Webradio-Player, kein
+  Claude-Tool). Für mucke_baby andere Kanäle/Awesome-Lists suchen (z. B.
+  awesome-macos, awesome-swift, awesome-menubar o. Ä.).
 
 ## Recorder (Aufnahme) — Design (Stand 2026-06-07, im Bau)
 
