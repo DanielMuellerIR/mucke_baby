@@ -29,13 +29,21 @@ final class Store: ObservableObject {
     // MARK: - Laden / Speichern
 
     func loadStations() {
-        if let data = try? Data(contentsOf: stationsURL),
-           let list = try? JSONDecoder().decode([Station].self, from: data),
-           !list.isEmpty {
-            stations = list
-            return
+        if let data = try? Data(contentsOf: stationsURL) {
+            // Datei vorhanden: Dekodierung versuchen.
+            if let list = try? JSONDecoder().decode([Station].self, from: data), !list.isEmpty {
+                stations = list
+                return
+            }
+            // Datei vorhanden, aber nicht dekodierbar -> sichern statt ueberschreiben.
+            // Format: stations.json.broken-YYYY-MM-DD (ISO 8601, alphabetisch sortierbar).
+            let dateStr = ISO8601DateFormatter().string(from: Date()).prefix(10) // nur Datum
+            let backup = stationsURL.deletingLastPathComponent()
+                .appendingPathComponent("stations.json.broken-\(dateStr)")
+            // Eventuelle aeltere Sicherung desselben Tages einfach ueberschreiben (try? = ok).
+            try? FileManager.default.moveItem(at: stationsURL, to: backup)
         }
-        // Noch keine Datei -> aus Seed importieren und speichern.
+        // Keine Datei (oder kaputte Datei gesichert) -> aus Seed neu aufbauen.
         stations = seededStations()
         saveStations()
     }

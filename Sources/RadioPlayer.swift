@@ -141,7 +141,11 @@ final class RadioPlayer: ObservableObject {
         isLoading = false
         playStartedAt = nil
         currentStreamURL = nil
-        if !isErrorState { statusText = String(localized: "Gestoppt") }
+        // Fehlerzustand beim manuellen Stop immer zuruecksetzen: andernfalls bliebe
+        // statusText dauerhaft auf "Fehler: Stream nicht abspielbar", selbst wenn
+        // der Nutzer explizit stoppt und damit den Fehler quittiert.
+        isErrorState = false
+        statusText = String(localized: "Gestoppt")
     }
 
     // Verlauf + zugehoerige Aufnahmen aelter als `cutoff` loeschen.
