@@ -343,9 +343,12 @@ struct ContentView: View {
         // Inhalt eines bestehenden Senders aendert. Reines .count uebersah eine URL-
         // Korrektur an einem Sender (id + Anzahl unveraendert), sodass der alte
         // Health-Status bis zum App-Neustart haengenblieb. Wir leiten deshalb eine
-        // kompakte Signatur aus allen Sender-URLs ab und beobachten diese.
+        // kompakte Signatur aus allen Sender-URLs ab und beobachten diese. Die URLs
+        // werden vor dem Zusammenfuegen sortiert, damit eine reine Umsortierung der
+        // Sender (Store.move) KEINEN unnoetigen Netz-Recheck aller Sender ausloest —
+        // nur echtes Hinzufuegen/Entfernen/Aendern einer URL veraendert die Signatur.
         // codereview-ok: toggleEnabled-Nichtpruefen ist by design (deaktivierte Sender ignoriert); Reaktivierungs-Edge von dieser URL-Signatur-Beobachtung abgedeckt (2026-07-01)
-        .onChange(of: store.stations.map(\.url).joined(separator: "\n")) { _, _ in
+        .onChange(of: store.stations.map(\.url).sorted().joined(separator: "\n")) { _, _ in
             health.checkAll(store.stations)
         }
         // Zuletzt gespielten Sender merken (für „beim Start fortsetzen").

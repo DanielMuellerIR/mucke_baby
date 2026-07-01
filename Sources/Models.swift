@@ -55,7 +55,7 @@ struct SeedStation: Decodable {
 
 // App-Version an einer Stelle. Wird auch in der Info.plist gespiegelt.
 enum AppInfo {
-    static let version = "1.7.39"
+    static let version = "1.7.40"
 }
 
 /// Verschiebt einmalig den alten Daten-Ordner „MacRadio" auf den neuen Namen „MuckeBaby"
