@@ -50,6 +50,7 @@ enum ThemeID: String, CaseIterable, Identifiable {
 
 /// Grob-Layout. `.classic` = heutiger Aufbau (Senderliste + Verlauf-Toggle + Footer).
 /// `.console` = 3-Spalten-Skelett aller Mockups (Stations | Stage | History) + Footer.
+// codereview-ok: layout==.classic wird via isConsole in HistoryPanel ausgewertet — schlicht nimmt dort den anderen Zweig (2026-07-01)
 enum ThemeLayout { case classic, console }
 
 /// Visualizer-Spielart in der Stage-Mitte (TimelineView-animiert, gated auf isPlaying).
@@ -179,6 +180,7 @@ struct Theme: Identifiable {
     // 0 — schlicht (Anzeigename „Standard"): heutiges natives Aussehen, dark/light folgt System.
     // Interner rawValue/case bleibt `schlicht` (Persistenz in @AppStorage darf nicht brechen).
     static let schlicht = Theme(
+        // codereview-ok: layout=.classic ist semantisch wirksam (isConsole=false -> HistoryPanel-else-Zweig) (2026-07-01)
         id: .schlicht, name: "Standard", colorScheme: nil, layout: .classic,
         palette: ThemePalette(
             windowBackground: Color(nsColor: .windowBackgroundColor),

@@ -114,7 +114,13 @@ final class Recorder: @unchecked Sendable {
         let url = dir.appendingPathComponent(name)
         FileManager.default.createFile(atPath: url.path, contents: nil)
         handle = try? FileHandle(forWritingTo: url)
-        guard handle != nil else { return }
+        guard handle != nil else {
+            // Schlaegt das Oeffnen fehl, bleibt sonst die eben per createFile erzeugte
+            // leere 0-Byte-Datei als Muell im Aufnahmeordner liegen (kein Clip/Index
+            // kennt sie) — deshalb hier wieder entfernen.
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
         fileStart = date
         clips.append(Clip(file: name, station: station, start: date, end: nil, ext: ext))
         saveIndex()

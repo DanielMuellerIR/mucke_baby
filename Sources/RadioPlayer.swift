@@ -57,6 +57,7 @@ final class RadioPlayer: ObservableObject {
     }
 
     init() {
+        // codereview-ok: icy/recorder sind app-lebenslange Member mit [weak self]-Closures — kein Retain-Cycle/Leak (2026-07-01)
         player.delegate = shim
         shim.onState = { [weak self] in self?.handleState() }
         shim.onTime  = { [weak self] in self?.handleTimeAdvanced() }

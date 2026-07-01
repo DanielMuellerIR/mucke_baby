@@ -454,6 +454,9 @@ public struct SectionHeader: View {
 
     private let text: String
     @Environment(\.theme) private var theme
+    // Spaltentitel muessen beim CMD+/- Zoom mitwachsen wie alle anderen Texte —
+    // sonst bleiben STATIONS/PLAYBACK_HISTORY klein (sichtbarer Stilbruch).
+    @Environment(\.uiFontScale) private var uiFontScale
 
     public init(_ text: String) {
         self.text = text
@@ -464,7 +467,7 @@ public struct SectionHeader: View {
         // Spaltentitel nutzen den gut lesbaren label-Slot, NICHT den title-Slot:
         // sonst kaeme z.B. bei Marshall die Schreibschrift (cursive) — unleserlich.
         Text(label)
-            .font(theme.font(.label, size: 11, weight: .semibold))
+            .font(theme.font(.label, size: 11 * uiFontScale, weight: .semibold))
             .tracking(theme.fonts.tracking)
             .foregroundColor(theme.palette.textSecondary)
     }

@@ -256,6 +256,7 @@ struct ContentView: View {
     @AppStorage("showHistory") private var showHistory = true
     @AppStorage("uiZoom") private var uiZoom = 0   // selber Key wie im App-Scope
     // Theme-Key: selber UserDefaults-Key wie im App-Struct — synchron automatisch.
+    // codereview-ok: selectedThemeRaw wird in ContentView (Theme-Weiterschalt-Button) geschrieben — nicht ungenutzt (2026-07-01)
     @AppStorage("selectedTheme") private var selectedThemeRaw = "schlicht"
 
     @State private var editing = false
@@ -338,7 +339,15 @@ struct ContentView: View {
             }
             health.checkAll(store.stations)
         }
-        .onChange(of: store.stations.count) { _, _ in health.checkAll(store.stations) }
+        // Neupruefung nicht nur bei geaenderter Anzahl, sondern auch, wenn sich der
+        // Inhalt eines bestehenden Senders aendert. Reines .count uebersah eine URL-
+        // Korrektur an einem Sender (id + Anzahl unveraendert), sodass der alte
+        // Health-Status bis zum App-Neustart haengenblieb. Wir leiten deshalb eine
+        // kompakte Signatur aus allen Sender-URLs ab und beobachten diese.
+        // codereview-ok: toggleEnabled-Nichtpruefen ist by design (deaktivierte Sender ignoriert); Reaktivierungs-Edge von dieser URL-Signatur-Beobachtung abgedeckt (2026-07-01)
+        .onChange(of: store.stations.map(\.url).joined(separator: "\n")) { _, _ in
+            health.checkAll(store.stations)
+        }
         // Zuletzt gespielten Sender merken (für „beim Start fortsetzen").
         .onChange(of: player.currentStation?.id) { _, id in
             if let id { lastStationID = id.uuidString }

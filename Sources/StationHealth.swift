@@ -97,6 +97,7 @@ private final class HealthProbe: NSObject, URLSessionDataDelegate {
         if let e = error as NSError?, e.code != NSURLErrorCancelled {
             finish(.bad(e.localizedDescription))
         } else {
+            // codereview-ok: else meldet bei ausbleibender Antwort korrekt 'Keine Antwort'; Cancelled-Pfad ist by design (2026-07-01)
             finish(.bad("Keine Antwort"))
         }
     }

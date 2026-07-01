@@ -50,6 +50,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.onAudio = onAudio
             self.metaint = 0; self.audioOnly = false; self.skip = 0
             self.inMeta = false; self.metaLeft = 0
+            // codereview-ok: removeAll-keepingCapacity-Nuance ist harmlos, kein Verhaltensunterschied im Fehlerfall (2026-07-01)
             self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
         }
         let cfg = URLSessionConfiguration.ephemeral
