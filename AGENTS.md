@@ -132,6 +132,9 @@ RetroOutrun-Shader, CoreAudio-Tap), Recorder-Export-Laufzeittest, Theme-Feinschl
 UI-Kopfzeile ohne Toolbar-Kapsel. Die vollständige, priorisierte Roadmap wird projektextern
 gepflegt (nicht im öffentlichen Repo).
 
+- **Verlauf-Menü, offene Entscheidung:** Soll „Gesamten Verlauf löschen" auch die
+  Aufnahme-Dateien mitlöschen? Aktuell bleiben sie liegen (Bestandsverhalten); seit
+  v1.7.41 gibt es separat „Alle Aufnahmen löschen" direkt darüber.
 - **Alternativen recherchieren:** Welche Mac-Apps können Stream-Aufnahme + Song-Export, zu
   welchen Konditionen (Preis, Einschränkungen)? Bisher keine kostenlose Lösung ohne
   Einschränkungen bekannt — Stand der Dinge prüfen, Vergleich dokumentieren.
