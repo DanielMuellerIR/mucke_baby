@@ -7,6 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - Visualizers now normalize the tapped app output against the app volume, so lowering listening volume no longer reduces visualizer amplitude. Fully muted output still has no recoverable signal.
 
+### Fixed
+- Recordings interrupted by a crash or quit are no longer collapsed to zero length, so every song from the recovered session stays exportable (the end time is recovered from the file rather than reset to the start).
+- A stream that stops, ends, or fails on its own now releases its metadata connection, its recording file, and the audio-visualizer tap, instead of leaving them running until the next manual action. Quitting the app likewise finalizes an in-progress recording.
+- Live ICY metadata parsing is now serialized on a dedicated queue, removing a data race that could corrupt state or crash when switching stations quickly.
+- Two theme visualizers could loop forever (freezing the app) when laid out at zero width; both grid loops are now bounded.
+- Playlist resolution caps the probe download at ~64 KB even when the server ignores the range request, preventing unbounded memory use from an endless stream.
+- Recording filenames can no longer collide on a 24 h rollover (which truncated the previous file), and use a fixed Gregorian calendar so the year is correct on non-Gregorian system calendars.
+- Exported song filenames built from stream titles are sanitized, so an unusual title can no longer produce a broken or hidden file.
+- A station added while a reachability check is already running is now checked once the current pass finishes.
+- Fixed a CoreAudio device-UID read that passed a raw pointer to an ARC-managed reference (undefined behavior plus a small per-call leak), and tightened audio-tap state access under its lock.
+
+### Security
+- The bundled VLCKit framework download is verified against a pinned SHA-256 checksum before it is extracted, linked, and code-signed (supply-chain hardening).
+- Stream titles are fully percent-encoded before being placed into Apple Music / Spotify / Google search URLs, preventing query-string injection from a malicious stream. Playlist (`.pls`) parsing now accepts only the `FileN=` keys, so a crafted `Filename=` entry can no longer redirect playback.
+
 ## [1.7.37] - 2026-06-17
 ### Changed
 - Stream recording is now **off by default**. Enabling it in Settings (or the welcome screen) persists across app restarts, as before; only a fresh install now starts with recording disabled.

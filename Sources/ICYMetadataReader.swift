@@ -8,15 +8,27 @@ import Foundation
 //  - kein `icy-metaint` => reiner Audio-Stream; nur weiterlesen, wenn fuer die
 //    Aufnahme gebraucht (allowAudioOnly), sonst abbrechen.
 final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
-    var onTitle: ((String) -> Void)?          // Main-Thread
-    var onContentType: ((String?) -> Void)?   // Delegate-Queue, einmal bei Antwort
-    var onAudio: ((Data) -> Void)?            // Delegate-Queue, reine Audio-Bytes
+    var onTitle: ((String) -> Void)?          // einmal bei init gesetzt; Aufruf hopst auf Main
 
-    private var session: URLSession?
-    private var task: URLSessionDataTask?
-    private var allowAudioOnly = false
+    // Pro-Session-Senken (Content-Type / Audio-Bytes). Werden ueber start() gesetzt und
+    // NUR auf `q` gelesen/geschrieben — frueher waren es offene `var`, die der Main-Thread
+    // (RadioPlayer.start) beim Senderwechsel neu zuwies, waehrend eine noch auslaufende
+    // Delegate-Callback der ALTEN Session sie las (Race auf der Closure-Referenz).
+    private var onContentType: ((String?) -> Void)?
+    private var onAudio: ((Data) -> Void)?
 
-    // Parser-Zustand (nur auf der Delegate-Queue angefasst).
+    private var session: URLSession?          // nur Main-Thread (start/stop)
+    private var task: URLSessionDataTask?     // nur Main-Thread (start/stop)
+
+    // Serielle Queue: serialisiert ALLEN veraenderlichen Parser-/Senken-Zustand. Die
+    // URLSession-Delegate-Callbacks laufen auf einer eigenen Hintergrund-Queue; ihre
+    // Rumpf-Arbeit wird auf `q` gehopst, ebenso der Reset in stop(). So koennen sich
+    // weder Main-vs-Delegate noch alte-vs-neue Session in die Quere kommen.
+    private let q = DispatchQueue(label: "de.danielmuller.macradio.icy")
+
+    private var allowAudioOnly = false        // nur auf q
+
+    // Parser-Zustand (nur auf `q` angefasst).
     private var metaint = 0
     private var audioOnly = false   // Stream ohne ICY-Metadaten
     private var skip = 0
@@ -25,9 +37,21 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     private var buf = [UInt8]()
     private var lastTitle = ""
 
-    func start(url: URL, allowAudioOnly: Bool = false) {
+    func start(url: URL, allowAudioOnly: Bool = false,
+               onContentType: ((String?) -> Void)? = nil,
+               onAudio: ((Data) -> Void)? = nil) {
         stop()
-        self.allowAudioOnly = allowAudioOnly
+        // Per-Session-Konfiguration + frischer Parser-Reset auf `q`. Da `q` seriell ist
+        // und der Reaktivierungs-Block VOR dem Resume der neuen Session eingereiht wird,
+        // greift er garantiert vor den Delegate-Callbacks dieser Session.
+        q.async {
+            self.allowAudioOnly = allowAudioOnly
+            self.onContentType = onContentType
+            self.onAudio = onAudio
+            self.metaint = 0; self.audioOnly = false; self.skip = 0
+            self.inMeta = false; self.metaLeft = 0
+            self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
+        }
         let cfg = URLSessionConfiguration.ephemeral
         cfg.timeoutIntervalForRequest = 20
         let s = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
@@ -41,46 +65,66 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     }
 
     func stop() {
+        // Task/Session synchron auf dem Aufrufer (Main) abbauen, damit start() sofort eine
+        // neue Session bauen kann; den Zustands-Reset auf `q` nachziehen, damit er nicht mit
+        // einem noch laufenden Delegate-Callback kollidiert.
         task?.cancel(); task = nil
         session?.invalidateAndCancel(); session = nil
-        metaint = 0; audioOnly = false; skip = 0; inMeta = false; metaLeft = 0
-        buf.removeAll(keepingCapacity: false); lastTitle = ""
+        q.async {
+            self.metaint = 0; self.audioOnly = false; self.skip = 0
+            self.inMeta = false; self.metaLeft = 0
+            self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
+        }
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
                     didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        // Header roh auf dem Aufrufer lesen, die Zustands-Auswertung + Senken-Aufruf auf `q`.
         let http = response as? HTTPURLResponse
-        onContentType?(http?.value(forHTTPHeaderField: "Content-Type"))
-        if let v = http?.value(forHTTPHeaderField: "icy-metaint") ?? http?.value(forHTTPHeaderField: "Icy-MetaInt"),
-           let n = Int(v), n > 0 {
-            metaint = n; skip = n; inMeta = false; audioOnly = false
-            completionHandler(.allow)
-        } else if allowAudioOnly {
-            audioOnly = true                 // keine Metadaten, aber fuer Aufnahme behalten
-            completionHandler(.allow)
-        } else {
-            completionHandler(.cancel)
+        let contentType = http?.value(forHTTPHeaderField: "Content-Type")
+        let metaintHeader = http?.value(forHTTPHeaderField: "icy-metaint") ?? http?.value(forHTTPHeaderField: "Icy-MetaInt")
+        q.async {
+            self.onContentType?(contentType)
+            if let v = metaintHeader, let n = Int(v), n > 0 {
+                self.metaint = n; self.skip = n; self.inMeta = false; self.audioOnly = false
+                completionHandler(.allow)
+            } else if self.allowAudioOnly {
+                self.audioOnly = true             // keine Metadaten, aber fuer Aufnahme behalten
+                completionHandler(.allow)
+            } else {
+                completionHandler(.cancel)
+            }
         }
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        if audioOnly { onAudio?(data); return }
-        guard metaint > 0 else { return }
-        // Chunk in Audio-Laufstuecke + Metadatenbloecke zerlegen.
-        var audio = Data(); audio.reserveCapacity(data.count)
-        for b in data {
-            if !inMeta {
-                if skip > 0 { audio.append(b); skip -= 1; continue }
-                metaLeft = Int(b) * 16
-                if metaLeft == 0 { skip = metaint }
-                else { inMeta = true; buf.removeAll(keepingCapacity: true) }
-            } else {
-                buf.append(b); metaLeft -= 1
-                if metaLeft == 0 { parse(buf); inMeta = false; skip = metaint }
+        q.async {
+            if self.audioOnly { self.onAudio?(data); return }
+            guard self.metaint > 0 else { return }
+            // Chunk in Audio-Laufstuecke + Metadatenbloecke zerlegen.
+            var audio = Data(); audio.reserveCapacity(data.count)
+            for b in data {
+                if !self.inMeta {
+                    if self.skip > 0 { audio.append(b); self.skip -= 1; continue }
+                    self.metaLeft = Int(b) * 16
+                    if self.metaLeft == 0 { self.skip = self.metaint }
+                    else { self.inMeta = true; self.buf.removeAll(keepingCapacity: true) }
+                } else {
+                    self.buf.append(b); self.metaLeft -= 1
+                    if self.metaLeft == 0 { self.parse(self.buf); self.inMeta = false; self.skip = self.metaint }
+                }
             }
+            if !audio.isEmpty { self.onAudio?(audio) }
         }
-        if !audio.isEmpty { onAudio?(audio) }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        // Stream zu Ende / Fehler / Timeout -> die GERADE beendete Session freigeben
+        // (sonst bliebe sie mit ihrer starken Referenz auf self samt Socket offen, bis
+        // zufaellig ein externes stop()/start() kommt). Nur die lokale `session` anfassen,
+        // NICHT self.session, um eine inzwischen gestartete neue Session nicht zu treffen.
+        session.finishTasksAndInvalidate()
     }
 
     private func parse(_ bytes: [UInt8]) {

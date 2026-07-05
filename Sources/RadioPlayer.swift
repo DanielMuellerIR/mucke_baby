@@ -121,9 +121,12 @@ final class RadioPlayer: ObservableObject {
         // Clip-Start == Platzhalter-Start gilt (Export-Offset 0, Clip deckt den Eintrag).
         let sessionStart = Date()
         if rec { history.beginSession(station: stationName, at: sessionStart) }
-        icy.onContentType = { ct in if rec { recorder.begin(station: stationName, contentType: ct, at: sessionStart) } }
-        icy.onAudio = { data in if rec { recorder.write(data) } }
-        icy.start(url: url, allowAudioOnly: rec)
+        // Die Pro-Session-Senken werden an start() uebergeben (nicht als Property gesetzt),
+        // damit der ICY-Reader sie intern queue-serialisiert halten kann (Race-frei beim
+        // Senderwechsel).
+        icy.start(url: url, allowAudioOnly: rec,
+                  onContentType: { ct in if rec { recorder.begin(station: stationName, contentType: ct, at: sessionStart) } },
+                  onAudio: { data in if rec { recorder.write(data) } })
         log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(url.absoluteString, privacy: .public)")
     }
 
@@ -186,6 +189,12 @@ final class RadioPlayer: ObservableObject {
             isLoading = false
             playStartedAt = nil
             history.closeCurrent()
+            // Stirbt der Stream von selbst (Senderabbruch/Netzverlust), raeumen die
+            // Seitenressourcen sonst nie auf — nur stop()/play() taten das bisher.
+            // Alle drei Aufrufe sind idempotent (no-op, wenn nichts laeuft).
+            recorder.end()              // offene Aufnahme schliessen
+            icy.stop()                  // ICY-Zweitverbindung beenden
+            currentStreamURL = nil      // AudioTap stoppen (onChange -> setStream(nil))
             if !isErrorState { statusText = String(localized: "Gestoppt") }
             log.notice("status=stopped \(self.currentStation?.name ?? "?", privacy: .public)")
         case .error:
@@ -193,6 +202,9 @@ final class RadioPlayer: ObservableObject {
             isLoading = false
             playStartedAt = nil
             history.closeCurrent()
+            recorder.end()
+            icy.stop()
+            currentStreamURL = nil
             statusText = String(localized: "Fehler: Stream nicht abspielbar")
             isErrorState = true
             log.notice("status=failed \(self.currentStation?.name ?? "?", privacy: .public)")

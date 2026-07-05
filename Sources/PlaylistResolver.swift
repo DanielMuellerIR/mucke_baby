@@ -39,7 +39,17 @@ enum PlaylistResolver {
         req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
         req.timeoutInterval = 8
         do {
-            let (data, _) = try await URLSession.shared.data(for: req)
+            // Hart auf ~64 KB deckeln: Der Range-Header ist nur eine Bitte. Ignoriert
+            // der Server ihn, lieferte data(for:) den GANZEN — bei einem als Playlist
+            // fehlerkannten Live-Stream endlosen — Body in den RAM (OOM). Darum die
+            // Bytes streamen und nach 64 KB abbrechen; die Verbindung wird dann beim
+            // Verwerfen der Sequenz geschlossen.
+            let (bytes, _) = try await URLSession.shared.bytes(for: req)
+            var data = Data(); data.reserveCapacity(65536)
+            for try await b in bytes {
+                data.append(b)
+                if data.count >= 65536 { break }
+            }
             return String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
         } catch {
             return nil
@@ -52,6 +62,11 @@ enum PlaylistResolver {
         for line in text.split(whereSeparator: \.isNewline) {
             let l = line.trimmingCharacters(in: .whitespaces)
             if l.lowercased().hasPrefix("file"), let eq = l.firstIndex(of: "=") {
+                // PLS-Schluessel sind exakt "FileN" (N = Ziffernfolge). Nur die als
+                // Stream-URL deuten — sonst gaelte z. B. ein boesartiges
+                // "Filename=http://angreifer/…" vor dem echten "File1=" als Ziel.
+                let key = l[l.index(l.startIndex, offsetBy: 4)..<eq]
+                guard !key.isEmpty, key.allSatisfy(\.isNumber) else { continue }
                 let value = String(l[l.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
                 if let u = URL(string: value), u.scheme?.hasPrefix("http") == true { return u }
             }

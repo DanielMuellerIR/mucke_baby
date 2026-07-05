@@ -34,7 +34,12 @@ enum SongLink {
     }
 
     static func enc(_ s: String) -> String {
-        s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? s
+        // Sub-Delimiter zusaetzlich kodieren: .urlQueryAllowed laesst & = ? / : + ; #
+        // durch -> ein boesartiger ICY-Titel koennte sonst beim Interpolieren in
+        // Such-URLs (Apple Music / Spotify / Google) Query-Parameter einschmuggeln.
+        var cs = CharacterSet.urlQueryAllowed
+        cs.remove(charactersIn: "&=?/:+;#")
+        return s.addingPercentEncoding(withAllowedCharacters: cs) ?? s
     }
 
     // Interpret fuer Lyrics-Abfragen bereinigen: ab "feat./ft./with/x/vs/&/,/ /"

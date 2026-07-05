@@ -87,8 +87,11 @@ final class AudioTap: ObservableObject {
     /// Liefert der Analyse-Player GERADE echtes Audio? Nur dann sollen die Visualizer ihn als
     /// Quelle nutzen; sonst (kein Sender, Verbindungsaufbau, Fehler) zeitbasiert weiter.
     var reactive: Bool {
-        guard isActive else { return false }
+        // isActive MIT unter den Lock: es wird auf der lifecycleQueue geschrieben
+        // (startTap/teardownTap), hier aber vom Main-Thread (Visualizer, jeder Frame)
+        // gelesen — der Lock liefert die noetige Speicher-Ordnung.
         os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        guard isActive else { return false }
         return _silentRuns < 120        // ~1–2 s Stille → als „kein Signal" werten
     }
 
@@ -198,14 +201,15 @@ final class AudioTap: ObservableObject {
             teardownTap(); return
         }
 
-        isActive = true
-        loggedSignal = false
-        os_unfair_lock_lock(&lock); _silentRuns = 0; os_unfair_lock_unlock(&lock)
+        // isActive/loggedSignal/_silentRuns gemeinsam unter dem Lock setzen: isActive
+        // wird vom Main-Thread (reactive) gelesen, loggedSignal vom Audio-IO-Thread
+        // (feedMono) — beide brauchen denselben Lock wie _silentRuns.
+        os_unfair_lock_lock(&lock); isActive = true; loggedSignal = false; _silentRuns = 0; os_unfair_lock_unlock(&lock)
         tapLog.notice("AudioTap: CoreAudio-Process-Tap gestartet (\(self.tapChannels) Kanäle). Wartet auf Signal …")
     }
 
     private func teardownTap() {
-        isActive = false
+        os_unfair_lock_lock(&lock); isActive = false; os_unfair_lock_unlock(&lock)
         if let p = ioProcID, aggregateID != AudioObjectID(kAudioObjectUnknown) {
             AudioDeviceStop(aggregateID, p)
             AudioDeviceDestroyIOProcID(aggregateID, p)
@@ -250,10 +254,15 @@ final class AudioTap: ObservableObject {
             mSelector: kAudioDevicePropertyDeviceUID,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain)
-        var cfUID: CFString = "" as CFString
-        var usz = UInt32(MemoryLayout<CFString>.size)
-        let st = AudioObjectGetPropertyData(dev, &uidAddr, 0, nil, &usz, &cfUID)
-        return st == noErr ? (cfUID as String) : nil
+        // CoreAudio schreibt eine +1-retainte CFStringRef roh in den Slot. Deshalb NICHT in
+        // eine ARC-verwaltete `CFString`-Variable schreiben (der Compiler warnt zu Recht: `&` auf
+        // einen Referenztyp umgeht ARC → undefiniert, und der Anfangswert leakt). Stattdessen in
+        // ein zeiger-grosses, ARC-inertes `Unmanaged<CFString>?` schreiben und das +1 mit
+        // takeRetainedValue() korrekt konsumieren.
+        var cfUIDRef: Unmanaged<CFString>? = nil
+        var usz = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        let st = AudioObjectGetPropertyData(dev, &uidAddr, 0, nil, &usz, &cfUIDRef)
+        return st == noErr ? (cfUIDRef?.takeRetainedValue() as String?) : nil
     }
 
     /// Liest das Stream-Format des Taps (Kanäle, interleaved/planar).

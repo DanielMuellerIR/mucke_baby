@@ -21,12 +21,20 @@ VENDOR=".vendor"
 XCFW="$VENDOR/VLCKit.xcframework"
 FWDIR="$XCFW/macos-arm64_x86_64"          # -F zeigt hierauf (enthaelt VLCKit.framework)
 VLCKIT_URL="https://download.videolan.org/pub/cocoapods/prod/VLCKit-3.7.3-319ed2c0-79128878.tar.xz"
+# Bekannter guter SHA-256 des Artefakts (per `shasum -a 256` ermittelt). Wird vor dem
+# Entpacken/Linken/Signieren geprueft: Das Framework laeuft in-process mit allen App-
+# Rechten (Audio-Capture, Dateisystem, Netz) und wird im Release mit der Developer-ID
+# signiert — ein manipulierter Mirror/MITM wuerde sonst fremden Code mitgeliefert.
+# Bei einem bewussten VLCKit-Upgrade URL UND Hash gemeinsam aktualisieren.
+VLCKIT_SHA256="019afdae4e2e2d0f3ac325fac8f7ba0af25dca70b9d157df7d60db88e0be8e5d"
 
 if [ ! -d "$FWDIR/VLCKit.framework" ]; then
   echo "Lade VLCKit (einmalig, ~84 MB) …"
   mkdir -p "$VENDOR"
   ( cd "$VENDOR"
     curl -L --fail -o vlckit.tar.xz "$VLCKIT_URL"
+    echo "$VLCKIT_SHA256  vlckit.tar.xz" | shasum -a 256 -c - \
+      || { echo "VLCKit-Pruefsumme falsch — Abbruch!" >&2; rm -f vlckit.tar.xz; exit 1; }
     tar -xJf vlckit.tar.xz
     mv "VLCKit - binary package/VLCKit.xcframework" ./VLCKit.xcframework
     rm -rf "VLCKit - binary package" vlckit.tar.xz )
@@ -101,12 +109,15 @@ cp -R "$FWDIR/VLCKit.framework" "$APPDIR/Contents/Frameworks/"
 # ad-hoc-Fallback. VLCKit wird mit derselben Identitaet signiert (Library-Validation).
 # Signier-Identitaet ueberschreibbar (CI/anderer Account); Team-ID = Default-Fallback.
 DEVID="${CODESIGN_IDENTITY:-Developer ID Application: Daniel Mueller (${APPLE_TEAM_ID:-9QSWKSR4NQ})}"
+# Kein `|| true`: ein echter Signier-Fehler soll den Build abbrechen (sonst meldet er
+# „Fertig", liefert aber unter Hardened Runtime eine nicht startfaehige App). stdout
+# bleibt unterdrueckt (codesign ist gespraechig), stderr + Exit-Code laufen via set -e.
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "$DEVID"; then
-  codesign --force --options runtime --sign "$DEVID" "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null 2>&1 || true
-  codesign --force --options runtime --sign "$DEVID" "$APPDIR" >/dev/null 2>&1 || true
+  codesign --force --options runtime --sign "$DEVID" "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null
+  codesign --force --options runtime --sign "$DEVID" "$APPDIR" >/dev/null
 else
-  codesign --force --sign - "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null 2>&1 || true
-  codesign --force --sign - "$APPDIR" >/dev/null 2>&1 || true
+  codesign --force --sign - "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null
+  codesign --force --sign - "$APPDIR" >/dev/null
 fi
 
 echo "Fertig: $APPDIR"

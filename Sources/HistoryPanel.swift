@@ -205,7 +205,19 @@ struct HistoryPanel: View {
 
     private func exportName(_ e: SongEntry) -> String {
         let base = (e.artist.map { "\($0) - " } ?? "") + (e.title ?? e.raw)
-        return base.replacingOccurrences(of: "/", with: "_")
+        return Self.safeFileBase(base)
+    }
+
+    // Dateiname aus untrustwuerdigem ICY-Titel: gleiche Whitelist wie Recorder.fileName.
+    // Reines "/"-Ersetzen liess NUL (bricht den Zielpfad), fuehrendes "." (versteckte
+    // Datei) und ":" (Finder zeigt es als "/") durch. Leeres/punkt-fuehrendes Ergebnis
+    // mit "Song_" praefixen.
+    static func safeFileBase(_ raw: String) -> String {
+        var safe = raw.replacingOccurrences(of: #"[^A-Za-z0-9 _.-]"#, with: "_",
+                                            options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        if safe.isEmpty || safe.hasPrefix(".") { safe = "Song_" + safe }
+        return safe
     }
 
     private func exportToFile(_ mode: SongExporter.Mode) {
@@ -440,7 +452,7 @@ struct DraggableSong: Transferable {
 
     var fileName: String {
         let base = (entry.artist.map { "\($0) - " } ?? "") + (entry.title ?? entry.raw)
-        return base.replacingOccurrences(of: "/", with: "_") + ".m4a"
+        return HistoryPanel.safeFileBase(base) + ".m4a"
     }
 
     static var transferRepresentation: some TransferRepresentation {

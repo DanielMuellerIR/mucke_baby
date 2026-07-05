@@ -361,8 +361,13 @@ struct ContentView: View {
         // Fenster so konfigurieren, dass die Kopfleiste den Titelbalken-Bereich einnimmt
         // (Ampel-Buttons inline). Unsichtbar.
         .background(WindowConfigurator().frame(width: 0, height: 0))
-        // Beim Beenden kurze Verlauf-Fragmente (< 20 s) wegputzen.
+        // Beim Beenden sauber abschliessen: laufende Aufnahme-Datei + ICY-Session
+        // schliessen (stop()) und auf das async _close warten (flush()), sonst
+        // bliebe der letzte Clip mit end == nil zurueck und wuerde beim naechsten
+        // Start als 0 s verworfen. Danach kurze Verlauf-Fragmente (< 20 s) wegputzen.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            player.stop()
+            player.recorder.flush()
             player.history.pruneOnLaunchOrQuit()
         }
     }

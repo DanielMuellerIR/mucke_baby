@@ -5,7 +5,8 @@ import Foundation
 // naechsten Songwechsel nach 24 h. Stoppt bei < 10 GB frei. Thread-sicher
 // ueber eine serielle Queue (alle Datei-/Index-Operationen laufen dort).
 //
-// Achtung: Mitschnitt ist Default AN — README warnt davor.
+// Mitschnitt ist Default AUS (seit v1.7.37, `recordStreams ?? false`); der Nutzer
+// aktiviert ihn bewusst in den Einstellungen, die Wahl bleibt dann erhalten.
 //
 // @unchecked Sendable: aller veraenderlicher Zustand wird ausschliesslich ueber die
 // serielle Queue `q` angefasst -> thread-sicher. Erlaubt, den Recorder in einem
@@ -77,6 +78,12 @@ final class Recorder: @unchecked Sendable {
 
     func end(at date: Date = Date()) { q.async { self._close(at: date) } }
 
+    // Vor App-Beendigung aufrufen: wartet, bis alle anstehenden Datei-/Index-
+    // Operationen (insbesondere ein per end() angestossenes _close) abgearbeitet
+    // sind. Sonst koennte der Prozess vor dem async _close beenden -> der letzte
+    // Clip bliebe end == nil und wuerde beim naechsten Start als 0 s verworfen.
+    func flush() { q.sync {} }
+
     // Aufnahmen loeschen, deren Ende vor `cutoff` liegt (Retention zum Verlauf).
     func prune(olderThan cutoff: Date) {
         q.async {
@@ -120,11 +127,18 @@ final class Recorder: @unchecked Sendable {
         if let i = clips.indices.last, clips[i].end == nil { clips[i].end = date; saveIndex() }
     }
 
-    // Beim Start: offene Eintraege aus einem Absturz schliessen (Dateigroesse-Zeit).
+    // Beim Start: offene Eintraege aus einem Absturz schliessen. Das Ende ist
+    // unbekannt -> aus der Datei-Aenderungszeit (letzter Schreibvorgang vor dem
+    // Absturz) schaetzen, nie vor dem Start (Clock-Skew); nicht lesbar -> auf
+    // Start zurueckfallen. Frueher wurde stur end = start gesetzt -> 0 s-Intervall,
+    // wodurch clip(covering:) fuer alle spaeter notierten Songs der Session
+    // fehlschlug und der Mitschnitt nicht mehr exportierbar war.
     private func closeDangling() {
         var changed = false
         for i in clips.indices where clips[i].end == nil {
-            clips[i].end = clips[i].start   // unbekannt -> auf Start setzen
+            let url = dir.appendingPathComponent(clips[i].file)
+            let mtime = (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]) as? Date
+            clips[i].end = max(clips[i].start, mtime ?? clips[i].start)
             changed = true
         }
         if changed { saveIndex() }
@@ -140,8 +154,23 @@ final class Recorder: @unchecked Sendable {
         let safe = station.replacingOccurrences(of: #"[^A-Za-z0-9 _.-]"#, with: "_",
                                                 options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        return "\(f.string(from: date)) \(safe).\(ext)"
+        // Feste Locale + gregorianischer Kalender: ein blankes DateFormatter erbt
+        // sonst System-Locale/-Kalender, und auf nicht-gregorianischen Kalendern
+        // (japanisch/buddhistisch) liefert `yyyy` ein anderes Jahr (z. B. 2569) —
+        // der Dateiname widerspraeche dann den ISO-Daten im Index.
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let base = "\(f.string(from: date)) \(safe)"
+        var name = "\(base).\(ext)"
+        // Kollision vermeiden: existiert die Zieldatei schon (z. B. 24h-Rollover mit
+        // identischem Sekunden-Zeitstempel), eindeutigen Suffix anhaengen — sonst
+        // wuerde createFile die vorige Aufnahme auf 0 Bytes kuerzen.
+        if FileManager.default.fileExists(atPath: dir.appendingPathComponent(name).path) {
+            name = "\(base) \(UUID().uuidString.prefix(8)).\(ext)"
+        }
+        return name
     }
 
     private func loadIndex() {

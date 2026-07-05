@@ -405,8 +405,10 @@ private struct ProceduralMaterial: View {
         }
 
         // Senkrechte Gitterlinien (Cyan/accent2)
+        // `<` statt `<=`: bei Breite 0 ist hSpacing 0 -> `<=` liefe (x += 0) endlos
+        // auf dem Main-Thread (Canvas zeichnet dort). `<` ueberspringt den Fall.
         var x: Double = 0
-        while x <= Double(size.width) {
+        while x < Double(size.width) {
             var path = Path()
             path.move(to: CGPoint(x: x, y: 0))
             path.addLine(to: CGPoint(x: x, y: size.height))
@@ -1357,8 +1359,10 @@ private struct MidiNotesVisualizer: View {
     /// Feines Cyber-Raster (Spurlinien senkrecht + Takte waagrecht) direkt im Canvas.
     private func drawGrid(_ ctx: GraphicsContext, _ size: CGSize) {
         let hSpacing = size.width / CGFloat(barLanes)
+        // `<` statt `<=`: bei Breite 0 ist hSpacing 0 -> `<=` liefe (x += 0) endlos
+        // auf dem Main-Thread. `<` ueberspringt den Fall (wie die y-Schleife unten).
         var x: CGFloat = 0
-        while x <= size.width {
+        while x < size.width {
             var p = Path(); p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: size.height))
             ctx.stroke(p, with: .color(gridColor), lineWidth: 0.5)
             x += hSpacing

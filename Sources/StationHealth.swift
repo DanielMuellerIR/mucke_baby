@@ -9,14 +9,22 @@ final class StationHealth: ObservableObject {
 
     @Published var states: [UUID: Status] = [:]
     private var running = false
+    private var pending: [Station]?   // waehrend eines Laufs zuletzt angeforderte Liste
 
     func checkAll(_ stations: [Station]) {
-        guard !running else { return }
+        // Laeuft schon eine Pruefung? Dann nur die neueste Liste vormerken und nach
+        // Abschluss genau einmal nachholen — sonst wuerden waehrend des Laufs (bis zu
+        // 8 s pro Sender) hinzugefuegte Sender nie geprueft (Guard verwarf den Aufruf).
+        if running { pending = stations; return }
         running = true
         for s in stations where !s.url.isEmpty {
             if states[s.id] != .ok { states[s.id] = .checking }
         }
-        Task { await run(stations); running = false }
+        Task {
+            await run(stations)
+            running = false
+            if let next = pending { pending = nil; checkAll(next) }
+        }
     }
 
     private func run(_ stations: [Station]) async {

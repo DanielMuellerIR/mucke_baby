@@ -38,8 +38,11 @@ APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/VLCKit.framework"
 BACKGROUND_SRC="$PROJECT_ROOT/assets/dmg-background.png"
 
-# Version = einzige Quelle in Models.swift (AppInfo.version).
-APP_VERSION=$(grep 'static let version' "$PROJECT_ROOT/Sources/Models.swift" | head -1 | cut -d'"' -f2)
+# Version = einzige Quelle in Models.swift (AppInfo.version). Strikte Extraktion
+# identisch zu build.sh, damit beide nie auseinanderlaufen, plus Nicht-Leer-Pruefung
+# (sonst entstuenden Muell-Werte wie DMG „Mucke-Baby-.dmg" oder der leere Tag „v").
+APP_VERSION=$(grep -Eo 'static let version = "[0-9]+\.[0-9]+\.[0-9]+"' "$PROJECT_ROOT/Sources/Models.swift" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
+[ -n "$APP_VERSION" ] || { echo "FEHLER: Version aus Models.swift nicht lesbar" >&2; exit 1; }
 DMG_PATH="$BUILD_DIR/Mucke-Baby-${APP_VERSION}.dmg"
 RW_DMG_PATH="$BUILD_DIR/Mucke-Baby-${APP_VERSION}-rw.dmg"
 
@@ -134,7 +137,18 @@ codesign --force --timestamp --sign "$IDENTITY" "$DMG_PATH"
 
 # ---------- 4. Notarisieren + stapeln ----------
 echo "==> Notarisieren (1-10 Min)"
-xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+# notarytool gibt bei finalem Status 'Invalid' (abgelehnt) trotzdem Exit 0 zurueck,
+# solange Upload+Polling klappen. Darum den Status selbst pruefen, statt blind in
+# 'stapler staple' zu laufen (das scheiterte dann mit irrefuehrender Meldung statt der
+# echten Ablehnung, nach 1-10 Min Wartezeit). tee /dev/tty haelt den Live-Fortschritt
+# sichtbar (das Script ist interaktive Release-Tooling).
+SUBMIT_OUT=$(xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1 | tee /dev/tty)
+if ! grep -q 'status: Accepted' <<<"$SUBMIT_OUT"; then
+  echo "FEHLER: Notarisierung nicht akzeptiert." >&2
+  SUBID=$(grep -Eo 'id: [0-9a-f-]+' <<<"$SUBMIT_OUT" | head -1 | awk '{print $2}')
+  [ -n "$SUBID" ] && xcrun notarytool log "$SUBID" --keychain-profile "$NOTARY_PROFILE" >&2
+  exit 1
+fi
 
 echo "==> Stapele Ticket"
 xcrun stapler staple "$DMG_PATH"
@@ -163,11 +177,14 @@ if [ "$PUBLISH" = "1" ]; then
   ' "$PROJECT_ROOT/CHANGELOG.md" > "$NOTES_FILE"
   [ -s "$NOTES_FILE" ] || echo "Mucke, Baby! $TAG" > "$NOTES_FILE"
 
-  # git-Tag setzen (idempotent) und pushen.
-  if ! git -C "$PROJECT_ROOT" rev-parse "$TAG" >/dev/null 2>&1; then
-    git -C "$PROJECT_ROOT" tag -a "$TAG" -m "Mucke, Baby! $TAG"
-    git -C "$PROJECT_ROOT" push github "$TAG"
-  fi
+  # git-Tag nur anlegen, falls noch nicht vorhanden — aber IMMER pushen. Sonst zeigt
+  # das Release auf den falschen Commit: existierte der Tag lokal schon (z. B. ein
+  # frueherer Lauf legte ihn an, der push schlug aber fehl), wurde der push nie
+  # nachgeholt, und `gh release create` taggt dann den default-branch-HEAD auf GitHub.
+  # Der push ist bewusst nicht --force: ein divergenter Remote-Tag bricht laut (set -e).
+  git -C "$PROJECT_ROOT" rev-parse "$TAG" >/dev/null 2>&1 \
+    || git -C "$PROJECT_ROOT" tag -a "$TAG" -m "Mucke, Baby! $TAG"
+  git -C "$PROJECT_ROOT" push github "$TAG"
 
   # Release anlegen — oder, falls es schon existiert, nur das Asset aktualisieren.
   if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
