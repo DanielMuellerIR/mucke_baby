@@ -55,6 +55,14 @@ struct HistoryPanel: View {
         player.cleanupHistory(olderThan: cutoff)
     }
 
+    // Nur die Aufnahme-Dateien (+ Index) aelter als der Cutoff loeschen — der
+    // Verlauf bleibt vollstaendig erhalten. Man sieht also weiter, welche Songs
+    // liefen; nur der Export ("Keine Aufnahme zu diesem Titel.") geht dann nicht mehr.
+    private func cleanRecordings(_ comp: Calendar.Component, _ value: Int) {
+        let cutoff = Calendar.current.date(byAdding: comp, value: -value, to: Date()) ?? Date()
+        player.recorder.prune(olderThan: cutoff)
+    }
+
     private var selectedEntry: SongEntry? {
         history.entries.first { $0.id == selection }
     }
@@ -82,9 +90,26 @@ struct HistoryPanel: View {
                 }
                 Spacer()
                 Menu {
-                    Button("Älter als 1 Tag löschen") { clean(.day, 1) }
-                    Button("Älter als 1 Woche löschen") { clean(.day, 7) }
-                    Button("Älter als 1 Monat löschen") { clean(.month, 1) }
+                    // Erster Satz: Verlauf-Eintraege UND die zugehoerigen Aufnahmen
+                    // bis zum Cutoff loeschen (bisheriges Verhalten, cleanupHistory).
+                    Section("Verlauf und Aufnahmen") {
+                        Button("Älter als 1 Tag löschen") { clean(.day, 1) }
+                        Button("Älter als 1 Woche löschen") { clean(.day, 7) }
+                        Button("Älter als 1 Monat löschen") { clean(.month, 1) }
+                    }
+                    // Zweiter Satz: NUR die lokalen Aufnahme-Dateien loeschen,
+                    // der Verlauf (welche Songs liefen) bleibt komplett stehen.
+                    Section("Nur Aufnahmen (Verlauf bleibt)") {
+                        Button("Älter als 1 Tag löschen") { cleanRecordings(.day, 1) }
+                        Button("Älter als 1 Woche löschen") { cleanRecordings(.day, 7) }
+                        Button("Älter als 1 Monat löschen") { cleanRecordings(.month, 1) }
+                        // .distantFuture als Cutoff = jede abgeschlossene Aufnahme ist
+                        // "aelter" -> alle weg. Eine gerade LAUFENDE Aufnahme (end == nil,
+                        // offenes FileHandle) bleibt bewusst bestehen.
+                        Button("Alle Aufnahmen löschen", role: .destructive) {
+                            player.recorder.prune(olderThan: .distantFuture)
+                        }
+                    }
                     Divider()
                     Button("Gesamten Verlauf löschen", role: .destructive) { history.clear() }
                 } label: { Image(systemName: "ellipsis.circle").foregroundStyle(historyActionInk) }

@@ -4,6 +4,9 @@ All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Added
+- The history panel's options menu now has a second set of cleanup actions that delete only the local recording files (older than a day/week/month, or all of them) while keeping the playback history intact — you can still see which songs played after the audio files are gone.
+
 ### Changed
 - Visualizers now normalize the tapped app output against the app volume, so lowering listening volume no longer reduces visualizer amplitude. Fully muted output still has no recoverable signal.
 
