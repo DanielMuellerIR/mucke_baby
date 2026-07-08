@@ -8,6 +8,11 @@ Stand: 2026-06-07
 Nativer macOS-Webradio-Player (SwiftUI + VLCKit), Nachbau der Kernfunktionen
 des Linux-Mint-Applets **Radio++**.
 
+## Typ & Zweck
+- **Typ:** GUI-App
+- **Zweck:** Nativer SwiftUI-Webradio-Player („Mucke, Baby!") mit VLCKit, Sendersuche, Visualizer und Verlauf.
+- **Plattform:** macOS-GUI
+
 ## Vision / Zweck
 
 Schlanker Radioplayer als normales Fenster-App. Sender abspielen, verwalten,
