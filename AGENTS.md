@@ -221,3 +221,21 @@ defaults write de.danielmuller.macradio selectedTheme -string schlicht   # in sc
 MUCKE_SHOTS="$PWD/design-proposal/shots" "build/Mucke, Baby!.app/Contents/MacOS/MacRadio"
 # -> design-proposal/shots/<theme>.png je Theme, App beendet sich selbst.
 ```
+
+## Verzeichnisstruktur
+
+<!-- directory-structure: generated -->
+- [AGENTS.md](AGENTS.md) — Projektprofil, Arbeitsregeln und dieses Datei-Verzeichnis.
+- [CHANGELOG.md](CHANGELOG.md) — Projektdokumentation.
+- [README.de.md](README.de.md) — Projekt-Einstieg und Nutzerdokumentation.
+- [README.md](README.md) — Projekt-Einstieg und Nutzerdokumentation.
+- [THIRD-PARTY.md](THIRD-PARTY.md) — Projektdokumentation.
+- `Resources/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+- `Sources/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+- `assets/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+- `design-proposal/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+- `design-proposal_alt/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+- `icons/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+- `tmp/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+- `wrappers/` — Projektbestandteil; Details stehen im Code bzw. in der verlinkten Dokumentation.
+<!-- /directory-structure -->
