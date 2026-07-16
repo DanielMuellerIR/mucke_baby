@@ -103,6 +103,8 @@
 "Wiedergabe" = "Playing";
 "Puffert …" = "Buffering…";
 "Fehler: Stream nicht abspielbar" = "Error: Stream cannot be played";
+"Aufnahme gestoppt: < 10 GB frei" = "Recording stopped: < 10 GB free";
+"Der Mitschnitt wurde wegen Platzmangel beendet. Speicherplatz freigeben — die Aufnahme startet beim nächsten Senderstart erneut." = "Recording was stopped because disk space is low. Free up space — recording starts again with the next station start.";
 
 /* --- Meldungen (Suche, Im-/Export, Songtext, Song-Export) --- */
 "%lld Sender exportiert." = "%lld stations exported.";

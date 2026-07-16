@@ -589,6 +589,19 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            // Platzmangel-Hinweis: Der Recorder stoppt bei < 10 GB freiem Speicher
+            // automatisch — die Wiedergabe laeuft hoerbar weiter, deshalb braucht der
+            // stille Aufnahme-Stopp einen sichtbaren Hinweis. play() setzt das Flag
+            // beim naechsten Senderstart zurueck (RadioPlayer.lowDiskWarning).
+            if player.lowDiskWarning {
+                Label(String(localized: "Aufnahme gestoppt: < 10 GB frei"),
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(theme.font(.label, size: 11 * uiFontScale))
+                    .foregroundStyle(theme.palette.alert)
+                    .fixedSize()
+                    .help(String(localized: "Der Mitschnitt wurde wegen Platzmangel beendet. Speicherplatz freigeben — die Aufnahme startet beim nächsten Senderstart erneut."))
+            }
+
             if let started = player.playStartedAt {
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in
                     Text(PlaybackClock.runtime(since: started, now: ctx.date))

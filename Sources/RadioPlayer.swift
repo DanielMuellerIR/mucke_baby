@@ -29,7 +29,9 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var statusText = String(localized: "Bereit")
     @Published private(set) var nowPlayingTitle = ""
-    @Published private(set) var lowDiskWarning = false   // Aufnahme wegen Platzmangel gestoppt
+    // Aufnahme wegen Platzmangel gestoppt (< 10 GB frei). Wird im Now-Playing-Fuss
+    // angezeigt und beim naechsten Senderstart in play() zurueckgesetzt.
+    @Published private(set) var lowDiskWarning = false
     // Fehlerzustand getrennt vom Anzeigetext fuehren: `statusText` ist lokalisiert, darum
     // darf die Zustandslogik NICHT auf seinen Wortlaut pruefen (frueher hasPrefix("Fehler")) —
     // das brach in anderer Sprache. Stattdessen dieses Flag.
@@ -89,6 +91,10 @@ final class RadioPlayer: ObservableObject {
         isPlaying = false
         playStartedAt = nil
         lastState = nil
+        // Neuer Senderstart = neuer Aufnahme-Versuch: alte Platzmangel-Warnung
+        // zuruecksetzen. Ist der Speicher weiterhin knapp, setzt der Recorder sie
+        // beim naechsten Platz-Check sofort wieder.
+        lowDiskWarning = false
 
         let raw = station.url
         resolveTask = Task { [weak self] in

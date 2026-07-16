@@ -103,6 +103,8 @@
 "Wiedergabe" = "Wiedergabe";
 "Puffert …" = "Puffert …";
 "Fehler: Stream nicht abspielbar" = "Fehler: Stream nicht abspielbar";
+"Aufnahme gestoppt: < 10 GB frei" = "Aufnahme gestoppt: < 10 GB frei";
+"Der Mitschnitt wurde wegen Platzmangel beendet. Speicherplatz freigeben — die Aufnahme startet beim nächsten Senderstart erneut." = "Der Mitschnitt wurde wegen Platzmangel beendet. Speicherplatz freigeben — die Aufnahme startet beim nächsten Senderstart erneut.";
 
 /* --- Meldungen (Suche, Im-/Export, Songtext, Song-Export) --- */
 "%lld Sender exportiert." = "%lld Sender exportiert.";
