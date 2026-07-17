@@ -1,5 +1,4 @@
-# Sparkle-Appcast auf GitHub Pages veroeffentlichen (Bauplan:
-# projektextern/sparkle-auto-updates.md, uebernommen von stille_post).
+# Sparkle-Appcast auf GitHub Pages veroeffentlichen (Ablauf: docs/sparkle-release.md).
 #
 # Laeuft nach jedem veroeffentlichten Release (oder manuell fuer ein Tag):
 # holt das Release-DMG, signiert den Feed mit dem Ed25519-Schluessel aus dem

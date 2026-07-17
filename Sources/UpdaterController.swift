@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 import Sparkle
 
-// Selbst-Update über Sparkle (Bauplan: projektextern/sparkle-auto-updates.md).
+// Selbst-Update über Sparkle (Release-Ablauf: docs/sparkle-release.md).
 //
 // Sicherheitsmodell — zwei unabhängige Signaturen, beide Pflicht:
 //  1. Apple Developer ID + Notarisierung für App und DMG (Gatekeeper).

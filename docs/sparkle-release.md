@@ -17,8 +17,9 @@ Zwei voneinander unabhängige Prüfungen bleiben Pflicht:
 - Sparkle-Ed25519-Signatur für das Update-Archiv sowie den Feed.
 
 Der private Sparkle-Schlüssel gehört weder in Git noch in Logs oder Argumente.
-Der projektspezifische Schlüssel liegt lokal im Login-Schlüsselbund (Mac „M5")
-unter dem Sparkle-Account `io.github.danielmuellerir.muckebaby`. Nur sein
+Der projektspezifische Schlüssel liegt lokal im Login-Schlüsselbund des
+Release-Rechners unter dem Sparkle-Account
+`io.github.danielmuellerir.muckebaby`. Nur sein
 öffentlicher Gegenpart steht als `SUPublicEDKey` in `Resources/Info.plist`.
 Jede App hat ihr eigenes Schlüsselpaar; Schlüssel nie zwischen Projekten teilen.
 
