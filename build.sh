@@ -147,14 +147,21 @@ DEVID="${CODESIGN_IDENTITY:-Developer ID Application: Daniel Mueller (${APPLE_TE
 # Sparkle bringt eigene innere Binaries mit (Autoupdate, Updater.app). Sie muessen
 # dieselbe Identitaet wie die App tragen und VON INNEN NACH AUSSEN signiert werden
 # (kein --deep: verschachtelte Ziele haben eigene Regeln).
+# Die XPC-Services (Downloader/Installer) stecken nur in der Binaerdistribution
+# und brauchen eigene Signaturen (Notarisierung lehnt sonst ab). Downloader.xpc
+# ist gesandboxt -> Entitlements erhalten (--preserve-metadata).
 SPARKLE_FW="$APPDIR/Contents/Frameworks/Sparkle.framework"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "$DEVID"; then
+  codesign --force --options runtime --preserve-metadata=entitlements --sign "$DEVID" "$SPARKLE_FW/Versions/B/XPCServices/Downloader.xpc" >/dev/null
+  codesign --force --options runtime --sign "$DEVID" "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc" >/dev/null
   codesign --force --options runtime --sign "$DEVID" "$SPARKLE_FW/Versions/B/Autoupdate" >/dev/null
   codesign --force --options runtime --sign "$DEVID" "$SPARKLE_FW/Versions/B/Updater.app" >/dev/null
   codesign --force --options runtime --sign "$DEVID" "$SPARKLE_FW" >/dev/null
   codesign --force --options runtime --sign "$DEVID" "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null
   codesign --force --options runtime --sign "$DEVID" "$APPDIR" >/dev/null
 else
+  codesign --force --preserve-metadata=entitlements --sign - "$SPARKLE_FW/Versions/B/XPCServices/Downloader.xpc" >/dev/null
+  codesign --force --sign - "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc" >/dev/null
   codesign --force --sign - "$SPARKLE_FW/Versions/B/Autoupdate" >/dev/null
   codesign --force --sign - "$SPARKLE_FW/Versions/B/Updater.app" >/dev/null
   codesign --force --sign - "$SPARKLE_FW" >/dev/null

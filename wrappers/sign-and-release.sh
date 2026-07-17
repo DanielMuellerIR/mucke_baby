@@ -80,6 +80,14 @@ bash "$PROJECT_ROOT/build.sh"
 # Kein --deep: verschachtelte Ziele haben eigene Regeln.
 SPARKLE_FW="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 echo "==> Signiere Sparkle.framework (inside-out)"
+# Die XPC-Services stecken NUR in der Binaerdistribution (SwiftPM-Builds haben
+# sie nicht) — ohne eigene Signatur lehnt die Notarisierung ab (belegt:
+# Submission c0dfe666, 2026-07-17). Downloader.xpc ist gesandboxt und braucht
+# seine mitgelieferten Entitlements (--preserve-metadata), sonst bricht der
+# Update-Download zur Laufzeit.
+codesign --force --options runtime --timestamp --preserve-metadata=entitlements \
+  --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/XPCServices/Downloader.xpc"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc"
 codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/Autoupdate"
 codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/Updater.app"
 codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW"
@@ -152,7 +160,14 @@ echo "==> Notarisieren (1-10 Min)"
 # 'stapler staple' zu laufen (das scheiterte dann mit irrefuehrender Meldung statt der
 # echten Ablehnung, nach 1-10 Min Wartezeit). tee /dev/tty haelt den Live-Fortschritt
 # sichtbar (das Script ist interaktive Release-Tooling).
-SUBMIT_OUT=$(xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1 | tee /dev/tty)
+# tee /dev/tty nur in interaktiven Sitzungen: ohne Terminal (Agent/CI) schlaegt
+# das Oeffnen von /dev/tty fehl und riss frueher via pipefail den ganzen Lauf ab,
+# OBWOHL die Submission bereits hochgeladen war.
+if tty -s; then
+  SUBMIT_OUT=$(xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1 | tee /dev/tty)
+else
+  SUBMIT_OUT=$(xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1)
+fi
 if ! grep -q 'status: Accepted' <<<"$SUBMIT_OUT"; then
   echo "FEHLER: Notarisierung nicht akzeptiert." >&2
   SUBID=$(grep -Eo 'id: [0-9a-f-]+' <<<"$SUBMIT_OUT" | head -1 | awk '{print $2}')
