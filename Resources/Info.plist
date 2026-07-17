@@ -22,10 +22,13 @@
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <!-- Beide Versionsfelder werden beim Build aus Models.swift (AppInfo.version)
+         gespiegelt. CFBundleVersion muss monoton steigen: Sparkle vergleicht
+         Updates ausschliesslich darueber. -->
     <key>CFBundleShortVersionString</key>
-    <string>1.6.2</string>
+    <string>1.8.0</string>
     <key>CFBundleVersion</key>
-    <string>10</string>
+    <string>1.8.0</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.2</string>
     <key>NSHighResolutionCapable</key>
@@ -42,5 +45,26 @@
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+    <!-- Sparkle-Selbst-Update: prueft automatisch, installiert aber erst nach
+         Zustimmung. Feed liegt auf GitHub Pages, das DMG beim GitHub Release.
+         Archiv und Feed werden gegen den projektspezifischen Ed25519-Schluessel
+         geprueft (privater Gegenpart NIE im Repo; siehe docs/sparkle-release.md). -->
+    <key>SUFeedURL</key>
+    <string>https://danielmuellerir.github.io/mucke_baby/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>l4OwMMvBBl+/YaqW9kuJ9ywAjQR9a/bUCXFDztc/z7U=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUAutomaticallyUpdate</key>
+    <false/>
+    <key>SUAllowsAutomaticUpdates</key>
+    <false/>
+    <!-- Keine anonymen Hardware-/Systemprofildaten an den Feed anhaengen. -->
+    <key>SUEnableSystemProfiling</key>
+    <false/>
+    <key>SUVerifyUpdateBeforeExtraction</key>
+    <true/>
+    <key>SURequireSignedFeed</key>
+    <true/>
 </dict>
 </plist>

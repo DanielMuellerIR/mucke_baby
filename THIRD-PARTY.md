@@ -100,7 +100,25 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
     History-Frage ohne riskanten `git filter-repo` (der alle Hashes umschreibt und das
     interne Backup-Remote bräche).
 
-## 7. Eigenständiger Code
+## 7. Sparkle — Selbst-Update
+
+- **Was:** `Sparkle.framework` v2.9.4, dynamisch ins App-Bundle gelinkt
+  (`Contents/Frameworks/`), plus die Build-Werkzeuge (`generate_appcast` u. a.)
+  im Appcast-Workflow.
+- **Bezug:** `build.sh` lädt die offizielle Binärdistribution gepinnt und
+  SHA-256-geprüft von
+  `https://github.com/sparkle-project/Sparkle/releases/download/2.9.4/Sparkle-2.9.4.tar.xz`
+  (gitignored unter `.vendor/`). Der Appcast-Workflow nutzt denselben Pin.
+- **Lizenz:** **MIT** (Copyright Andy Matuschak u. a.; einzelne Bestandteile mit
+  eigenen permissiven Hinweisen). Lizenztext liegt bei:
+  `.vendor/Sparkle-2.9.4/LICENSE`.
+- **Pflichten bei Veröffentlichung:** Copyright-/Lizenzhinweis mitführen (diese
+  Datei verweist darauf; der volle Text liegt in der Distribution unter
+  `.vendor/Sparkle-2.9.4/LICENSE` und gehört wie der VLCKit-Text ins Release).
+- **Kommerziell:** erlaubt (MIT).
+- Quelle: <https://github.com/sparkle-project/Sparkle>.
+
+## 8. Eigenständiger Code
 
 - App-Code ist eine eigene SwiftUI-Implementierung. Vom Linux-Mint-Applet „Radio++"
   **inspiriert** (Features/Ideen sind frei) — **kein** Code/Asset von dort übernommen.

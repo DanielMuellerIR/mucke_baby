@@ -45,6 +45,9 @@
 "Aufnahme-Ordner zeigen" = "Show recording folder";
 "Los geht's" = "Let's go";
 
+/* --- Updates (Sparkle) --- */
+"Nach Updates suchen …" = "Check for Updates …";
+
 /* --- Suche --- */
 "Sender suchen" = "Search for stations";
 "Suchen" = "Search";

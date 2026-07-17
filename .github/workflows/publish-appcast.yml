@@ -1,0 +1,119 @@
+# Sparkle-Appcast auf GitHub Pages veroeffentlichen (Bauplan:
+# projektextern/sparkle-auto-updates.md, uebernommen von stille_post).
+#
+# Laeuft nach jedem veroeffentlichten Release (oder manuell fuer ein Tag):
+# holt das Release-DMG, signiert den Feed mit dem Ed25519-Schluessel aus dem
+# Actions-Secret SPARKLE_PRIVATE_KEY und deployt appcast.xml nach Pages.
+# Die App (SUFeedURL) prueft genau diese URL.
+#
+# Anders als stille_post baut dieses Repo ohne SwiftPM — generate_appcast kommt
+# deshalb aus der offiziellen Sparkle-Binaerdistribution, exakt gepinnt und
+# SHA-256-geprueft (derselbe Pin wie in build.sh).
+
+name: Sparkle-Appcast veröffentlichen
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Bereits veröffentlichtes Release-Tag, zum Beispiel v1.8.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Kein cancel-in-progress: ein halb deployter Feed waere schlimmer als warten.
+concurrency:
+  group: sparkle-appcast
+  cancel-in-progress: false
+
+jobs:
+  appcast:
+    runs-on: macos-15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      # Gepinnte Sparkle-Werkzeuge — bei einem Upgrade zusammen mit build.sh
+      # aktualisieren (URL und Hash immer gemeinsam).
+      SPARKLE_VERSION: "2.9.4"
+      SPARKLE_SHA256: "ce89daf967db1e1893ed3ebd67575ed82d3902563e3191ca92aaec9164fbdef9"
+
+    steps:
+      - name: Quelltext auschecken
+        uses: actions/checkout@v7
+
+      - name: GitHub Pages vorbereiten
+        uses: actions/configure-pages@v6
+
+      - name: Release-DMG und Release Notes laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p update site
+          gh release download "$RELEASE_TAG" --pattern '*.dmg' --dir update
+
+          shopt -s nullglob
+          dmgs=(update/*.dmg)
+          if (( ${#dmgs[@]} != 1 )); then
+            echo "FEHLER: Release $RELEASE_TAG muss genau ein DMG enthalten." >&2
+            exit 1
+          fi
+
+          # Gleicher Basisname: generate_appcast ordnet die Markdown-Datei dem DMG zu.
+          gh release view "$RELEASE_TAG" --json body --jq .body > "${dmgs[0]%.dmg}.md"
+
+      - name: Sparkle-Werkzeuge laden (gepinnt)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail -o sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          echo "$SPARKLE_SHA256  sparkle.tar.xz" | shasum -a 256 -c -
+          mkdir -p sparkle-dist
+          tar -xJf sparkle.tar.xz -C sparkle-dist
+
+      - name: Signierten Appcast erzeugen
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "FEHLER: GitHub-Secret SPARKLE_PRIVATE_KEY fehlt." >&2
+            exit 1
+          fi
+
+          tool="sparkle-dist/bin/generate_appcast"
+          if [[ ! -x "$tool" ]]; then
+            echo "FEHLER: Sparkles generate_appcast wurde nicht gefunden." >&2
+            exit 1
+          fi
+
+          # Der geheime Schlüssel steht weder in argv noch in einer Datei oder im Log.
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$tool" \
+            --ed-key-file - \
+            --embed-release-notes \
+            --maximum-versions 1 \
+            --maximum-deltas 0 \
+            --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/" \
+            --link "https://github.com/${GITHUB_REPOSITORY}" \
+            -o "$PWD/site/appcast.xml" \
+            "$PWD/update"
+
+          xmllint --noout site/appcast.xml
+
+      - name: Pages-Artefakt hochladen
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Appcast auf GitHub Pages veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v5

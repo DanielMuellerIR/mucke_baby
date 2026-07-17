@@ -60,6 +60,7 @@ open "build/Mucke, Baby!.app"                    # launch
 - Playlist resolution for `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
 - **Station catalog** with over 50,000 stations from the open [radio‑browser.info](https://www.radio-browser.info) API — browse by genre, search by name, **preview** a station and add it to your list in one click.
 - Light & dark mode; optional menu‑bar icon (off by default).
+- **Self‑updates via Sparkle** — the app checks a signed appcast (GitHub Pages) and installs only after you confirm; no telemetry, no system profiling.
 
 ### Audio‑reactivity permission
 

@@ -211,4 +211,5 @@ und ist keine aktive Anweisung.
 - [`CHANGELOG.md`](CHANGELOG.md): veröffentlichte Änderungen.
 - [`icons/motifs.md`](icons/motifs.md): Icon-Motive.
 - [`BACKLOG.md`](BACKLOG.md): verifizierte offene Arbeit.
+- [`docs/sparkle-release.md`](docs/sparkle-release.md): Sparkle-Update-Ablauf pro Release.
 - [`docs/archive/agent-context-legacy-2026-07-14.md`](docs/archive/agent-context-legacy-2026-07-14.md): frühere Chronik.

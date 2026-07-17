@@ -21,6 +21,8 @@ struct MacRadioApp: App {
     @AppStorage("uiZoom") private var uiZoom = 0
     // Aktives Theme (persistiert als ThemeID.rawValue).
     @AppStorage("selectedTheme") private var selectedThemeRaw = "schlicht"
+    // Sparkle-Selbst-Update: genau EIN langlebiger Updater (siehe UpdaterController.swift).
+    @StateObject private var updater = UpdaterViewModel()
     // Beobachtet die System-Hell/Dunkel-Einstellung. Nötig, weil `schlicht` dem System
     // folgen soll: `preferredColorScheme(nil)` revertet nach einem erzwungenen .dark/.light
     // NICHT zuverlaessig (SwiftUI laesst das Fenster im alten Scheme haengen — Bug 6a:
@@ -58,6 +60,12 @@ struct MacRadioApp: App {
         .windowResizability(.contentMinSize)         // frei groesser ziehbar
         .defaultSize(width: 940, height: 620)        // Startgroesse: Platz fuer 3-Spalten-Themes
         .commands {
+            // „Nach Updates suchen …" im App-Menue (direkt unter „Über …").
+            // Deaktiviert, solange Sparkle nicht suchen kann (laufende Suche/Installation).
+            CommandGroup(after: .appInfo) {
+                Button("Nach Updates suchen …") { updater.checkForUpdates() }
+                    .disabled(!updater.canCheckForUpdates)
+            }
             // Eigenes, sichtbares "Darstellung"-Menue (anklickbar). CMD +/-/0 skaliert
             // die UI ueber dynamicTypeSize. Cmd+"=" zusaetzlich als Zoom-in (auf manchen
             // Tastaturlayouts liefert ⌘+ erst mit Shift) — verdrahtet in ContentView.

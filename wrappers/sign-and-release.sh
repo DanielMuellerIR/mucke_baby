@@ -74,6 +74,16 @@ bash "$PROJECT_ROOT/build.sh"
 # --timestamp:       Apple-Zeitstempel → Signatur bleibt nach Zert-Ablauf gültig.
 # VLCKit muss mit UNSERER Team-ID signiert sein, sonst scheitert unter Hardened
 # Runtime die Library-Validation beim Laden.
+# Sparkles innere Helfer (Autoupdate, Updater.app) brauchen ebenfalls unsere
+# Team-ID und werden von innen nach aussen signiert — sonst lehnt die
+# Notarisierung ab („binary is not signed with a valid Developer ID").
+# Kein --deep: verschachtelte Ziele haben eigene Regeln.
+SPARKLE_FW="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+echo "==> Signiere Sparkle.framework (inside-out)"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/Autoupdate"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/Updater.app"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW"
+
 echo "==> Signiere VLCKit.framework"
 codesign --force --options runtime --timestamp --sign "$IDENTITY" "$FRAMEWORK"
 

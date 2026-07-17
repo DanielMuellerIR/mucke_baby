@@ -6,9 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [1.8.0] - 2026-07-17
 ### Added
 - Station catalog: browse the free community database radio-browser.info (50,000+ stations) by genre, search by name, preview a station right in the dialog, and add it to your list in one click. Previews use a separate lightweight player — no history entries, no recordings. The catalog reports a "click" to the database when you preview a station, as its API guidelines request, and fails over between public API mirrors.
+- Self-updates via Sparkle 2.9.4: the app checks a signed appcast on GitHub Pages ("Check for Updates …" in the app menu) and installs only after confirmation. Updates are verified twice — Apple notarization plus the project's Ed25519 signature. No automatic installs, no system profiling. Existing installations must install this version manually once; automatic updates work from the next release on.
 
 ### Changed
 - The simple name-only station search has been replaced by the station catalog (same toolbar button).
+- The bundle's `CFBundleVersion` now mirrors the app version on every build (Sparkle compares versions through this field).
 
 ## [1.7.42] - 2026-07-08
 ### Fixed

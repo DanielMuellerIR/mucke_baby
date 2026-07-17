@@ -58,6 +58,7 @@ open "build/Mucke, Baby!.app"                    # starten
 - Playlist-Auflösung für `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
 - **Sender-Katalog** mit über 50.000 Sendern aus der offenen API von [radio-browser.info](https://www.radio-browser.info) — nach Genre stöbern, per Name suchen, Sender **probehören** und mit einem Klick übernehmen.
 - Hell- & Dunkelmodus; optionales Menüleisten-Symbol (standardmäßig aus).
+- **Selbst-Updates über Sparkle** — die App prüft einen signierten Appcast (GitHub Pages) und installiert nur nach Bestätigung; keine Telemetrie, kein System-Profiling.
 
 ### Berechtigung für die Audio-Reaktivität
 

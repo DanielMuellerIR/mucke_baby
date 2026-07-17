@@ -40,6 +40,28 @@ if [ ! -d "$FWDIR/VLCKit.framework" ]; then
     rm -rf "VLCKit - binary package" vlckit.tar.xz )
 fi
 
+# --- Sparkle beschaffen (einmalig, Selbst-Update) ----------------------
+# Offizielle Binaerdistribution des Sparkle-Projekts, exakt gepinnt und wie
+# VLCKit vor dem Entpacken gegen einen festen SHA-256 geprueft: Der Updater
+# laeuft spaeter mit Schreibrechten im Installationspfad — manipulierter
+# Updater-Code waere der schlimmste Fall. Bei einem bewussten Upgrade URL
+# UND Hash gemeinsam aktualisieren (Release-Seite des Sparkle-Projekts).
+SPARKLE_VERSION="2.9.4"
+SPARKLE_DIR="$VENDOR/Sparkle-$SPARKLE_VERSION"
+SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+SPARKLE_SHA256="ce89daf967db1e1893ed3ebd67575ed82d3902563e3191ca92aaec9164fbdef9"
+
+if [ ! -d "$SPARKLE_DIR/Sparkle.framework" ]; then
+  echo "Lade Sparkle $SPARKLE_VERSION (einmalig, ~7 MB) …"
+  mkdir -p "$SPARKLE_DIR"
+  ( cd "$VENDOR"
+    curl -L --fail -o sparkle.tar.xz "$SPARKLE_URL"
+    echo "$SPARKLE_SHA256  sparkle.tar.xz" | shasum -a 256 -c - \
+      || { echo "Sparkle-Pruefsumme falsch — Abbruch!" >&2; rm -f sparkle.tar.xz; exit 1; }
+    tar -xJf sparkle.tar.xz -C "Sparkle-$SPARKLE_VERSION"
+    rm -f sparkle.tar.xz )
+fi
+
 # --- Bundle-Geruest -----------------------------------------------------
 rm -rf "$BUILD"/*.app          # alte Bundles (auch frueheres MacRadio.app) weg
 mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources" "$APPDIR/Contents/Frameworks" "$MODULE_CACHE"
@@ -49,6 +71,7 @@ swiftc -O -parse-as-library \
   -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$MODULE_CACHE" \
   -F "$FWDIR" -framework VLCKit \
+  -F "$SPARKLE_DIR" -framework Sparkle \
   -framework SwiftUI -framework AppKit -framework CoreAudio \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   Sources/*.swift \
@@ -58,9 +81,13 @@ cp Resources/Info.plist "$APPDIR/Contents/Info.plist"
 
 # Versionsnummer aus Models.swift (AppInfo.version = einzige Quelle) in die
 # Bundle-Info.plist spiegeln, damit Finder/„Über"-Dialog dieselbe Version zeigen.
+# CFBundleVersion ebenfalls: Sparkle vergleicht Updates NUR ueber dieses Feld,
+# es muss deshalb mit jeder Release-Version monoton steigen.
 VERSION=$(grep -Eo 'static let version = "[0-9]+\.[0-9]+\.[0-9]+"' Sources/Models.swift | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
 if [ -n "$VERSION" ]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
+    "$APPDIR/Contents/Info.plist" >/dev/null 2>&1
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" \
     "$APPDIR/Contents/Info.plist" >/dev/null 2>&1
 fi
 
@@ -101,6 +128,11 @@ done
 echo "Bündle VLCKit …"
 cp -R "$FWDIR/VLCKit.framework" "$APPDIR/Contents/Frameworks/"
 
+# Sparkle-Framework ins Bundle. ditto erhaelt die Versions/-Symlink-Struktur
+# (cp -R wuerde reichen, ditto ist die kanonische Framework-Kopie).
+echo "Bündle Sparkle …"
+ditto "$SPARKLE_DIR/Sparkle.framework" "$APPDIR/Contents/Frameworks/Sparkle.framework"
+
 # Signieren inside-out (erst Framework, dann App). Wenn ein Developer-ID-Zertifikat da ist,
 # damit + Hardened Runtime signieren: dann bleibt die einmal erteilte Audio-Aufnahme-Erlaubnis
 # (TCC) ueber REBUILDS erhalten — TCC schluesselt auf Team-ID + Bundle-ID, nicht auf den bei
@@ -112,10 +144,20 @@ DEVID="${CODESIGN_IDENTITY:-Developer ID Application: Daniel Mueller (${APPLE_TE
 # Kein `|| true`: ein echter Signier-Fehler soll den Build abbrechen (sonst meldet er
 # „Fertig", liefert aber unter Hardened Runtime eine nicht startfaehige App). stdout
 # bleibt unterdrueckt (codesign ist gespraechig), stderr + Exit-Code laufen via set -e.
+# Sparkle bringt eigene innere Binaries mit (Autoupdate, Updater.app). Sie muessen
+# dieselbe Identitaet wie die App tragen und VON INNEN NACH AUSSEN signiert werden
+# (kein --deep: verschachtelte Ziele haben eigene Regeln).
+SPARKLE_FW="$APPDIR/Contents/Frameworks/Sparkle.framework"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "$DEVID"; then
+  codesign --force --options runtime --sign "$DEVID" "$SPARKLE_FW/Versions/B/Autoupdate" >/dev/null
+  codesign --force --options runtime --sign "$DEVID" "$SPARKLE_FW/Versions/B/Updater.app" >/dev/null
+  codesign --force --options runtime --sign "$DEVID" "$SPARKLE_FW" >/dev/null
   codesign --force --options runtime --sign "$DEVID" "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null
   codesign --force --options runtime --sign "$DEVID" "$APPDIR" >/dev/null
 else
+  codesign --force --sign - "$SPARKLE_FW/Versions/B/Autoupdate" >/dev/null
+  codesign --force --sign - "$SPARKLE_FW/Versions/B/Updater.app" >/dev/null
+  codesign --force --sign - "$SPARKLE_FW" >/dev/null
   codesign --force --sign - "$APPDIR/Contents/Frameworks/VLCKit.framework" >/dev/null
   codesign --force --sign - "$APPDIR" >/dev/null
 fi
