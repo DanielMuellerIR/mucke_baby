@@ -360,7 +360,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingAdd) { StationEditView(station: nil) }
         .sheet(item: $editStation) { st in StationEditView(station: st) }
         .sheet(isPresented: $showingPrefs) { PreferencesView() }
-        .sheet(isPresented: $showingSearch) { SearchView() }
+        .sheet(isPresented: $showingSearch) { StationBrowserView() }
         .sheet(isPresented: $showingGenres) { GenreListsView() }
         .sheet(isPresented: $showingWelcome, onDismiss: { autoplayIfNeeded() }) { WelcomeView() }
         // Cmd+"=" als zweite Zoom-in-Taste (Layout-unabhaengig), unsichtbar verdrahtet.
@@ -538,7 +538,7 @@ struct ContentView: View {
     /// Aktions-Icons rechts: Suche, Hinzufuegen, Bearbeiten, Einstellungen, Verlauf, Theme.
     private var headerActions: some View {
         HStack(spacing: 14) {
-            headerIcon("magnifyingglass", "Sender suchen (radio-browser)") { showingSearch = true }
+            headerIcon("magnifyingglass", "Sender-Katalog: stöbern, probehören, hinzufügen (radio-browser)") { showingSearch = true }
             Menu {
                 Button("Sender hinzufügen …") { showingAdd = true }
                 Button("Genre-Liste importieren …") { showingGenres = true }

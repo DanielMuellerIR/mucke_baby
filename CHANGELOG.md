@@ -3,6 +3,17 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.0] - 2026-07-17
+### Added
+- Station catalog: browse the free community database radio-browser.info (50,000+ stations) by genre, search by name, preview a station right in the dialog, and add it to your list in one click. Previews use a separate lightweight player — no history entries, no recordings. The catalog reports a "click" to the database when you preview a station, as its API guidelines request, and fails over between public API mirrors.
+
+### Changed
+- The simple name-only station search has been replaced by the station catalog (same toolbar button).
+
+## [1.7.42] - 2026-07-08
+### Fixed
+- The automatic recording stop on low disk space (< 10 GB) is now visibly reported in the footer instead of failing silently; the warning resets on the next station start.
+
 ## [1.7.41] - 2026-07-05
 ### Added
 - The history panel's options menu now has a second set of cleanup actions that delete only the local recording files (older than a day/week/month, or all of them) while keeping the playback history intact — you can still see which songs played after the audio files are gone.

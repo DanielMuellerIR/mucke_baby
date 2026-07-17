@@ -45,11 +45,23 @@
 "Aufnahme-Ordner zeigen" = "Aufnahme-Ordner zeigen";
 "Los geht's" = "Los geht's";
 
-/* --- Suche --- */
+/* --- Suche / Sender-Katalog --- */
 "Sender suchen" = "Sender suchen";
 "Suchen" = "Suchen";
 "Zur Liste hinzufügen" = "Zur Liste hinzufügen";
 "Schließen" = "Schließen";
+"Sender-Katalog" = "Sender-Katalog";
+"Über 50.000 Sender aus der freien Community-Datenbank radio-browser.info — nach Genre stöbern oder per Name suchen, probehören und übernehmen." = "Über 50.000 Sender aus der freien Community-Datenbank radio-browser.info — nach Genre stöbern oder per Name suchen, probehören und übernehmen.";
+"Sendername, z. B. Hardstyle" = "Sendername, z. B. Hardstyle";
+"Genre filtern …" = "Genre filtern …";
+"Links ein Genre wählen — oder oben nach Namen suchen." = "Links ein Genre wählen — oder oben nach Namen suchen.";
+"Probehören" = "Probehören";
+"Probehören stoppen" = "Probehören stoppen";
+"Probehören stoppt die laufende Wiedergabe." = "Probehören stoppt die laufende Wiedergabe.";
+"Stream nicht abspielbar" = "Stream nicht abspielbar";
+"Zur Senderliste hinzufügen" = "Zur Senderliste hinzufügen";
+"Bereits in der Senderliste" = "Bereits in der Senderliste";
+"Katalog nicht erreichbar: %@" = "Katalog nicht erreichbar: %@";
 
 /* --- Genre-Listen --- */
 "Kuratierte Genre-Listen" = "Kuratierte Genre-Listen";

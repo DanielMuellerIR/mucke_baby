@@ -48,6 +48,18 @@
 /* --- Suche --- */
 "Sender suchen" = "Search for stations";
 "Suchen" = "Search";
+"Sender-Katalog" = "Station catalog";
+"Über 50.000 Sender aus der freien Community-Datenbank radio-browser.info — nach Genre stöbern oder per Name suchen, probehören und übernehmen." = "Over 50,000 stations from the free community database radio-browser.info — browse by genre or search by name, preview, and add.";
+"Sendername, z. B. Hardstyle" = "Station name, e.g., Hardstyle";
+"Genre filtern …" = "Filter genres …";
+"Links ein Genre wählen — oder oben nach Namen suchen." = "Pick a genre on the left — or search by name above.";
+"Probehören" = "Preview";
+"Probehören stoppen" = "Stop preview";
+"Probehören stoppt die laufende Wiedergabe." = "Previewing stops the current playback.";
+"Stream nicht abspielbar" = "Stream not playable";
+"Zur Senderliste hinzufügen" = "Add to station list";
+"Bereits in der Senderliste" = "Already in the station list";
+"Katalog nicht erreichbar: %@" = "Catalog unreachable: %@";
 "Zur Liste hinzufügen" = "Add to list";
 "Schließen" = "Close";
 

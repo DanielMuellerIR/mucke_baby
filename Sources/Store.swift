@@ -136,6 +136,23 @@ final class Store: ObservableObject {
         return u
     }
 
+    // Ist ein Sender mit dieser URL (normalisiert) schon in der Liste?
+    // Genutzt vom Sender-Katalog fuer das ✓ an bereits uebernommenen Sendern.
+    func containsURL(_ url: String) -> Bool {
+        let key = normURL(url)
+        return stations.contains { normURL($0.url) == key }
+    }
+
+    // Einzelnen Sender uebernehmen, falls seine URL noch nicht in der Liste ist.
+    // Rueckgabe: true = neu hinzugefuegt, false = Dublette (nichts passiert).
+    @discardableResult
+    func addIfNew(name: String, url: String) -> Bool {
+        guard !containsURL(url) else { return false }
+        stations.append(Station(name: name, url: url, enabled: true, favorite: false))
+        saveStations()
+        return true
+    }
+
     // Fuegt nur Sender hinzu, die per (normalisierter) URL noch nicht da sind.
     // Gibt die Zahl der neu hinzugefuegten zurueck.
     @discardableResult

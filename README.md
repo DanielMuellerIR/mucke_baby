@@ -58,7 +58,7 @@ open "build/Mucke, Baby!.app"                    # launch
 - Station list with play/stop, per‑station show/hide and reordering; one **favorite** that auto‑plays on launch.
 - Add / edit / delete stations; **curated genre lists** to import in one click.
 - Playlist resolution for `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
-- Station search via the open [radio‑browser.info](https://www.radio-browser.info) API.
+- **Station catalog** with over 50,000 stations from the open [radio‑browser.info](https://www.radio-browser.info) API — browse by genre, search by name, **preview** a station and add it to your list in one click.
 - Light & dark mode; optional menu‑bar icon (off by default).
 
 ### Audio‑reactivity permission

@@ -61,8 +61,10 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
   Daten gelten als frei nutzbar (auch kommerziell, Fork, eigener Server). Einzige **Bitte**
   der Betreiber: einen *descriptive User-Agent* (`appname/version`) senden, damit sie
   Entwickler erreichen können.
-- **Erfüllt:** Die App sendet bei jeder Abfrage den Header `User-Agent: MuckeBaby/1.0`
-  (`Sources/Views.swift` Suche, `Sources/ICYMetadataReader.swift` ICY-Reader).
+- **Erfüllt:** Die App sendet bei jeder Abfrage den Header `User-Agent: MuckeBaby/<Version>`
+  (`Sources/StationBrowser.swift` Sender-Katalog, `Sources/ICYMetadataReader.swift` ICY-Reader).
+  Zusätzlich meldet der Katalog beim Probehören den von der API-Doku erbetenen
+  „Klick" (`/json/url/<uuid>`), der die Beliebtheits-Statistik der Datenbank speist.
 - Nur Abfrage zur Laufzeit, **keine** Daten mitgeliefert.
 - Quelle/Doku: <https://docs.radio-browser.info>.
 

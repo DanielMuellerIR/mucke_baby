@@ -56,7 +56,7 @@ open "build/Mucke, Baby!.app"                    # starten
 - Senderliste mit Play/Stop, Ein-/Ausblenden und Umsortieren pro Sender; ein **Favorit**, der beim Start automatisch spielt.
 - Sender hinzufügen / bearbeiten / löschen; **kuratierte Genre-Listen** per Klick importieren.
 - Playlist-Auflösung für `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
-- Sendersuche über die offene API von [radio-browser.info](https://www.radio-browser.info).
+- **Sender-Katalog** mit über 50.000 Sendern aus der offenen API von [radio-browser.info](https://www.radio-browser.info) — nach Genre stöbern, per Name suchen, Sender **probehören** und mit einem Klick übernehmen.
 - Hell- & Dunkelmodus; optionales Menüleisten-Symbol (standardmäßig aus).
 
 ### Berechtigung für die Audio-Reaktivität
