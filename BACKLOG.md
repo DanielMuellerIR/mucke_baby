@@ -17,6 +17,9 @@
    installieren (Ablauf: docs/sparkle-release.md).
 8. Privaten Sparkle-Schlüssel verschlüsselt sichern (liegt nur im
    Login-Schlüsselbund des Release-Rechners; synct nicht über iCloud).
+9. Entscheiden: alte echte Kopie v1.7.35 in /Applications entfernen oder
+   durch v1.8.0 ersetzen (der genutzte Weg ist der ~/Applications-Symlink in den
+   Repo-Build; die Altkopie taugt ggf. als Ziel für den Sparkle-E2E-Test, Punkt 7).
 
 Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
 Theme-Entwürfe sind kein Backlog.
