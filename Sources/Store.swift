@@ -128,18 +128,16 @@ final class Store: ObservableObject {
 
     // MARK: - Import (kuratierte Genre-Listen, Punkt 1)
 
-    // URL normalisieren fuer Dubletten-Erkennung (Schema/Slash/Case egal).
-    private func normURL(_ s: String) -> String {
-        var u = s.lowercased().trimmingCharacters(in: .whitespaces)
-        for p in ["https://", "http://"] where u.hasPrefix(p) { u.removeFirst(p.count) }
-        while u.hasSuffix("/") { u.removeLast() }
-        return u
+    // URL-Schluessel fuer Dubletten: Schema/Host case-insensitiv, Pfad/Query
+    // bewusst case-sensitiv. Ungueltige bzw. Nicht-Web-URLs haben keinen Key.
+    private func normURL(_ value: String) -> StationURLIdentity? {
+        StationURLIdentity(value)
     }
 
     // Ist ein Sender mit dieser URL (normalisiert) schon in der Liste?
     // Genutzt vom Sender-Katalog fuer das ✓ an bereits uebernommenen Sendern.
     func containsURL(_ url: String) -> Bool {
-        let key = normURL(url)
+        guard let key = normURL(url) else { return false }
         return stations.contains { normURL($0.url) == key }
     }
 
@@ -147,8 +145,11 @@ final class Store: ObservableObject {
     // Rueckgabe: true = neu hinzugefuegt, false = Dublette (nichts passiert).
     @discardableResult
     func addIfNew(name: String, url: String) -> Bool {
-        guard !containsURL(url) else { return false }
-        stations.append(Station(name: name, url: url, enabled: true, favorite: false))
+        guard let validated = StreamURLPolicy.validatedURL(url),
+              !containsURL(validated.absoluteString)
+        else { return false }
+        stations.append(Station(name: name, url: validated.absoluteString,
+                                enabled: true, favorite: false))
         saveStations()
         return true
     }
@@ -157,14 +158,17 @@ final class Store: ObservableObject {
     // Gibt die Zahl der neu hinzugefuegten zurueck.
     @discardableResult
     func importStations(_ seeds: [SeedStation]) -> Int {
-        var seen = Set(stations.map { normURL($0.url) })
+        var seen = Set(stations.compactMap { normURL($0.url) })
         var added = 0
         for s in seeds {
-            let key = normURL(s.url)
+            guard let validated = StreamURLPolicy.validatedURL(s.url),
+                  let key = normURL(validated.absoluteString)
+            else { continue }
             if seen.contains(key) { continue }
             seen.insert(key)
             // Importierte Sender nie als Favorit uebernehmen.
-            stations.append(Station(name: s.name, url: s.url, enabled: true, favorite: false))
+            stations.append(Station(name: s.name, url: validated.absoluteString,
+                                    enabled: true, favorite: false))
             added += 1
         }
         if added > 0 { saveStations() }

@@ -169,6 +169,7 @@ final class PreviewPlayer: ObservableObject {
     private let player = VLCMediaPlayer()
     private let shim = PlayerDelegateShim()
     private var resolveTask: Task<Void, Never>?
+    private var switches = PreviewSwitchCoordinator()
 
     init() {
         player.delegate = shim
@@ -180,21 +181,35 @@ final class PreviewPlayer: ObservableObject {
 
     /// Probehören starten/stoppen (Klick auf denselben Sender = Stopp).
     func toggle(_ station: RBStation, volume: Float) {
-        if currentID == station.stationuuid { stop(); return }
-        stop()
+        let action = switches.toggle(stationID: station.stationuuid)
+        if case .stop = action {
+            stop(invalidateGeneration: false)
+            return
+        }
+        guard case let .replace(generation) = action else { return }
+
+        // A -> B ersetzt das Medium direkt. Ein asynchroner stop() von A koennte
+        // sonst erst nach B.play() eintreffen und die neue Vorschau abwuergen.
+        resolveTask?.cancel()
+        resolveTask = nil
         currentID = station.stationuuid
         failedID = nil
         isLoading = true
-        RadioBrowserAPI.countClick(stationUUID: station.stationuuid)
-        let raw = station.streamURL
+        let stationID = station.stationuuid
+        guard let rawURL = StreamURLPolicy.validatedURL(station.streamURL) else {
+            markFailed(generation: generation, stationID: stationID)
+            return
+        }
         resolveTask = Task { [weak self] in
             // Auch Katalog-URLs können Playlist-Container sein -> auflösen.
-            let resolved = await PlaylistResolver.resolve(raw)
+            let resolved = await PlaylistResolver.resolve(rawURL.absoluteString)
             guard let self, !Task.isCancelled else { return }
+            guard self.switches.accepts(generation, stationID: stationID) else { return }
             guard let url = resolved else {
-                self.markFailed()
+                self.markFailed(generation: generation, stationID: stationID)
                 return
             }
+            RadioBrowserAPI.countClick(stationUUID: stationID)
             let media = VLCMedia(url: url)
             media.addOption(":network-caching=1500")
             self.player.media = media
@@ -208,6 +223,11 @@ final class PreviewPlayer: ObservableObject {
     }
 
     func stop() {
+        stop(invalidateGeneration: true)
+    }
+
+    private func stop(invalidateGeneration: Bool) {
+        if invalidateGeneration { switches.stop() }
         resolveTask?.cancel()
         resolveTask = nil
         if player.isPlaying || player.media != nil { player.stop() }
@@ -228,8 +248,11 @@ final class PreviewPlayer: ObservableObject {
         }
     }
 
-    private func markFailed() {
+    private func markFailed(generation: UInt64? = nil, stationID: String? = nil) {
+        if let generation, let stationID,
+           !switches.accepts(generation, stationID: stationID) { return }
         failedID = currentID
+        switches.stop()
         currentID = nil
         isLoading = false
         player.stop()
@@ -256,6 +279,8 @@ struct StationBrowserView: View {
     @State private var results: [RBStation] = []
     @State private var loading = false
     @State private var error = ""
+    @State private var stationRequestTask: Task<Void, Never>?
+    @State private var stationRequests = LatestRequestGeneration()
     /// Merkt in dieser Sitzung hinzugefügte Sender (sofortiges ✓ in der Zeile).
     @State private var addedIDs: Set<String> = []
 
@@ -269,8 +294,8 @@ struct StationBrowserView: View {
             HStack {
                 TextField("Sendername, z. B. Hardstyle", text: $query)
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit { Task { await searchByName() } }
-                Button("Suchen") { Task { await searchByName() } }
+                    .onSubmit { searchByName() }
+                Button("Suchen") { searchByName() }
                     .disabled(query.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
@@ -334,12 +359,16 @@ struct StationBrowserView: View {
         .frame(width: 780, height: 560)
         .task { await loadTags() }
         .onChange(of: selectedTag) { _, tag in
-            if let tag { Task { await loadStations(tag: tag) } }
+            if let tag { loadStations(tag: tag) }
         }
         // Probehör-Lautstärke folgt dem App-Regler live.
         .onChange(of: volume) { _, v in preview.setVolume(Float(v)) }
         // Sheet zu -> Probehören sicher beenden (nichts darf weiterlaufen).
-        .onDisappear { preview.stop() }
+        .onDisappear {
+            stationRequestTask?.cancel()
+            stationRequests.invalidate()
+            preview.stop()
+        }
     }
 
     private var filteredTags: [RBTag] {
@@ -359,7 +388,8 @@ struct StationBrowserView: View {
     }
 
     private func add(_ st: RBStation) {
-        if store.addIfNew(name: st.name, url: st.streamURL) {
+        guard let url = StreamURLPolicy.validatedURL(st.streamURL) else { return }
+        if store.addIfNew(name: st.name, url: url.absoluteString) {
             addedIDs.insert(st.stationuuid)
         }
     }
@@ -376,28 +406,36 @@ struct StationBrowserView: View {
         }
     }
 
-    private func loadStations(tag: String) async {
-        loading = true; error = ""; results = []
-        defer { loading = false }
-        do {
-            results = try await RadioBrowserAPI.stations(tag: tag)
-            if results.isEmpty { error = String(localized: "Keine Treffer.") }
-        } catch {
-            self.error = String(localized: "Suche fehlgeschlagen: \(error.localizedDescription)")
-        }
+    private func loadStations(tag: String) {
+        startStationRequest { try await RadioBrowserAPI.stations(tag: tag) }
     }
 
-    private func searchByName() async {
+    private func searchByName() {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return }
         selectedTag = nil
+        startStationRequest { try await RadioBrowserAPI.stations(name: q) }
+    }
+
+    private func startStationRequest(
+        _ operation: @escaping @MainActor () async throws -> [RBStation]
+    ) {
+        stationRequestTask?.cancel()
+        let generation = stationRequests.begin()
         loading = true; error = ""; results = []
-        defer { loading = false }
-        do {
-            results = try await RadioBrowserAPI.stations(name: q)
-            if results.isEmpty { error = String(localized: "Keine Treffer.") }
-        } catch {
-            self.error = String(localized: "Suche fehlgeschlagen: \(error.localizedDescription)")
+        stationRequestTask = Task {
+            do {
+                let loaded = try await operation()
+                guard !Task.isCancelled, stationRequests.accepts(generation) else { return }
+                results = loaded
+                if loaded.isEmpty { error = String(localized: "Keine Treffer.") }
+            } catch {
+                guard !Task.isCancelled, stationRequests.accepts(generation) else { return }
+                self.error = String(localized: "Suche fehlgeschlagen: \(error.localizedDescription)")
+            }
+            guard stationRequests.accepts(generation) else { return }
+            loading = false
+            stationRequestTask = nil
         }
     }
 }

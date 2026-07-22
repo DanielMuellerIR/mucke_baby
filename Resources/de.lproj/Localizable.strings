@@ -75,6 +75,12 @@
 
 /* --- Verlauf --- */
 "Verlauf" = "Verlauf";
+"Verlauf und Aufnahmen" = "Verlauf und Aufnahmen";
+"Nur Aufnahmen (Verlauf bleibt)" = "Nur Aufnahmen (Verlauf bleibt)";
+"Alle Aufnahmen löschen" = "Alle Aufnahmen löschen";
+"Alle Aufnahmen endgültig löschen?" = "Alle Aufnahmen endgültig löschen?";
+"Endgültig löschen" = "Endgültig löschen";
+"Alle abgeschlossenen Aufnahme-Dateien werden endgültig gelöscht. Der Verlauf bleibt erhalten. Eine laufende Aufnahme wird nicht gelöscht." = "Alle abgeschlossenen Aufnahme-Dateien werden endgültig gelöscht. Der Verlauf bleibt erhalten. Eine laufende Aufnahme wird nicht gelöscht.";
 "Älter als 1 Tag löschen" = "Älter als 1 Tag löschen";
 "Älter als 1 Woche löschen" = "Älter als 1 Woche löschen";
 "Älter als 1 Monat löschen" = "Älter als 1 Monat löschen";

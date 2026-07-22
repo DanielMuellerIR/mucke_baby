@@ -3,6 +3,17 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.1] - 2026-07-22
+### Fixed
+- Deleting all recordings now requires an explicit destructive confirmation and clearly states that completed files are removed permanently while history and an active recording remain.
+- Rapid preview switches and overlapping catalog searches can no longer let an older asynchronous operation stop or overwrite the latest station request.
+- Stream and playlist URLs now pass through one HTTP(S)-and-host policy before storage or playback; recognized playlists fail closed when they do not resolve to a safe web target.
+- Station duplicate detection case-folds only URL scheme and host, preserving case-sensitive paths and queries.
+- Added the missing English translations for the history and recording cleanup controls.
+
+### Security
+- The Sparkle private key is exposed only to the signing step, and every third-party GitHub Action is pinned to an immutable revision.
+
 ## [1.8.0] - 2026-07-17
 ### Added
 - Station catalog: browse the free community database radio-browser.info (50,000+ stations) by genre, search by name, preview a station right in the dialog, and add it to your list in one click. Previews use a separate lightweight player — no history entries, no recordings. The catalog reports a "click" to the database when you preview a station, as its API guidelines request, and fails over between public API mirrors.

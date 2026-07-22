@@ -40,7 +40,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
-      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
       # Gepinnte Sparkle-Werkzeuge — bei einem Upgrade zusammen mit build.sh
       # aktualisieren (URL und Hash immer gemeinsam).
       SPARKLE_VERSION: "2.9.4"
@@ -48,10 +47,10 @@ jobs:
 
     steps:
       - name: Quelltext auschecken
-        uses: actions/checkout@v7
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: GitHub Pages vorbereiten
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Release-DMG und Release Notes laden
         shell: bash
@@ -81,6 +80,9 @@ jobs:
           tar -xJf sparkle.tar.xz -C sparkle-dist
 
       - name: Signierten Appcast erzeugen
+        env:
+          # Nur dieser Schritt darf den privaten Signierschluessel sehen.
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -109,10 +111,10 @@ jobs:
           xmllint --noout site/appcast.xml
 
       - name: Pages-Artefakt hochladen
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: site
 
       - name: Appcast auf GitHub Pages veröffentlichen
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@decdde0ac072f6dda9a9b916db36a3e746d3c6c0 # v4.0.5

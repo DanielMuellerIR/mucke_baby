@@ -29,16 +29,24 @@ final class Recorder: @unchecked Sendable {
     var onLowDisk: (() -> Void)?           // Main-Thread
 
     private let indexURL: URL
+    private let minimumFreeBytes: Int64
     private let q = DispatchQueue(label: "de.danielmuller.macradio.recorder")
     private var handle: FileHandle?
     private var fileStart: Date?
     private var bytesSinceCheck = 0
     private var clips: [Clip] = []
 
-    init() {
-        migrateLegacyAppDir(in: .musicDirectory)   // alten „MacRadio"-Aufnahmeordner übernehmen
-        let music = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
-        dir = music.appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
+    init(directory: URL? = nil, minimumFreeBytes: Int64 = Recorder.minFreeBytes) {
+        if let directory {
+            // Expliziter Pfad ist fuer Headless-Tests/isolierte Werkzeuge; dabei
+            // niemals reale Musikordner migrieren oder beruehren.
+            dir = directory
+        } else {
+            migrateLegacyAppDir(in: .musicDirectory)   // alten „MacRadio"-Aufnahmeordner übernehmen
+            let music = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
+            dir = music.appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
+        }
+        self.minimumFreeBytes = minimumFreeBytes
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         indexURL = dir.appendingPathComponent("recordings-index.json")
         q.sync { loadIndex(); closeDangling() }
@@ -97,6 +105,13 @@ final class Recorder: @unchecked Sendable {
         }
     }
 
+    /// Entfernt alle abgeschlossenen Aufnahme-Dateien. Eine laufende Aufnahme
+    /// (`end == nil`, offenes Handle) bleibt erhalten. Die UI ruft dies erst nach
+    /// einem expliziten destruktiven Bestätigungsdialog auf.
+    func deleteAllCompleted() {
+        prune(olderThan: .distantFuture)
+    }
+
     // Snapshot des Index (fuer Export-UI), synchron.
     func snapshot() -> [Clip] { q.sync { clips } }
 
@@ -153,7 +168,7 @@ final class Recorder: @unchecked Sendable {
     private func hasSpace() -> Bool {
         guard let vals = try? dir.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
               let free = vals.volumeAvailableCapacityForImportantUsage else { return true }
-        return free > Self.minFreeBytes
+        return free > minimumFreeBytes
     }
 
     private func fileName(station: String, date: Date, ext: String) -> String {

@@ -23,6 +23,7 @@ struct HistoryPanel: View {
     @State private var lyricsFor: SongEntry?
     @State private var exportMsg = ""
     @State private var showExportChoice = false
+    @State private var showDeleteAllRecordingsConfirmation = false
 
     // Verlauf-Tinte: auf der hellen Pergament-Textur (retro) waere der dunkle
     // Theme-Text unlesbar -> dort eine dunkle Tinte erzwingen. Sonst der normale
@@ -107,7 +108,7 @@ struct HistoryPanel: View {
                         // "aelter" -> alle weg. Eine gerade LAUFENDE Aufnahme (end == nil,
                         // offenes FileHandle) bleibt bewusst bestehen.
                         Button("Alle Aufnahmen löschen", role: .destructive) {
-                            player.recorder.prune(olderThan: .distantFuture)
+                            showDeleteAllRecordingsConfirmation = true
                         }
                     }
                     Divider()
@@ -211,6 +212,18 @@ struct HistoryPanel: View {
             } else {
                 ThemedSurface(.panel)
             }
+        }
+        .confirmationDialog(
+            "Alle Aufnahmen endgültig löschen?",
+            isPresented: $showDeleteAllRecordingsConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Endgültig löschen", role: .destructive) {
+                player.recorder.deleteAllCompleted()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Alle abgeschlossenen Aufnahme-Dateien werden endgültig gelöscht. Der Verlauf bleibt erhalten. Eine laufende Aufnahme wird nicht gelöscht.")
         }
         .sheet(item: $lyricsFor) { e in
             LyricsView(artist: e.artist ?? "", title: e.title ?? e.raw)

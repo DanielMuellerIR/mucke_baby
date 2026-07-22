@@ -5,16 +5,17 @@ import Foundation
 // abspielen — er braucht die rohe mp3/aac/HLS-URL.
 enum PlaylistResolver {
 
-    // Liefert die abspielbare URL. Bei Fehlern wird die Eingabe-URL
-    // unveraendert zurueckgegeben (AVPlayer meldet dann ggf. selbst Fehler).
+    // Liefert ausschliesslich eine von StreamURLPolicy erlaubte Web-URL. Ein
+    // erkannter Playlist-Container wird fail-closed behandelt: Kann sein Ziel
+    // nicht sicher aufgeloest werden, bekommt VLC nicht den rohen Container und
+    // kann dadurch auch kein file:/ oder anderes lokales Ziel selbst verfolgen.
     static func resolve(_ raw: String, depth: Int = 0) async -> URL? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmed) else { return nil }
-        if depth > 3 { return url }                 // Schutz gegen Endlos-Verschachtelung
+        guard let url = StreamURLPolicy.validatedURL(raw) else { return nil }
+        if depth > 3 { return nil }                 // Schutz gegen Endlos-Verschachtelung
         guard needsResolution(url) else { return url }
-        guard let text = await fetchHead(url) else { return url }
-        guard let inner = firstMediaURL(in: text) else { return url }
-        if inner.absoluteString == url.absoluteString { return url }
+        guard let text = await fetchHead(url) else { return nil }
+        guard let inner = firstMediaURL(in: text) else { return nil }
+        if inner.absoluteString == url.absoluteString { return nil }
         // Playlist kann auf weitere Playlist zeigen -> rekursiv aufloesen.
         return await resolve(inner.absoluteString, depth: depth + 1)
     }
@@ -68,18 +69,18 @@ enum PlaylistResolver {
                 let key = l[l.index(l.startIndex, offsetBy: 4)..<eq]
                 guard !key.isEmpty, key.allSatisfy(\.isNumber) else { continue }
                 let value = String(l[l.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
-                if let u = URL(string: value), u.scheme?.hasPrefix("http") == true { return u }
+                if let url = StreamURLPolicy.validatedURL(value) { return url }
             }
         }
         // M3U / Klartext: erste Zeile, die wie eine http-URL aussieht
         for line in text.split(whereSeparator: \.isNewline) {
             let l = line.trimmingCharacters(in: .whitespaces)
             if l.isEmpty || l.hasPrefix("#") || l.hasPrefix("[") { continue }
-            if l.lowercased().hasPrefix("http"), let u = URL(string: l) { return u }
+            if let url = StreamURLPolicy.validatedURL(l) { return url }
         }
         // ASX/XSPF: <location>URL</location> oder href="URL"
         if let m = firstMatch(text, pattern: "(?:<location>|href=\")\\s*(https?://[^<\"\\s]+)") {
-            return URL(string: m)
+            return StreamURLPolicy.validatedURL(m)
         }
         return nil
     }

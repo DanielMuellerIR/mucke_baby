@@ -75,6 +75,12 @@
 
 /* --- Verlauf --- */
 "Verlauf" = "History";
+"Verlauf und Aufnahmen" = "History and Recordings";
+"Nur Aufnahmen (Verlauf bleibt)" = "Recordings Only (History Remains)";
+"Alle Aufnahmen löschen" = "Delete All Recordings";
+"Alle Aufnahmen endgültig löschen?" = "Permanently Delete All Recordings?";
+"Endgültig löschen" = "Delete Permanently";
+"Alle abgeschlossenen Aufnahme-Dateien werden endgültig gelöscht. Der Verlauf bleibt erhalten. Eine laufende Aufnahme wird nicht gelöscht." = "All completed recording files will be permanently deleted. History will remain. An active recording will not be deleted.";
 "Älter als 1 Tag löschen" = "Delete older than 1 day";
 "Älter als 1 Woche löschen" = "Delete older than 1 week";
 "Älter als 1 Monat löschen" = "Delete older than 1 month";

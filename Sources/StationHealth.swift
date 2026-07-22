@@ -50,8 +50,11 @@ final class StationHealth: ObservableObject {
     // Erst Playlist aufloesen (tote Streams hinter .pls/.m3u erkennen), dann
     // nur die Antwort-Header pruefen (Body nicht laden — Streams enden nie).
     nonisolated static func probe(_ urlStr: String) async -> Status {
-        let resolved = await PlaylistResolver.resolve(urlStr) ?? URL(string: urlStr)
-        guard let url = resolved else { return .bad("Ungültige URL") }
+        // Kein Fallback auf die rohe Eingabe: Sonst wuerde die zentrale
+        // HTTP(S)-Policy fuer file:/ und andere URLSession-Protokolle umgangen.
+        guard let url = await PlaylistResolver.resolve(urlStr) else {
+            return .bad("Ungültige URL")
+        }
         return await withCheckedContinuation { cont in
             HealthProbe(cont).start(url: url)
         }
