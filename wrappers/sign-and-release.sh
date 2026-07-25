@@ -8,15 +8,15 @@
 # Voraussetzungen (einmalig je Mac):
 #   1. Developer-ID-Application-Zertifikat in der Login-Keychain.
 #      Prüfen: security find-identity -v -p codesigning
-#   2. notarytool-Keychain-Profil. Default-Name via NOTARY_PROFILE (hier
-#      'fftabsNotary', wird projektübergreifend wiederverwendet — speichert nur
-#      Apple-ID + Team-ID). Falls fehlend, einmalig anlegen:
-#        xcrun notarytool store-credentials fftabsNotary \
+#   2. notarytool-Keychain-Profil. Der Name kommt aus NOTARY_PROFILE oder aus
+#      `git config muckeBaby.notaryProfile` — er steht bewusst nirgends im Repo,
+#      weil Keychain-Profile pro Mac lokal sind. Falls fehlend, einmalig anlegen:
+#        xcrun notarytool store-credentials <profil> \
 #          --apple-id <deine-apple-id> --team-id 9QSWKSR4NQ
 #      (App-spezifisches Passwort INTERAKTIV eingeben, NIE als CLI-Argument.)
 #
-# Aufruf:  bash wrappers/sign-and-release.sh
-#          bash wrappers/sign-and-release.sh --publish   # setzt git-Tag + lädt DMG zu GitHub hoch
+# Aufruf:  ./release.sh              (dieser Wrapper ist der Unterbau davon)
+#          ./release.sh --publish    # setzt git-Tag + lädt DMG zu GitHub hoch
 # Wissen:  siehe lokalen Wissensindex (knowledge/macos-app-distribution.md)
 
 set -euo pipefail
@@ -25,17 +25,30 @@ set -euo pipefail
 # Team-ID/Identitaet ueberschreibbar (CI/anderer Account); Default als Fallback.
 TEAM_ID="${APPLE_TEAM_ID:-9QSWKSR4NQ}"
 IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Daniel Mueller ($TEAM_ID)}"
-NOTARY_PROFILE="${NOTARY_PROFILE:-fftabsNotary}"
 
 APP_NAME="Mucke, Baby!"            # Bundle-/Anzeigename (mit Komma + Leerzeichen!)
 VOLNAME="Mucke, Baby!"            # DMG-Volume-Name (= /Volumes/<name>)
+
+# ---------- Optionen ----------
+# Früh auswerten und unbekannte Flags sofort ablehnen: Ein Tippfehler soll nicht
+# erst nach dem minutenlangen Notarisieren auffallen.
+PUBLISH=0
+FINDER_LAYOUT=1
+for arg in "$@"; do
+  case "$arg" in
+    --publish)          PUBLISH=1 ;;
+    --no-finder-layout) FINDER_LAYOUT=0 ;;
+    *) echo "Unbekannte Option: $arg" >&2
+       echo "Aufruf: ./release.sh [--publish] [--no-finder-layout]" >&2
+       exit 1 ;;
+  esac
+done
 
 # ---------- Pfade ----------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_ROOT/build"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
-FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/VLCKit.framework"
 BACKGROUND_SRC="$PROJECT_ROOT/assets/dmg-background.png"
 
 # Version = einzige Quelle in Models.swift (AppInfo.version). Strikte Extraktion
@@ -49,14 +62,13 @@ RW_DMG_PATH="$BUILD_DIR/Mucke-Baby-${APP_VERSION}-rw.dmg"
 echo "==> Mucke, Baby! Sign-and-Release v${APP_VERSION}"
 
 # ---------- Sanity-Checks ----------
+# Profilermittlung und die eigentliche App-Notarisierung liegen in
+# notarize-lib.sh, damit install.sh denselben Weg geht.
+source "$PROJECT_ROOT/notarize-lib.sh"
+require_notary_profile
 if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
   echo "FEHLER: Signing-Identität nicht gefunden: $IDENTITY" >&2
   security find-identity -v -p codesigning >&2
-  exit 1
-fi
-if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-  echo "FEHLER: notarytool-Profil '$NOTARY_PROFILE' fehlt. Einmalig anlegen:" >&2
-  echo "  xcrun notarytool store-credentials $NOTARY_PROFILE --apple-id <deine-apple-id> --team-id $TEAM_ID" >&2
   exit 1
 fi
 if [ ! -f "$BACKGROUND_SRC" ]; then
@@ -70,39 +82,20 @@ echo "==> Baue App-Bundle"
 bash "$PROJECT_ROOT/build.sh"
 
 # ---------- 2. Signieren (innere Frameworks ZUERST, dann Bundle) ----------
-# --options runtime: Hardened Runtime (Pflicht für Notarisierung).
-# --timestamp:       Apple-Zeitstempel → Signatur bleibt nach Zert-Ablauf gültig.
-# VLCKit muss mit UNSERER Team-ID signiert sein, sonst scheitert unter Hardened
-# Runtime die Library-Validation beim Laden.
-# Sparkles innere Helfer (Autoupdate, Updater.app) brauchen ebenfalls unsere
-# Team-ID und werden von innen nach aussen signiert — sonst lehnt die
-# Notarisierung ab („binary is not signed with a valid Developer ID").
-# Kein --deep: verschachtelte Ziele haben eigene Regeln.
-SPARKLE_FW="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-echo "==> Signiere Sparkle.framework (inside-out)"
-# Die XPC-Services stecken NUR in der Binaerdistribution (SwiftPM-Builds haben
-# sie nicht) — ohne eigene Signatur lehnt die Notarisierung ab (belegt:
-# Submission c0dfe666, 2026-07-17). Downloader.xpc ist gesandboxt und braucht
-# seine mitgelieferten Entitlements (--preserve-metadata), sonst bricht der
-# Update-Download zur Laufzeit.
-codesign --force --options runtime --timestamp --preserve-metadata=entitlements \
-  --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/XPCServices/Downloader.xpc"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/XPCServices/Installer.xpc"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/Autoupdate"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW/Versions/B/Updater.app"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$SPARKLE_FW"
+# Die komplette Signierkette liegt in notarize-lib.sh, damit install.sh
+# denselben Weg geht — inklusive der Sparkle-Eigenheiten.
+sign_app_chain "$APP_BUNDLE"
 
-echo "==> Signiere VLCKit.framework"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$FRAMEWORK"
+# ---------- 3. App notarisieren ----------
+# Vor dem DMG, nicht danach: Wer die App aus dem Image herauszieht, hat sonst ein
+# Bundle ohne eigenes Ticket — das DMG-Ticket reist nicht mit. Bei einer
+# Sparkle-App zählt das doppelt: Das Update entpackt die neue Version selbst.
+# Das angeheftete Ticket landet als Datei im Bundle und wird vom folgenden
+# hdiutil mitkopiert.
+echo "==> Notarisiere App-Bundle"
+notarize_app "$APP_BUNDLE"
 
-echo "==> Signiere App-Bundle"
-codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP_BUNDLE"
-
-echo "==> Verifiziere Signatur"
-codesign --verify --strict --deep --verbose=2 "$APP_BUNDLE"
-codesign -dvv "$APP_BUNDLE" 2>&1 | grep -E "Authority|TeamIdentifier|flags" || true
-
-# ---------- 3. DMG mit Installations-Layout ----------
+# ---------- 4. DMG mit Installations-Layout ----------
 echo "==> Erzeuge DMG-Layout"
 rm -f "$DMG_PATH" "$RW_DMG_PATH"
 [ -d "/Volumes/$VOLNAME" ] && hdiutil detach "/Volumes/$VOLNAME" -force >/dev/null 2>&1 || true
@@ -120,6 +113,11 @@ cp "$BACKGROUND_SRC" "$MOUNT_DIR/.background/background.png"
 chflags hidden "$MOUNT_DIR/.background"
 
 # Finder-Ansicht setzen. Fenster-Innenmaß 600×400 = Hintergrundbild-Größe.
+# --no-finder-layout überspringt diesen Schritt: Er öffnet ein echtes
+# Finder-Fenster und reißt den Fokus an sich, was headless-Läufe (und Läufe
+# neben laufender Arbeit) stört. Das DMG ist dann funktional, nur ohne
+# Icon-Positionen und Hintergrundbild — für ein echtes Release nicht benutzen.
+if [ "$FINDER_LAYOUT" = "1" ]; then
 osascript <<APPLESCRIPT
 tell application "Finder"
   tell disk "$VOLNAME"
@@ -142,6 +140,9 @@ tell application "Finder"
   end tell
 end tell
 APPLESCRIPT
+else
+  echo "    (Finder-Layout übersprungen: --no-finder-layout)"
+fi
 
 sync; sleep 2                       # Race: DS_Store-Schreibpuffer vs. detach
 hdiutil detach "$MOUNT_DIR" -force
@@ -153,7 +154,7 @@ rm -f "$RW_DMG_PATH"
 echo "==> Signiere DMG"
 codesign --force --timestamp --sign "$IDENTITY" "$DMG_PATH"
 
-# ---------- 4. Notarisieren + stapeln ----------
+# ---------- 5. DMG notarisieren + stapeln ----------
 echo "==> Notarisieren (1-10 Min)"
 # notarytool gibt bei finalem Status 'Invalid' (abgelehnt) trotzdem Exit 0 zurueck,
 # solange Upload+Polling klappen. Darum den Status selbst pruefen, statt blind in
@@ -180,13 +181,11 @@ xcrun stapler staple "$DMG_PATH"
 xcrun stapler validate "$DMG_PATH"
 spctl --assess --type open --context context:primary-signature -v "$DMG_PATH" || true
 
-# ---------- 5. (optional) GitHub-Release veröffentlichen ----------
-# Nur mit --publish. Setzt Tag vX.Y.Z, erstellt das Release, lädt das DMG hoch
-# und entnimmt die Release-Notes aus dem passenden CHANGELOG.md-Abschnitt.
-# Öffentliches Pushen ist rückfragepflichtig → daher opt-in, nicht Default.
-PUBLISH=0
-for arg in "$@"; do [ "$arg" = "--publish" ] && PUBLISH=1; done
-
+# ---------- 6. (optional) GitHub-Release veröffentlichen ----------
+# Nur mit --publish (oben ausgewertet). Setzt Tag vX.Y.Z, erstellt das Release,
+# lädt das DMG hoch und entnimmt die Release-Notes aus dem passenden
+# CHANGELOG.md-Abschnitt. Öffentliches Pushen ist rückfragepflichtig → daher
+# opt-in, nicht Default.
 if [ "$PUBLISH" = "1" ]; then
   TAG="v${APP_VERSION}"
   REPO="DanielMuellerIR/mucke_baby"

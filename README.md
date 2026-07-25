@@ -41,10 +41,19 @@ open "build/Mucke, Baby!.app"                    # launch
   ```bash
   MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
   ```
-- **Signed + notarized DMG** (Developer ID, hardened runtime, DMG with background image):
+- **Install or release** — three entry points, deliberately separated:
   ```bash
-  bash wrappers/sign-and-release.sh                # -> build/Mucke-Baby-<version>.dmg, Gatekeeper‑clean
+  ./build.sh                        # build only, stays in build/
+  ./install.sh                      # build, notarize, install into /Applications
+  ./release.sh                      # build, notarize, package the DMG — never installs
+  ./release.sh --no-finder-layout   # skip the Finder window layout (headless runs)
   ```
+  Both `install.sh` and `release.sh` notarize the **app itself** and staple its ticket first.
+  That matters twice over here: an app dragged out of a notarized disk image would otherwise
+  carry no ticket, and Sparkle unpacks the new version on its own during an update.
+  The notarytool profile name comes from `NOTARY_PROFILE` or
+  `git config --local muckeBaby.notaryProfile <profile>` — keychain profiles are local to
+  each Mac and never synchronized.
 
 ## Features
 

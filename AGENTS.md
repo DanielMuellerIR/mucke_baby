@@ -18,8 +18,10 @@ Migration vorhandener Nutzer.
 - `Resources/Info.plist`: Berechtigungen und Bundle-Grunddaten; die Version wird
   beim Build aus `Models.swift` gespiegelt.
 - `build.sh`: reproduzierbarer lokaler App-Build und VLCKit-Pin.
-- `wrappers/sign-and-release.sh`: Signatur, DMG, Notarisierung und ausdrücklich
-  opt-in Veröffentlichung.
+- `install.sh`, `release.sh`: Einstiegspunkte für Installation nach
+  `/Applications` und für das Release-DMG; `notarize-lib.sh` hält Signierkette
+  und App-Notarisierung, `wrappers/sign-and-release.sh` ist der Unterbau von
+  `release.sh` inklusive ausdrücklich opt-in Veröffentlichung.
 - `README.md` und `README.de.md`: öffentliche Nutzung und Featurevertrag.
 - `CHANGELOG.md`: erledigte Arbeit, Fixes und Release Notes.
 - `THIRD-PARTY.md`: Lizenzen und Austauschbarkeit von VLCKit.
@@ -153,9 +155,17 @@ Komponenten schrittweise in Swift-Tests oder kleine Headless-Harnesses auslagern
 
 ## Release
 
-`wrappers/sign-and-release.sh` signiert Framework und App inside-out, erzeugt ein
-DMG, notarisiert, stapelt und prüft es. Identität und Notary-Profil kommen aus
-Umgebung bzw. Schlüsselbund; keine Kontodaten in Argumenten, Skripten oder Logs.
+Drei Einstiegspunkte: `build.sh` baut nur, `./install.sh` installiert notarisiert
+nach `/Applications`, `./release.sh` packt das DMG (installiert nie). Beide
+heften zuerst der App selbst ein Ticket an — bei einer Sparkle-App doppelt
+wichtig, weil das Update die neue Version selbst entpackt. Profilname aus
+`NOTARY_PROFILE` oder `git config muckeBaby.notaryProfile`.
+
+`wrappers/sign-and-release.sh` (Unterbau von `release.sh`) signiert Framework und
+App inside-out, notarisiert die App, erzeugt ein DMG, notarisiert, stapelt und
+prüft es. Identität und Notary-Profil kommen aus Umgebung bzw. Schlüsselbund;
+keine Kontodaten in Argumenten, Skripten oder Logs. `--no-finder-layout`
+überspringt den fokusraubenden AppleScript-Schritt (nicht für echte Releases).
 
 Der Standardlauf erzeugt nur ein lokales DMG. Veröffentlichung, Tag und Upload
 sind ausschließlich über den ausdrücklichen `--publish`-Pfad und nur nach
