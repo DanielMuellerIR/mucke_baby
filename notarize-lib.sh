@@ -94,9 +94,9 @@ sign_app_chain() {
 # wenn jemand sie aus dem DMG herauszieht oder offline ist.
 notarize_app() {
     local app="$1"
-    local archive
-    archive="$(mktemp -d)/MuckeBaby.zip"
 
+    # Signatur-Vorabprüfungen VOR dem Anlegen des Temp-Verzeichnisses: Bricht
+    # eine von ihnen ab, gibt es so noch nichts aufzuräumen.
     if ! codesign --verify --strict "$app" >/dev/null 2>&1; then
         echo "FEHLER: '$app' ist nicht gültig signiert — Notarisierung sinnlos." >&2
         return 1
@@ -108,10 +108,18 @@ notarize_app() {
     fi
 
     echo "=== Notarisiere App (Profil: $NOTARY_PROFILE) ==="
-    ditto -c -k --keepParent "$app" "$archive"
-    xcrun notarytool submit "$archive" --keychain-profile "$NOTARY_PROFILE" --wait
-    xcrun stapler staple "$app"
-    xcrun stapler validate "$app"
-    spctl -a -t exec -vv "$app" 2>&1 | tail -2
-    rm -rf "$(dirname "$archive")"
+    # Subshell + EXIT-Trap: Die Aufrufer laufen mit set -e — schlug notarytool,
+    # stapler oder spctl fehl, endete der Lauf früher VOR dem rm und ließ das
+    # komplette App-ZIP samt Temp-Verzeichnis liegen. Der Trap räumt jetzt in
+    # jedem Ausgang auf; ein Fehler in der Subshell bleibt als Exit-Code erhalten.
+    (
+        tmpdir="$(mktemp -d)"
+        trap 'rm -rf "$tmpdir"' EXIT
+        archive="$tmpdir/MuckeBaby.zip"
+        ditto -c -k --keepParent "$app" "$archive"
+        xcrun notarytool submit "$archive" --keychain-profile "$NOTARY_PROFILE" --wait
+        xcrun stapler staple "$app"
+        xcrun stapler validate "$app"
+        spctl -a -t exec -vv "$app" 2>&1 | tail -2
+    )
 }

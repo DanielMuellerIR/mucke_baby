@@ -22,9 +22,11 @@
 set -euo pipefail
 
 # ---------- Konstanten ----------
-# Team-ID/Identitaet ueberschreibbar (CI/anderer Account); Default als Fallback.
-TEAM_ID="${APPLE_TEAM_ID:-9QSWKSR4NQ}"
-IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Daniel Mueller ($TEAM_ID)}"
+# Signier-Identitaet: EINE Ableitung fuer alles — sie kommt aus notarize-lib.sh
+# (NOTARY_IDENTITY, unten gesourct). Frueher leitete dieser Wrapper TEAM_ID/
+# IDENTITY parallel mit derselben Formel ab; zwei Kopien koennen bei einer
+# kuenftigen Aenderung auseinanderlaufen, sodass App und DMG mit
+# unterschiedlichen Identitaeten signiert wuerden.
 
 APP_NAME="Mucke, Baby!"            # Bundle-/Anzeigename (mit Komma + Leerzeichen!)
 VOLNAME="Mucke, Baby!"            # DMG-Volume-Name (= /Volumes/<name>)
@@ -66,8 +68,8 @@ echo "==> Mucke, Baby! Sign-and-Release v${APP_VERSION}"
 # notarize-lib.sh, damit install.sh denselben Weg geht.
 source "$PROJECT_ROOT/notarize-lib.sh"
 require_notary_profile
-if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
-  echo "FEHLER: Signing-Identität nicht gefunden: $IDENTITY" >&2
+if ! security find-identity -v -p codesigning | grep -q "$NOTARY_IDENTITY"; then
+  echo "FEHLER: Signing-Identität nicht gefunden: $NOTARY_IDENTITY" >&2
   security find-identity -v -p codesigning >&2
   exit 1
 fi
@@ -76,10 +78,39 @@ if [ ! -f "$BACKGROUND_SRC" ]; then
   echo "  swift assets/generate-dmg-background.swift assets/dmg-background.png" >&2
   exit 1
 fi
+if [ "$PUBLISH" = "1" ]; then
+  # Ein veröffentlichtes DMG muss exakt dem getaggten Quellstand entsprechen.
+  # Ein schmutziger Arbeitsbaum baut Quellen, die es in keinem Commit gibt —
+  # deshalb VOR dem Bauen hart abbrechen, nicht erst beim Upload.
+  if [ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]; then
+    echo "FEHLER: --publish verlangt einen sauberen Arbeitsbaum. Offen sind:" >&2
+    git -C "$PROJECT_ROOT" status --short >&2
+    exit 1
+  fi
+fi
 
 # ---------- 1. Bauen ----------
 echo "==> Baue App-Bundle"
 bash "$PROJECT_ROOT/build.sh"
+
+# ---------- 1b. Seed-Liste im Bundle muss die öffentliche Vorlage sein ----------
+# build.sh bevorzugt eine lokale, gitignorierte Resources/seed-stations.json
+# (persönliche Senderliste) — richtig für den Eigen-Build via install.sh, aber
+# ein Datenleck in jedem DMG, das Dritte bekommen. Deshalb hier hart belegen,
+# dass exakt die öffentliche Beispiel-Liste gebündelt wurde (AGENTS.md,
+# "Datenschutz und öffentliche Defaults"). Kein Auto-Ersetzen: Der Lauf bricht
+# ab, damit bewusst in bereinigter Umgebung neu gebaut wird.
+SEED_BUNDLED="$APP_BUNDLE/Contents/Resources/seed-stations.json"
+SEED_PUBLIC="$PROJECT_ROOT/Resources/seed-stations.example.json"
+if [ -f "$SEED_BUNDLED" ]; then
+  if [ ! -f "$SEED_PUBLIC" ] || ! cmp -s "$SEED_BUNDLED" "$SEED_PUBLIC"; then
+    echo "FEHLER: Gebündelte seed-stations.json ist NICHT die öffentliche Vorlage" >&2
+    echo "  ($SEED_PUBLIC)." >&2
+    echo "  Vermutlich liegt eine persönliche Resources/seed-stations.json vor —" >&2
+    echo "  für ein Release beiseitelegen und neu bauen." >&2
+    exit 1
+  fi
+fi
 
 # ---------- 2. Signieren (innere Frameworks ZUERST, dann Bundle) ----------
 # Die komplette Signierkette liegt in notarize-lib.sh, damit install.sh
@@ -152,7 +183,7 @@ hdiutil convert "$RW_DMG_PATH" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH
 rm -f "$RW_DMG_PATH"
 
 echo "==> Signiere DMG"
-codesign --force --timestamp --sign "$IDENTITY" "$DMG_PATH"
+codesign --force --timestamp --sign "$NOTARY_IDENTITY" "$DMG_PATH"
 
 # ---------- 5. DMG notarisieren + stapeln ----------
 echo "==> Notarisieren (1-10 Min)"
@@ -179,7 +210,11 @@ fi
 echo "==> Stapele Ticket"
 xcrun stapler staple "$DMG_PATH"
 xcrun stapler validate "$DMG_PATH"
-spctl --assess --type open --context context:primary-signature -v "$DMG_PATH" || true
+# Gatekeeper-Bewertung ist ein hartes Gate (set -e bricht bei Fehler ab):
+# Schlägt sie fehl, erfüllt das DMG den Releasevertrag nicht — dann darf weder
+# getaggt noch hochgeladen werden. Früher verschluckte ein "|| true" den
+# Exit-Code, und --publish konnte ein abgelehntes DMG veröffentlichen.
+spctl --assess --type open --context context:primary-signature -v "$DMG_PATH"
 
 # ---------- 6. (optional) GitHub-Release veröffentlichen ----------
 # Nur mit --publish (oben ausgewertet). Setzt Tag vX.Y.Z, erstellt das Release,
@@ -208,6 +243,16 @@ if [ "$PUBLISH" = "1" ]; then
   # Der push ist bewusst nicht --force: ein divergenter Remote-Tag bricht laut (set -e).
   git -C "$PROJECT_ROOT" rev-parse "$TAG" >/dev/null 2>&1 \
     || git -C "$PROJECT_ROOT" tag -a "$TAG" -m "Mucke, Baby! $TAG"
+  # Der Tag muss exakt auf HEAD zeigen — das DMG wurde aus dem aktuellen Stand
+  # gebaut. Ein alter lokaler Tag (z. B. aus einem frueheren, abgebrochenen Lauf)
+  # wuerde das frische Artefakt sonst unter einem fremden Quellstand veroeffentlichen.
+  TAG_COMMIT=$(git -C "$PROJECT_ROOT" rev-parse "$TAG^{}")
+  HEAD_COMMIT=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
+  if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+    echo "FEHLER: Tag $TAG zeigt auf $TAG_COMMIT, HEAD ist aber $HEAD_COMMIT." >&2
+    echo "  Alten Tag pruefen/loeschen oder auf dem getaggten Stand neu bauen." >&2
+    exit 1
+  fi
   git -C "$PROJECT_ROOT" push github "$TAG"
 
   # Release anlegen — oder, falls es schon existiert, nur das Asset aktualisieren.
