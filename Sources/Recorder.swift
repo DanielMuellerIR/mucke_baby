@@ -97,9 +97,23 @@ final class Recorder: @unchecked Sendable {
         q.async {
             var kept: [Clip] = []
             for c in self.clips {
-                if let e = c.end, e < cutoff {
-                    try? FileManager.default.removeItem(at: self.dir.appendingPathComponent(c.file))
-                } else { kept.append(c) }
+                guard let e = c.end, e < cutoff else { kept.append(c); continue }
+                // Verteidigung in der Tiefe: loadIndex() verwirft unsichere Namen
+                // schon beim Laden; unmittelbar vor removeItem trotzdem erneut
+                // pruefen, damit nie ein Pfad ausserhalb von `dir` geloescht wird.
+                guard Self.isSafeClipFileName(c.file) else { continue }
+                do {
+                    try FileManager.default.removeItem(at: self.dir.appendingPathComponent(c.file))
+                } catch let error as CocoaError where error.code == .fileNoSuchFile {
+                    // Datei ist schon weg -> Eintrag darf trotzdem aus dem Index.
+                } catch {
+                    // Loeschen fehlgeschlagen (z. B. gesperrt/Rechte): Eintrag
+                    // BEHALTEN. Frueher verschwand er trotzdem aus dem Index —
+                    // die Datei blieb dann verwaist auf der Platte und war ueber
+                    // die App weder erneut loeschbar noch exportierbar.
+                    kept.append(c)
+                    continue
+                }
             }
             if kept.count != self.clips.count { self.clips = kept; self.saveIndex() }
         }
@@ -194,10 +208,20 @@ final class Recorder: @unchecked Sendable {
         return name
     }
 
+    // Nur ein schlichter Dateiname (ein einzelnes Pfadsegment, kein "..") darf
+    // im Index stehen: recordings-index.json ist von aussen editier-/restaurier-
+    // bar, und prune() haengt den Wert direkt an `dir` an — "../"-Segmente
+    // wuerden removeItem sonst auf Pfade ausserhalb des Aufnahmeordners richten.
+    static func isSafeClipFileName(_ name: String) -> Bool {
+        !name.isEmpty && name != "." && name != ".."
+            && !name.contains("/") && !name.contains("\0")
+    }
+
     private func loadIndex() {
         guard let data = try? Data(contentsOf: indexURL),
               let list = try? JSONDecoder.iso.decode([Clip].self, from: data) else { return }
-        clips = list
+        // Unsichere Dateinamen sofort verwerfen (siehe isSafeClipFileName).
+        clips = list.filter { Self.isSafeClipFileName($0.file) }
     }
     private func saveIndex() {
         if let data = try? JSONEncoder.isoPretty.encode(clips) {
