@@ -3,6 +3,22 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.2] - 2026-08-02
+### Fixed
+- Playlist detection now looks at the URL path only. A crafted playlist URL with ".m3u8" elsewhere (for example in the query) can no longer bypass the fail-closed resolver and hand the raw container to the player, and a ".pls" in the host name no longer misclassifies a direct stream as a playlist.
+- When a station switch fails URL resolution, the previously playing stream now stops and the player state is cleaned up. Before, the old station kept playing audibly while the UI already showed the new station with "Invalid URL".
+- Recording index entries are validated to plain file names on load and again before deletion, so a manipulated or restored `recordings-index.json` can no longer steer "delete all recordings" outside the recordings folder.
+- A recording whose file cannot be deleted (for example due to permissions) now stays in the index instead of silently becoming an orphaned file that the app can no longer reach. A file that is already gone still counts as deleted.
+- A catalog preview stream that ends on its own can be restarted with a single click again (previously the first click was swallowed).
+- A late failure of the catalog's genre-tag request no longer overwrites the results of a search that already succeeded.
+
+### Security
+- Stream URLs are logged without user info and query parameters, so passwords, access tokens, and signed stream parameters no longer reach the unified log.
+- Release tooling is stricter: the Gatekeeper assessment of the DMG is a hard gate, `--publish` requires a clean working tree and a tag that matches the built source state, and the bundled station seed list must be byte-identical to the public example before a DMG is produced. Failed notarization runs now clean up their temporary archives.
+
+### Added
+- `Tests/run-tests.sh`: a reproducible headless test entry that compiles and runs the test harness (URL policy, log redaction, playlist resolver against local HTTP fixtures, recorder deletion limits, preview coordinator) without VLCKit or network access beyond localhost.
+
 ## [1.8.1] - 2026-07-22
 ### Fixed
 - Deleting all recordings now requires an explicit destructive confirmation and clearly states that completed files are removed permanently while history and an active recording remain.
