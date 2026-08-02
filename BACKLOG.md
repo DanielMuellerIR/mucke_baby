@@ -20,6 +20,21 @@
 9. Entscheiden: alte echte Kopie v1.7.35 in /Applications entfernen oder
    durch v1.8.0 ersetzen (der genutzte Weg ist der ~/Applications-Symlink in den
    Repo-Build; die Altkopie taugt ggf. als Ziel für den Sparkle-E2E-Test, Punkt 7).
+10. Sender-Katalog: Player-/Delegate-Ereignisse der Vorschau an die Generation
+    des installierten Mediums binden (oder pro Generation einen eigenen Player
+    verwenden). Heute schützt die Generation nur Resolver-Antworten; ein spätes
+    Zeit-/Stop-/Fehlerereignis des vorherigen Senders kann den Nachfolger als
+    geladen markieren oder stoppen. Zusammen mit dem GUI-Test aus Punkt 6
+    verifizieren.
+11. Store: auch die Schreibpfade `add`, `update` und `seededStations()` durch
+    die zentrale URL-Policy führen und einen Validierungsfehler im Sender-Editor
+    sichtbar machen (der Changelog zu 1.8.1 verspricht die Policy vor jeder
+    Speicherung; heute prüfen nur `addIfNew` und die Import-Pfade). Braucht
+    sichtbare Editor-Rückmeldung samt Lokalisierung, daher nicht still im Store
+    allein ändern.
+12. `Tests/run-tests.sh` als CI-Gate ausführen (z. B. GitHub-Actions-Workflow
+    auf einem macOS-Runner), damit der Headless-Harness Regressionen auch ohne
+    lokalen Lauf verhindert.
 
 Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
 Theme-Entwürfe sind kein Backlog.
