@@ -149,9 +149,14 @@ auswerten. Automatische Screenshots prüfen Layout und Theme, nicht hörbares Au
   Texte in beiden Sprachen.
 - Build/Dependency: frischer Vendor-Cache, Hash und Bundle-Start.
 
-Das Repo besitzt noch keine ausreichende automatisierte Unit-Test-Suite. Neue
-kritische Logik nicht nur durch Build und Screenshots absichern; testbare
-Komponenten schrittweise in Swift-Tests oder kleine Headless-Harnesses auslagern.
+`Tests/run-tests.sh` kompiliert den Headless-Harness (`Tests/ReviewHarness.swift`,
+reiner Foundation-Code ohne VLCKit/SwiftUI) und führt ihn aus: URL-Policy und
+Log-Redaktion, Playlist-Resolver gegen lokale HTTP-Fixtures, Recorder-Index- und
+Löschgrenzen, Preview-Koordinator. Er ist das Pflicht-Gate für Änderungen an
+diesen Pfaden. Darüber hinaus besitzt das Repo noch keine ausreichende
+automatisierte Unit-Test-Suite. Neue kritische Logik nicht nur durch Build und
+Screenshots absichern; testbare Komponenten schrittweise in den Harness oder
+weitere Swift-Tests auslagern.
 
 ## Release
 

@@ -2,11 +2,17 @@ import Foundation
 
 @main
 enum ReviewHarness {
-    static func main() throws {
+    // async, damit der echte Produktionspfad PlaylistResolver.resolve gegen
+    // lokale HTTP-Fixtures laufen kann (nicht nur der Parser firstMediaURL).
+    static func main() async throws {
         try testRecordingDeletionInTemporaryDirectory()
+        try testRecordingIndexSafety()
         testURLPolicyAndIdentity()
         testLatestRequestWins()
         testPreviewSwitchDoesNotStopReplacement()
+        testTerminalTransitionAllowsRestart()
+        testNeedsResolutionClassifiesByPath()
+        await testResolveAgainstLocalFixtures()
         print("ReviewHarness: OK")
     }
 
@@ -26,7 +32,11 @@ enum ReviewHarness {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let recorder = Recorder(directory: directory, minimumFreeBytes: 0)
+        // minimumFreeBytes -1 statt 0: hasSpace() verlangt strikt `free > minimum`,
+        // und in eingeschraenkten (CI-/Agenten-)Umgebungen darf die gemeldete
+        // Kapazitaet zulaessigerweise 0 sein — mit 0 waere der Test dort rot,
+        // obwohl der Recorder korrekt arbeitet.
+        let recorder = Recorder(directory: directory, minimumFreeBytes: -1)
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         recorder.begin(station: "Test", contentType: "audio/mpeg", at: start)
         recorder.write(Data([0x01, 0x02, 0x03]))
@@ -64,6 +74,78 @@ enum ReviewHarness {
         recorder.flush()
     }
 
+    // Regression zu zwei Review-Funden am Index (recordings-index.json ist von
+    // aussen editier-/restaurierbar): 1. Ein "../"-Dateiname darf "Alle
+    // Aufnahmen loeschen" nie aus dem Aufnahmeordner herausfuehren. 2. Ein
+    // fehlgeschlagenes Loeschen darf den Eintrag nicht aus dem Index werfen
+    // (die Datei waere sonst verwaist und ueber die App nicht mehr erreichbar).
+    private static func testRecordingIndexSafety() throws {
+        let fm = FileManager.default
+        let sandbox = fm.temporaryDirectory
+            .appendingPathComponent("MuckeBaby-Review-\(UUID().uuidString)", isDirectory: true)
+        let recDir = sandbox.appendingPathComponent("Aufnahmen", isDirectory: true)
+        try fm.createDirectory(at: recDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: sandbox) }
+
+        // 1. Traversal: Opferdatei liegt AUSSERHALB des Aufnahmeordners (aber
+        //    noch in unserer Test-Sandbox), der Index zeigt per "../" darauf.
+        let victim = sandbox.appendingPathComponent("victim.txt")
+        try Data("wichtig".utf8).write(to: victim)
+        let indexJSON = """
+        [{"id":"11111111-1111-1111-1111-111111111111","file":"../victim.txt",\
+        "station":"Manipuliert","start":"2023-11-14T22:13:20Z",\
+        "end":"2023-11-14T22:13:30Z","ext":"mp3"}]
+        """
+        try Data(indexJSON.utf8).write(to: recDir.appendingPathComponent("recordings-index.json"))
+
+        let recorder = Recorder(directory: recDir, minimumFreeBytes: -1)
+        check(recorder.snapshot().isEmpty,
+              "Indexeintrag mit Pfad-Traversal wurde nicht beim Laden verworfen")
+        recorder.deleteAllCompleted()
+        recorder.flush()
+        check(fm.fileExists(atPath: victim.path),
+              "Loeschen folgte einem ../-Indexeintrag aus dem Aufnahmeordner hinaus")
+
+        // 2. Fehlgeschlagenes Loeschen: Ordner voruebergehend schreibschuetzen.
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        recorder.begin(station: "Gesperrt", contentType: "audio/mpeg", at: start)
+        recorder.write(Data([0x0A]))
+        recorder.end(at: start.addingTimeInterval(5))
+        recorder.flush()
+        let lockedClips = recorder.snapshot()
+        check(lockedClips.count == 1 && lockedClips[0].end != nil, "Testaufnahme fehlt")
+        let lockedURL = recDir.appendingPathComponent(lockedClips[0].file)
+
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: recDir.path)
+        recorder.deleteAllCompleted()
+        recorder.flush()
+        // Rechte sofort zuruecksetzen, damit das Sandbox-Cleanup immer klappt.
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: recDir.path)
+        check(recorder.snapshot().count == 1,
+              "nicht loeschbare Aufnahme verschwand trotzdem aus dem Index")
+        check(fm.fileExists(atPath: lockedURL.path),
+              "Datei fehlt, obwohl das Loeschen scheitern sollte")
+
+        // Nach Freigabe klappt das Loeschen und der Index wird leer.
+        recorder.deleteAllCompleted()
+        recorder.flush()
+        check(recorder.snapshot().isEmpty, "Aufnahme blieb nach Freigabe im Index")
+        check(!fm.fileExists(atPath: lockedURL.path), "Datei blieb nach Freigabe liegen")
+
+        // 3. Bereits fehlende Datei zaehlt als geloescht: Eintrag darf raus.
+        recorder.begin(station: "Weg", contentType: "audio/mpeg", at: start)
+        recorder.write(Data([0x0B]))
+        recorder.end(at: start.addingTimeInterval(5))
+        recorder.flush()
+        let goneClips = recorder.snapshot()
+        check(goneClips.count == 1, "zweite Testaufnahme fehlt")
+        try fm.removeItem(at: recDir.appendingPathComponent(goneClips[0].file))
+        recorder.deleteAllCompleted()
+        recorder.flush()
+        check(recorder.snapshot().isEmpty,
+              "Eintrag ohne Datei blieb nach dem Loeschen im Index")
+    }
+
     private static func testURLPolicyAndIdentity() {
         check(StreamURLPolicy.validatedURL("https://Example.COM/Stream?Token=AbC") != nil,
               "gueltige HTTPS-URL abgewiesen")
@@ -81,6 +163,18 @@ enum ReviewHarness {
             in: "[playlist]\nFile1=https://Example.COM/Stream?Token=AbC"
         )?.absoluteString == "https://example.com/Stream?Token=AbC",
         "Playlist veraenderte case-sensitiven Pfad oder Query")
+
+        // Log-Redaktion: Benutzerinfo und Query (Tokens/Passwoerter) muessen raus,
+        // Schema/Host/Pfad bleiben fuer die Diagnose erhalten.
+        if let secretURL = URL(string: "https://user:pass@example.com/stream?token=SECRET#frag") {
+            let redacted = StreamURLPolicy.redactedForLog(secretURL)
+            check(redacted == "https://example.com/stream",
+                  "Log-Redaktion liess Benutzerinfo/Query durch: \(redacted)")
+            check(!redacted.contains("SECRET") && !redacted.contains("pass"),
+                  "Log-Redaktion enthaelt weiterhin Geheimnisse")
+        } else {
+            check(false, "Redaktions-Test-URL unparsebar")
+        }
 
         check(StationURLIdentity("HTTPS://Example.COM/Stream?Token=AbC")
               == StationURLIdentity("https://example.com:443/Stream?Token=AbC"),
@@ -106,6 +200,97 @@ enum ReviewHarness {
         check(!requests.accepts(second), "abgebrochener Request blieb schreibberechtigt")
     }
 
+    // Regression zum Review-Fund "`.m3u8` irgendwo in der URL umgeht die
+    // Playlist-Erkennung": Die Einstufung darf NUR auf dem URL-Pfad beruhen —
+    // Query und Host sind bei fremden Katalog-URLs freie Texte.
+    private static func testNeedsResolutionClassifiesByPath() {
+        func needs(_ s: String) -> Bool {
+            guard let url = URL(string: s) else {
+                check(false, "Test-URL unparsebar: \(s)")
+                return false
+            }
+            return PlaylistResolver.needsResolution(url)
+        }
+        // Echte HLS-Pfade gehen direkt an VLC (kein Fetch).
+        check(!needs("https://host/master.m3u8"), "HLS-Pfad wurde faelschlich gefetcht")
+        check(!needs("https://host/master.m3u8?fallback=.pls"),
+              "HLS-Pfad mit .pls-Query wurde faelschlich als Playlist eingestuft")
+        // Der Bypass aus dem Review: .pls-Pfad mit ".m3u8" im Query-Koeder.
+        check(needs("https://host/list.pls?hint=.m3u8"),
+              ".pls-Playlist mit .m3u8-Query umging die Aufloesung")
+        check(needs("https://host/list.m3u?x=.m3u8"),
+              ".m3u-Playlist mit .m3u8-Query umging die Aufloesung")
+        // Playlist-Marker ausserhalb des Pfads duerfen NICHT als Playlist gelten.
+        check(!needs("https://radio.pls.example.com/stream"),
+              "'.pls' im Hostnamen wurde als Playlist eingestuft")
+        check(!needs("https://host/stream?list=.pls"),
+              "'.pls' im Query wurde als Playlist eingestuft")
+        // Bestehende Faelle bleiben erhalten.
+        check(!needs("https://host/tunein-aac-hd-pls"),
+              "Direktstream mit 'pls' im Namen wurde als Playlist eingestuft")
+        check(needs("https://host/Tune.ashx?id=1"), "Tune.ashx wurde nicht aufgeloest")
+        check(needs("https://host/pls/station"), "/pls-Pfad wurde nicht aufgeloest")
+        check(needs("https://host/radio.m3u"), ".m3u-Endung wurde nicht aufgeloest")
+        check(needs("https://host/radio.asx"), ".asx-Endung wurde nicht aufgeloest")
+        check(needs("https://host/radio.xspf"), ".xspf-Endung wurde nicht aufgeloest")
+    }
+
+    // Der asynchrone Produktionspfad resolve() gegen lokale HTTP-Fixtures:
+    // Klassifikation, Rekursion, Redirect, fail-closed bei unsicheren Zielen,
+    // Binaerinhalt, Schleifen und Fetch-Fehlern. Kein Kontakt nach aussen.
+    private static func testResolveAgainstLocalFixtures() async {
+        guard let server = FixtureServer() else {
+            check(false, "Fixture-Server startete nicht")
+            return
+        }
+        defer { server.stop() }
+        let base = "http://127.0.0.1:\(server.port)"
+        let direct = "\(base)/direct.mp3"
+        server.responses = [
+            // Der Review-Bypass: .pls-Pfad, ".m3u8" nur im Query.
+            "/list.pls?hint=.m3u8": .init(body: "[playlist]\nFile1=\(direct)\n"),
+            "/plain.pls": .init(body: "[playlist]\nFile1=\(direct)\n"),
+            "/nested.m3u": .init(body: "\(base)/plain.pls\n"),
+            "/redirect.pls": .init(status: "302 Found",
+                                   headers: ["Location: \(base)/plain.pls"], body: ""),
+            "/evil.pls": .init(body: "[playlist]\nFile1=file:///etc/passwd\n"),
+            "/binary.pls": .init(body: "\u{01}\u{02}\u{03}kein-playlist-inhalt"),
+            "/loop.m3u": .init(body: "\(base)/loop.m3u\n"),
+            // Verschachtelungskette a->b->c->d->e (Tiefenlimit 3 muss greifen).
+            "/a.m3u": .init(body: "\(base)/b.m3u\n"),
+            "/b.m3u": .init(body: "\(base)/c.m3u\n"),
+            "/c.m3u": .init(body: "\(base)/d.m3u\n"),
+            "/d.m3u": .init(body: "\(base)/e.m3u\n"),
+            "/e.m3u": .init(body: "\(direct)\n"),
+        ]
+
+        // check() nimmt eine synchrone Autoclosure -> Ergebnisse zuerst awaiten.
+        let bypass = await PlaylistResolver.resolve("\(base)/list.pls?hint=.m3u8")
+        check(bypass?.absoluteString == direct,
+              ".pls mit .m3u8-Query wurde nicht zur Stream-URL aufgeloest (Bypass)")
+        let plain = await PlaylistResolver.resolve("\(base)/plain.pls")
+        check(plain?.absoluteString == direct, "einfache PLS-Playlist wurde nicht aufgeloest")
+        let nested = await PlaylistResolver.resolve("\(base)/nested.m3u")
+        check(nested?.absoluteString == direct,
+              "verschachtelte Playlist wurde nicht rekursiv aufgeloest")
+        let redirected = await PlaylistResolver.resolve("\(base)/redirect.pls")
+        check(redirected?.absoluteString == direct, "Redirect auf Playlist wurde nicht verfolgt")
+        let directStream = await PlaylistResolver.resolve("\(base)/direct.mp3")
+        check(directStream?.absoluteString == direct,
+              "Direktstream ohne Playlist-Endung wurde nicht durchgereicht")
+        let evil = await PlaylistResolver.resolve("\(base)/evil.pls")
+        check(evil == nil, "Playlist mit lokalem file:-Ziel wurde nicht fail-closed verworfen")
+        let binary = await PlaylistResolver.resolve("\(base)/binary.pls")
+        check(binary == nil, "Binaerinhalt unter Playlist-Endung wurde nicht verworfen")
+        let loop = await PlaylistResolver.resolve("\(base)/loop.m3u")
+        check(loop == nil, "selbstreferenzielle Playlist wurde nicht verworfen")
+        let tooDeep = await PlaylistResolver.resolve("\(base)/a.m3u")
+        check(tooDeep == nil, "Verschachtelungstiefe > 3 wurde nicht verworfen")
+        // Fetch-Fehler (Port 1 lehnt Verbindungen ab) => fail closed.
+        let unreachable = await PlaylistResolver.resolve("http://127.0.0.1:1/x.pls")
+        check(unreachable == nil, "Fetch-Fehler lieferte trotzdem eine URL")
+    }
+
     private static func testPreviewSwitchDoesNotStopReplacement() {
         var preview = PreviewSwitchCoordinator()
         guard case let .replace(first) = preview.toggle(stationID: "A") else {
@@ -122,5 +307,102 @@ enum ReviewHarness {
             check(false, "zweiter Klick auf B stoppte die Vorschau nicht")
             return
         }
+    }
+
+    // Ablauf "Start, Stream endet von selbst, erneuter Start desselben Senders":
+    // Nach dem Terminaluebergang (stop()) muss der naechste Klick auf denselben
+    // Sender wieder .replace liefern — genau diesen Uebergang ruft der
+    // PreviewPlayer bei .ended/.stopped jetzt auf (frueher blieb der Koordinator
+    // auf dem beendeten Sender stehen und der erste Klick lieferte .stop).
+    private static func testTerminalTransitionAllowsRestart() {
+        var preview = PreviewSwitchCoordinator()
+        guard case .replace = preview.toggle(stationID: "A") else {
+            check(false, "Start der Vorschau war kein Replace")
+            return
+        }
+        preview.stop()   // Stream endet von selbst -> Terminaluebergang
+        guard case .replace = preview.toggle(stationID: "A") else {
+            check(false, "Neustart desselben Senders nach Streamende lieferte kein Replace")
+            return
+        }
+    }
+}
+
+// Mini-HTTP-Server fuer die Playlist-Aufloesungs-Tests: liefert vorbereitete
+// Antworten ausschliesslich auf 127.0.0.1 (kein Netz nach aussen). Die Tests
+// fragen seriell an — eine einfache accept-Schleife auf einer Hintergrund-Queue
+// genuegt. `responses` wird VOR der ersten Anfrage einmalig gesetzt.
+final class FixtureServer: @unchecked Sendable {
+    struct Response {
+        var status = "200 OK"
+        var headers: [String] = []
+        var body = ""
+    }
+
+    var responses: [String: Response] = [:]
+    let port: UInt16
+
+    private let fd: Int32
+    private let queue = DispatchQueue(label: "review-harness.fixture-server")
+
+    init?() {
+        // Lokale Variable statt self.fd: In Closures darf self erst nach
+        // vollstaendiger Initialisierung aller Member benutzt werden.
+        let sock = socket(AF_INET, SOCK_STREAM, 0)
+        guard sock >= 0 else { return nil }
+        var yes: Int32 = 1
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, socklen_t(MemoryLayout<Int32>.size))
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = 0                       // Port 0 = System waehlt freien Port
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        let bound = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard bound == 0, listen(sock, 16) == 0 else { close(sock); return nil }
+        // Tatsaechlich zugewiesenen Port auslesen.
+        var actual = sockaddr_in()
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let got = withUnsafeMutablePointer(to: &actual) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(sock, $0, &len) }
+        }
+        guard got == 0 else { close(sock); return nil }
+        fd = sock
+        port = UInt16(bigEndian: actual.sin_port)
+        queue.async { [self] in acceptLoop() }
+    }
+
+    func stop() { close(fd) }
+
+    private func acceptLoop() {
+        while true {
+            let client = accept(fd, nil, nil)
+            if client < 0 { return }            // Socket geschlossen -> Server-Ende
+            handle(client)
+        }
+    }
+
+    private func handle(_ client: Int32) {
+        defer { close(client) }
+        var buf = [UInt8](repeating: 0, count: 4096)
+        let n = read(client, &buf, buf.count)
+        guard n > 0,
+              let request = String(bytes: buf[0..<n], encoding: .utf8),
+              let line = request.split(separator: "\r\n").first else { return }
+        // Request-Line: "GET /pfad?query HTTP/1.1" -> Ziel inkl. Query matchen.
+        let parts = line.split(separator: " ")
+        let target = parts.count > 1 ? String(parts[1]) : ""
+        let resp = responses[target]
+            ?? Response(status: "404 Not Found", headers: [], body: "not found")
+        var out = "HTTP/1.1 \(resp.status)\r\n"
+        out += "Content-Length: \(resp.body.utf8.count)\r\n"
+        out += "Connection: close\r\n"
+        for header in resp.headers { out += header + "\r\n" }
+        out += "\r\n" + resp.body
+        let bytes = Array(out.utf8)
+        _ = bytes.withUnsafeBufferPointer { write(client, $0.baseAddress, $0.count) }
     }
 }
