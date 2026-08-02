@@ -20,16 +20,26 @@ enum PlaylistResolver {
         return await resolve(inner.absoluteString, depth: depth + 1)
     }
 
-    // Heuristik: nur fetchen, wenn die URL nach Playlist aussieht.
-    // Wichtig: .m3u8 ist HLS und geht direkt an AVPlayer (NICHT fetchen).
+    // Heuristik: nur fetchen, wenn die URL nach Playlist aussieht. Entscheidend
+    // ist ausschliesslich der URL-PFAD: Host und Query sind bei fremden
+    // Katalog-/Playlist-URLs freie Texte. Frueher wurde die gesamte URL
+    // durchsucht — ein Koeder wie "list.pls?hint=.m3u8" galt dadurch als HLS
+    // und VLC bekam den rohen Playlist-Container samt darin verlinkter,
+    // ungefilterter Ziele; umgekehrt stufte ".pls" im Hostnamen Direktstreams
+    // faelschlich als Playlist ein.
     static func needsResolution(_ url: URL) -> Bool {
-        let s = url.absoluteString.lowercased()
-        if s.contains(".m3u8") { return false }
-        // Nur echte Playlist-Endungen/-Pfade. Achtung: manche Direkt-Streams
-        // haben "pls" im Namen (z. B. .../tunein-aac-hd-pls liefert rohes AAC) —
-        // daher NICHT auf den blossen Teilstring "pls" matchen.
-        return s.contains(".pls") || s.contains(".m3u") || s.contains(".asx")
-            || s.contains(".xspf") || s.contains("tune.ashx") || s.contains("/pls")
+        let path = url.path.lowercased()
+        // .m3u8 ist HLS und geht direkt an VLC (NICHT fetchen) — aber nur als
+        // echte Pfad-Endung.
+        if path.hasSuffix(".m3u8") { return false }
+        // Nur echte Playlist-Endungen als Pfad-Suffix. Achtung: manche
+        // Direkt-Streams haben "pls" im Namen (z. B. .../tunein-aac-hd-pls
+        // liefert rohes AAC) — daher NICHT auf den blossen Teilstring "pls"
+        // matchen.
+        if path.hasSuffix(".pls") || path.hasSuffix(".m3u")
+            || path.hasSuffix(".asx") || path.hasSuffix(".xspf") { return true }
+        // Bekannte Playlist-Endpunkte ohne Endung (radiotime bzw. /pls-Pfade).
+        return path.contains("tune.ashx") || path.contains("/pls")
     }
 
     // Nur die ersten ~64 KB laden, damit ein faelschlich als Playlist

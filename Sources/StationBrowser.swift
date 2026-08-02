@@ -242,7 +242,14 @@ final class PreviewPlayer: ObservableObject {
         case .ended, .stopped:
             // Stream selbst zu Ende/abgerissen -> Zustand aufräumen. Ein manueller
             // stop() hat currentID schon genullt, dann ist das hier ein No-Op.
-            if currentID != nil && !isLoading { currentID = nil }
+            if currentID != nil && !isLoading {
+                // Auch den Koordinator zurücksetzen (wie markFailed): Er hielte
+                // sonst den beendeten Sender fest, und der nächste Klick auf
+                // denselben Sender lieferte .stop statt eines Neustarts — der
+                // Sender startete erst beim zweiten Klick wieder.
+                switches.stop()
+                currentID = nil
+            }
         default:
             break
         }
@@ -402,6 +409,11 @@ struct StationBrowserView: View {
             // Mini-Tags (unter 5 Sendern) sind fast immer Tippfehler/Rauschen.
             tags = try await RadioBrowserAPI.topTags().filter { $0.stationcount >= 5 }
         } catch {
+            // Nur melden, solange noch keine Sendersuche gestartet wurde: Der
+            // Tag-Request läuft seit dem Öffnen ohne Generation; scheitert er
+            // erst NACH einer Genre-/Namenssuche, würde sein Fehler sonst deren
+            // sichtbare Ergebnisse verdrängen.
+            guard stationRequests.current == 0 else { return }
             self.error = String(localized: "Katalog nicht erreichbar: \(error.localizedDescription)")
         }
     }

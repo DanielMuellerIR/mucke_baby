@@ -102,8 +102,20 @@ final class RadioPlayer: ObservableObject {
             guard let self else { return }
             if Task.isCancelled { return }
             guard let url = resolved else {
+                // Fail-closed-Ende ohne neues Medium: Der VORHERIGE Sender spielt
+                // sonst hoerbar weiter, waehrend UI/currentStation schon den neuen
+                // (gescheiterten) Sender zeigen. Der Stop ist hier sicher, weil
+                // kein neues Medium mehr gestartet wird (vgl. AGENTS-Invariante:
+                // kein asynchroner Stop VOR einem Medienwechsel).
+                self.player.stop()
+                self.isPlaying = false
                 self.isLoading = false
+                self.playStartedAt = nil
+                self.currentStreamURL = nil
                 self.statusText = String(localized: "Ungültige URL")
+                // Wie ein Abspielfehler behandeln: das spaete .stopped-Ereignis des
+                // gestoppten Players darf den Text nicht mit "Gestoppt" ueberschreiben.
+                self.isErrorState = true
                 return
             }
             self.start(url: url)
@@ -134,7 +146,9 @@ final class RadioPlayer: ObservableObject {
         icy.start(url: url, allowAudioOnly: rec,
                   onContentType: { ct in if rec { recorder.begin(station: stationName, contentType: ct, at: sessionStart) } },
                   onAudio: { data in if rec { recorder.write(data) } })
-        log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(url.absoluteString, privacy: .public)")
+        // Nur Schema/Host/Pfad loggen: Query und Benutzerinfo koennen Tokens oder
+        // Passwoerter enthalten und landeten frueher unmaskiert im Unified Log.
+        log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(StreamURLPolicy.redactedForLog(url), privacy: .public)")
     }
 
     func stop() {

@@ -22,6 +22,21 @@ enum StreamURLPolicy {
         }
         return components.url
     }
+
+    /// Log-sichere Darstellung einer Stream-URL: nur Schema, Host, Port und Pfad.
+    /// Benutzerinfo (user:passwort@) und Query koennen Passwoerter, Tokens oder
+    /// signierte Streamparameter tragen — die gehoeren nicht ins Unified Log,
+    /// erst recht nicht mit `privacy: .public`.
+    static func redactedForLog(_ url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return "<url>"
+        }
+        components.user = nil
+        components.password = nil
+        components.query = nil
+        components.fragment = nil
+        return components.string ?? "<url>"
+    }
 }
 
 /// Vergleichsschluessel fuer Sender-Dubletten.
@@ -78,7 +93,9 @@ struct LatestRequestGeneration {
 
 enum PreviewToggleAction: Equatable {
     case replace(generation: UInt64)
-    case stop(generation: UInt64)
+    // Bewusst ohne Generation: Der Stop-Pfad wertet sie nirgends aus — ein
+    // mitgefuehrter, nie gelesener Wert wuerde einen Schutz nur vortaeuschen.
+    case stop
 }
 
 /// Testbarer Zustandskern des Preview-Wechsels. Ein Wechsel A -> B liefert
@@ -92,7 +109,7 @@ struct PreviewSwitchCoordinator {
         let generation = requests.begin()
         if currentID == stationID {
             currentID = nil
-            return .stop(generation: generation)
+            return .stop
         }
         currentID = stationID
         return .replace(generation: generation)
