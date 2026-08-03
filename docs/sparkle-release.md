@@ -44,7 +44,11 @@ Jede App hat ihr eigenes Schlüsselpaar; Schlüssel nie zwischen Projekten teile
    (`Autoupdate`, `Updater.app`) und beide Frameworks von innen nach außen mit
    derselben Developer-ID wie die App, erzeugt das DMG, notarisiert und stapelt.
 3. Nur nach ausdrücklicher Freigabe: `--publish` setzt das Tag, erstellt das
-   GitHub Release und lädt genau ein DMG hoch.
+   GitHub Release und lädt genau ein DMG hoch. Existiert das Release zu diesem
+   Tag bereits, bricht der Lauf ab: Veröffentlichte Dateien werden nicht
+   ersetzt. Ein ausgetauschtes DMG hätte eine andere Länge und Ed25519-Signatur
+   als die im schon veröffentlichten Feed genannten Werte, und Sparkle lehnt das
+   Update ab. In dem Fall die Version erhöhen und neu veröffentlichen.
 4. `.github/workflows/publish-appcast.yml` läuft beim Veröffentlichen des
    Releases: lädt dieses DMG, holt die gepinnten Sparkle-Werkzeuge
    (SHA-256-geprüft, derselbe Pin wie `build.sh`), erzeugt mit
@@ -60,6 +64,10 @@ Jede App hat ihr eigenes Schlüsselpaar; Schlüssel nie zwischen Projekten teile
 
 Der Workflow kann für ein bereits veröffentlichtes Tag manuell gestartet werden
 (`workflow_dispatch`, Input `tag`). Er erwartet genau ein `*.dmg` im Release.
+Das ist der bewusste Ausnahmeweg, wenn das hochgeladene DMG unverändert bleibt
+und allein der Feed fehlt oder veraltet ist — etwa weil der automatische Lauf
+beim Veröffentlichen fehlgeschlagen ist. Er ersetzt nicht den Versions-Bump für
+ein neues Artefakt.
 Der Feed führt nur das aktuelle Vollupdate; Delta-Updates sind bewusst
 deaktiviert (`--maximum-deltas 0`), bis der Pages-Workflow mehrere historische
 Archive mit ihren jeweiligen Download-URLs verwaltet.

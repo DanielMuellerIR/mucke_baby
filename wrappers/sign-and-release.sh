@@ -255,14 +255,31 @@ if [ "$PUBLISH" = "1" ]; then
   fi
   git -C "$PROJECT_ROOT" push github "$TAG"
 
-  # Release anlegen — oder, falls es schon existiert, nur das Asset aktualisieren.
+  # Veroeffentlichte Release-Dateien sind unveraenderlich. Frueher tauschte hier
+  # ein `gh release upload --clobber` das DMG eines bestehenden Releases aus —
+  # das zerstoert die Sparkle-Update-Kette: Der Appcast-Workflow
+  # (.github/workflows/publish-appcast.yml) laeuft nur beim Ereignis
+  # `release: published`. Ein spaeter getauschtes DMG hat eine andere Laenge und
+  # eine andere Ed25519-Signatur, der bereits veroeffentlichte Feed nennt aber
+  # weiter die Werte der alten Datei — Sparkle prueft beides und lehnt das Update
+  # ab. Der richtige Weg ist deshalb eine neue Version, nicht ein neues Artefakt
+  # unter demselben Tag.
   if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
-    gh release upload "$TAG" "$DMG_PATH" -R "$REPO" --clobber
-  else
-    gh release create "$TAG" "$DMG_PATH" -R "$REPO" \
-      --title "Mucke, Baby! $TAG" \
-      --notes-file "$NOTES_FILE"
+    echo "FEHLER: Release $TAG existiert bereits; veröffentlichte Dateien werden nicht ersetzt." >&2
+    echo "  Der Appcast-Workflow läuft nur beim Veröffentlichen eines Releases. Ein" >&2
+    echo "  nachträglich ausgetauschtes DMG passt danach nicht mehr zu Länge und" >&2
+    echo "  Ed25519-Signatur im Feed, und Sparkle lehnt das Update ab." >&2
+    echo "  Richtiger Weg: AppInfo.version in Sources/Models.swift erhöhen," >&2
+    echo "  CHANGELOG.md ergänzen, committen und den Release neu fahren." >&2
+    echo "  Bewusste Ausnahme (nur wenn das hochgeladene DMG unverändert bleibt und" >&2
+    echo "  allein der Feed fehlt oder veraltet ist): den Workflow \"Sparkle-Appcast" >&2
+    echo "  veröffentlichen\" manuell mit Input tag=$TAG starten — siehe" >&2
+    echo "  docs/sparkle-release.md." >&2
+    exit 1
   fi
+  gh release create "$TAG" "$DMG_PATH" -R "$REPO" \
+    --title "Mucke, Baby! $TAG" \
+    --notes-file "$NOTES_FILE"
   echo "==> Release online: https://github.com/$REPO/releases/tag/$TAG"
 fi
 

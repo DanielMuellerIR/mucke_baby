@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Security
 - Stream URLs are logged without user info and query parameters, so passwords, access tokens, and signed stream parameters no longer reach the unified log.
 - Release tooling is stricter: the Gatekeeper assessment of the DMG is a hard gate, `--publish` requires a clean working tree and a tag that matches the built source state, and the bundled station seed list must be byte-identical to the public example before a DMG is produced. Failed notarization runs now clean up their temporary archives.
+- Published release files are treated as immutable: if a release already exists for the tag, `--publish` aborts instead of replacing its DMG. The appcast is only regenerated when a release is published, so a swapped file would no longer match the length and Ed25519 signature in the feed and Sparkle would reject the update. Raising the version is the supported path; re-running the appcast workflow manually stays available for an unchanged release.
 
 ### Added
 - `Tests/run-tests.sh`: a reproducible headless test entry that compiles and runs the test harness (URL policy, log redaction, playlist resolver against local HTTP fixtures, recorder deletion limits, preview coordinator) without VLCKit or network access beyond localhost.

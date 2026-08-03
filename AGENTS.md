@@ -174,7 +174,11 @@ keine Kontodaten in Argumenten, Skripten oder Logs. `--no-finder-layout`
 
 Der Standardlauf erzeugt nur ein lokales DMG. Veröffentlichung, Tag und Upload
 sind ausschließlich über den ausdrücklichen `--publish`-Pfad und nur nach
-konkreter Freigabe zulässig. Vorher:
+konkreter Freigabe zulässig. Ein bereits veröffentlichtes Release wird dabei nie
+überschrieben: Der Lauf bricht ab und verlangt eine neue Version, weil der
+Sparkle-Feed sonst weiter Länge und Signatur des alten DMG nennt. Einziger
+Ausnahmeweg ist der manuelle Start des Appcast-Workflows für ein unverändertes
+Release (`docs/sparkle-release.md`). Vorher:
 
 - Arbeitsbaum und Version/Changelog konsistent;
 - öffentliche Seed-Liste im Bundle, keine private Senderliste;
