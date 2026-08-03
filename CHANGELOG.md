@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Published release files are treated as immutable: if a release already exists for the tag, `--publish` aborts instead of replacing its DMG. The appcast is only regenerated when a release is published, so a swapped file would no longer match the length and Ed25519 signature in the feed and Sparkle would reject the update. Raising the version is the supported path; re-running the appcast workflow manually stays available for an unchanged release.
 
 ### Added
+- `Tests/fleet-rules.sh`: pins the two rules that keep an installation safe — only a bundle with a stapled notarization ticket may reach `/Applications` (ad-hoc builds stay in `build/`), and no absolute path of the build machine may end up in the shipped bundle. It reads sources only: it never builds, signs, notarizes or writes to `/Applications`, because a test that had to run the real install path to prove the guard would itself replace the installed app.
 - `Tests/run-tests.sh`: a reproducible headless test entry that compiles and runs the test harness (URL policy, log redaction, playlist resolver against local HTTP fixtures, recorder deletion limits, preview coordinator) without VLCKit or network access beyond localhost.
 
 ## [1.8.1] - 2026-07-22

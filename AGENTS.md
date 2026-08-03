@@ -153,7 +153,17 @@ auswerten. Automatische Screenshots prüfen Layout und Theme, nicht hörbares Au
 reiner Foundation-Code ohne VLCKit/SwiftUI) und führt ihn aus: URL-Policy und
 Log-Redaktion, Playlist-Resolver gegen lokale HTTP-Fixtures, Recorder-Index- und
 Löschgrenzen, Preview-Koordinator. Er ist das Pflicht-Gate für Änderungen an
-diesen Pfaden. Darüber hinaus besitzt das Repo noch keine ausreichende
+diesen Pfaden.
+
+`Tests/fleet-rules.sh` hält die beiden Fleet-Regeln vom 2026-08-03 fest: Nach
+`/Applications` gelangt nur ein Bundle mit angeheftetem Notary-Ticket (Ad-hoc
+bleibt in `build/`), und kein absoluter Pfad des Build-Rechners darf im
+ausgelieferten Bundle landen. Der Test liest nur Quellen und baut, signiert und
+installiert nichts. Diese Prüfung nie dadurch „belegen", dass der echte
+Installationsweg gegen `/Applications` läuft — das ersetzt Daniels installierte
+App.
+
+Darüber hinaus besitzt das Repo noch keine ausreichende
 automatisierte Unit-Test-Suite. Neue kritische Logik nicht nur durch Build und
 Screenshots absichern; testbare Komponenten schrittweise in den Harness oder
 weitere Swift-Tests auslagern.
