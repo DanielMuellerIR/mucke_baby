@@ -87,6 +87,11 @@ if [ "$PUBLISH" = "1" ]; then
     git -C "$PROJECT_ROOT" status --short >&2
     exit 1
   fi
+  # Ausgangs-Commit festhalten. Zwischen dieser Zeile und dem Upload liegen Build
+  # und zwei Notarisierungen — mehrere Minuten, in denen eine getrackte Quelle
+  # geaendert werden kann, ohne dass sich HEAD bewegt. Vor Tag und Upload wird
+  # deshalb erneut auf genau diesen Commit UND einen sauberen Baum geprueft.
+  PUBLISH_HEAD=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
 fi
 
 # ---------- 1. Bauen ----------
@@ -236,24 +241,45 @@ if [ "$PUBLISH" = "1" ]; then
   ' "$PROJECT_ROOT/CHANGELOG.md" > "$NOTES_FILE"
   [ -s "$NOTES_FILE" ] || echo "Mucke, Baby! $TAG" > "$NOTES_FILE"
 
+  # Zweite Quellstand-Pruefung, direkt vor Tag und Upload: Der Build liegt jetzt
+  # Minuten zurueck (siehe PUBLISH_HEAD oben). Eine seitdem geaenderte Quelle waere
+  # im DMG gelandet, ohne HEAD zu bewegen — das Artefakt passte dann nicht zu dem
+  # Commit, den der Tag bezeichnet.
+  if [ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]; then
+    echo "FEHLER: Der Arbeitsbaum wurde waehrend des Laufs veraendert. Offen sind:" >&2
+    git -C "$PROJECT_ROOT" status --short >&2
+    echo "  Aenderungen committen und den Release neu fahren." >&2
+    exit 1
+  fi
+  CURRENT_HEAD=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
+  if [ "$CURRENT_HEAD" != "$PUBLISH_HEAD" ]; then
+    echo "FEHLER: HEAD wechselte waehrend des Laufs von $PUBLISH_HEAD zu $CURRENT_HEAD." >&2
+    echo "  Auf dem gewuenschten Stand neu bauen und veroeffentlichen." >&2
+    exit 1
+  fi
+
   # git-Tag nur anlegen, falls noch nicht vorhanden — aber IMMER pushen. Sonst zeigt
   # das Release auf den falschen Commit: existierte der Tag lokal schon (z. B. ein
   # frueherer Lauf legte ihn an, der push schlug aber fehl), wurde der push nie
   # nachgeholt, und `gh release create` taggt dann den default-branch-HEAD auf GitHub.
   # Der push ist bewusst nicht --force: ein divergenter Remote-Tag bricht laut (set -e).
-  git -C "$PROJECT_ROOT" rev-parse "$TAG" >/dev/null 2>&1 \
+  #
+  # Immer ueber die volle Referenz refs/tags/: Ein blosses "$TAG" faende auch einen
+  # gleichnamigen BRANCH. Dann entstuende kein Tag, `git push` schoebe den Branch,
+  # und `gh release create` legte den Tag mangels Remote-Tag selbst am Default-Branch
+  # an — das Release zeigte auf einen anderen Stand als das gebaute DMG.
+  git -C "$PROJECT_ROOT" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null \
     || git -C "$PROJECT_ROOT" tag -a "$TAG" -m "Mucke, Baby! $TAG"
   # Der Tag muss exakt auf HEAD zeigen — das DMG wurde aus dem aktuellen Stand
   # gebaut. Ein alter lokaler Tag (z. B. aus einem frueheren, abgebrochenen Lauf)
   # wuerde das frische Artefakt sonst unter einem fremden Quellstand veroeffentlichen.
-  TAG_COMMIT=$(git -C "$PROJECT_ROOT" rev-parse "$TAG^{}")
-  HEAD_COMMIT=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
-  if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
-    echo "FEHLER: Tag $TAG zeigt auf $TAG_COMMIT, HEAD ist aber $HEAD_COMMIT." >&2
+  TAG_COMMIT=$(git -C "$PROJECT_ROOT" rev-parse "refs/tags/$TAG^{commit}")
+  if [ "$TAG_COMMIT" != "$CURRENT_HEAD" ]; then
+    echo "FEHLER: Tag $TAG zeigt auf $TAG_COMMIT, HEAD ist aber $CURRENT_HEAD." >&2
     echo "  Alten Tag pruefen/loeschen oder auf dem getaggten Stand neu bauen." >&2
     exit 1
   fi
-  git -C "$PROJECT_ROOT" push github "$TAG"
+  git -C "$PROJECT_ROOT" push github "refs/tags/$TAG"
 
   # Veroeffentlichte Release-Dateien sind unveraenderlich. Frueher tauschte hier
   # ein `gh release upload --clobber` das DMG eines bestehenden Releases aus —
@@ -277,7 +303,11 @@ if [ "$PUBLISH" = "1" ]; then
     echo "  docs/sparkle-release.md." >&2
     exit 1
   fi
+  # --verify-tag: gh soll den Tag NICHT selbst anlegen. Fehlt er auf dem Remote
+  # (etwa weil der push oben doch nichts geschoben hat), bricht der Aufruf ab,
+  # statt still ein Release am Default-Branch-HEAD zu erzeugen.
   gh release create "$TAG" "$DMG_PATH" -R "$REPO" \
+    --verify-tag \
     --title "Mucke, Baby! $TAG" \
     --notes-file "$NOTES_FILE"
   echo "==> Release online: https://github.com/$REPO/releases/tag/$TAG"

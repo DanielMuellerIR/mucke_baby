@@ -102,8 +102,21 @@ final class Recorder: @unchecked Sendable {
                 // schon beim Laden; unmittelbar vor removeItem trotzdem erneut
                 // pruefen, damit nie ein Pfad ausserhalb von `dir` geloescht wird.
                 guard Self.isSafeClipFileName(c.file) else { continue }
+                let target = self.dir.appendingPathComponent(c.file)
+                // Nur regulaere Dateien loeschen. Ein schlichter Name ohne "/" kann
+                // im Aufnahmeordner auch ein UNTERORDNER sein, und removeItem loescht
+                // Verzeichnisse mitsamt Inhalt — der Loeschvertrag umfasst aber nur
+                // Aufnahme-Dateien. attributesOfItem folgt Symlinks nicht, meldet also
+                // den Link selbst. Der abgewiesene Eintrag bleibt zur Diagnose im
+                // Index. Fehlt der Pfad ganz, gibt es keine Attribute -> unten greift
+                // der fileNoSuchFile-Zweig und der Eintrag darf raus.
+                let attributes = try? FileManager.default.attributesOfItem(atPath: target.path)
+                if let type = attributes?[.type] as? FileAttributeType, type != .typeRegular {
+                    kept.append(c)
+                    continue
+                }
                 do {
-                    try FileManager.default.removeItem(at: self.dir.appendingPathComponent(c.file))
+                    try FileManager.default.removeItem(at: target)
                 } catch let error as CocoaError where error.code == .fileNoSuchFile {
                     // Datei ist schon weg -> Eintrag darf trotzdem aus dem Index.
                 } catch {

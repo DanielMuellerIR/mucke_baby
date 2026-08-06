@@ -188,6 +188,13 @@ final class RadioPlayer: ObservableObject {
 
     // Erstes Voranschreiten der Zeit = wir spielen wirklich.
     private func handleTimeAdvanced() {
+        // Nur Zeit-Ereignisse eines installierten Mediums zaehlen. `currentStreamURL`
+        // ist nil, sobald wir gestoppt haben — nach gescheiterter Aufloesung (dort
+        // stoppt play() den alten Stream), nach Streamende und nach einem Fehler. Die
+        // Ereignisse kommen asynchron auf den Main-Thread; eines vom alten Medium
+        // kann also erst danach eintreffen und wuerde sonst "Wiedergabe" melden und
+        // den gerade gesetzten Fehlerzustand wieder loeschen.
+        guard currentStreamURL != nil else { return }
         guard !isPlaying else { return }
         isPlaying = true
         isLoading = false

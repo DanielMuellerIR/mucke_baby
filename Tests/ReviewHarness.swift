@@ -7,10 +7,12 @@ enum ReviewHarness {
     static func main() async throws {
         try testRecordingDeletionInTemporaryDirectory()
         try testRecordingIndexSafety()
+        try testRecordingDeletionSkipsDirectories()
         testURLPolicyAndIdentity()
         testLatestRequestWins()
         testPreviewSwitchDoesNotStopReplacement()
         testTerminalTransitionAllowsRestart()
+        testPlayerEventsBelongToInstalledMedium()
         testNeedsResolutionClassifiesByPath()
         await testResolveAgainstLocalFixtures()
         print("ReviewHarness: OK")
@@ -146,6 +148,38 @@ enum ReviewHarness {
               "Eintrag ohne Datei blieb nach dem Loeschen im Index")
     }
 
+    // Regression zum Review-Fund "Unterordner statt Aufnahme": Ein schlichter Name
+    // ohne "/" besteht die Namenspruefung, kann im Aufnahmeordner aber ein
+    // Verzeichnis sein — removeItem loescht das mitsamt Inhalt. "Alle Aufnahmen
+    // loeschen" darf nur regulaere Dateien anfassen.
+    private static func testRecordingDeletionSkipsDirectories() throws {
+        let fm = FileManager.default
+        let recDir = fm.temporaryDirectory
+            .appendingPathComponent("MuckeBaby-Review-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: recDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: recDir) }
+
+        // Unterordner mit Nutzerdaten, auf den ein manipulierter Index zeigt.
+        let folder = recDir.appendingPathComponent("Eigene Mitschnitte", isDirectory: true)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let inside = folder.appendingPathComponent("wichtig.mp3")
+        try Data("wichtig".utf8).write(to: inside)
+        let indexJSON = """
+        [{"id":"22222222-2222-2222-2222-222222222222","file":"Eigene Mitschnitte",\
+        "station":"Manipuliert","start":"2023-11-14T22:13:20Z",\
+        "end":"2023-11-14T22:13:30Z","ext":"mp3"}]
+        """
+        try Data(indexJSON.utf8).write(to: recDir.appendingPathComponent("recordings-index.json"))
+
+        let recorder = Recorder(directory: recDir, minimumFreeBytes: -1)
+        recorder.deleteAllCompleted()
+        recorder.flush()
+        check(fm.fileExists(atPath: inside.path),
+              "Loeschen hat einen Unterordner samt Inhalt entfernt")
+        check(recorder.snapshot().count == 1,
+              "abgewiesener Verzeichnis-Eintrag verschwand aus dem Index statt zur Diagnose zu bleiben")
+    }
+
     private static func testURLPolicyAndIdentity() {
         check(StreamURLPolicy.validatedURL("https://Example.COM/Stream?Token=AbC") != nil,
               "gueltige HTTPS-URL abgewiesen")
@@ -164,16 +198,33 @@ enum ReviewHarness {
         )?.absoluteString == "https://example.com/Stream?Token=AbC",
         "Playlist veraenderte case-sensitiven Pfad oder Query")
 
-        // Log-Redaktion: Benutzerinfo und Query (Tokens/Passwoerter) muessen raus,
-        // Schema/Host/Pfad bleiben fuer die Diagnose erhalten.
+        // Log-Redaktion: Benutzerinfo, Query, Fragment UND Pfad muessen raus —
+        // nur Schema/Host/Port bleiben. Ein ausgelassener Pfad wird angedeutet.
         if let secretURL = URL(string: "https://user:pass@example.com/stream?token=SECRET#frag") {
             let redacted = StreamURLPolicy.redactedForLog(secretURL)
-            check(redacted == "https://example.com/stream",
-                  "Log-Redaktion liess Benutzerinfo/Query durch: \(redacted)")
+            check(redacted == "https://example.com/…",
+                  "Log-Redaktion liess Benutzerinfo/Query/Pfad durch: \(redacted)")
             check(!redacted.contains("SECRET") && !redacted.contains("pass"),
                   "Log-Redaktion enthaelt weiterhin Geheimnisse")
         } else {
             check(false, "Redaktions-Test-URL unparsebar")
+        }
+        // Manche Anbieter tragen den Zugangstoken IM PFAD. Auch der darf nicht ins
+        // Unified Log (dort steht die Zeile dauerhaft und mit privacy: .public).
+        if let pathTokenURL = URL(string: "https://example.com:8000/token/GEHEIM/stream.mp3") {
+            let redacted = StreamURLPolicy.redactedForLog(pathTokenURL)
+            check(redacted == "https://example.com:8000/…",
+                  "Log-Redaktion liess den Pfad durch: \(redacted)")
+            check(!redacted.contains("GEHEIM"), "Token im Pfad blieb im Log stehen")
+        } else {
+            check(false, "Pfad-Token-Test-URL unparsebar")
+        }
+        // Ohne Pfad kein irrefuehrendes "/…".
+        if let bareURL = URL(string: "https://example.com/") {
+            check(StreamURLPolicy.redactedForLog(bareURL) == "https://example.com",
+                  "Root-URL erhielt einen Pfad-Hinweis, obwohl es keinen Pfad gibt")
+        } else {
+            check(false, "Root-Test-URL unparsebar")
         }
 
         check(StationURLIdentity("HTTPS://Example.COM/Stream?Token=AbC")
@@ -310,21 +361,58 @@ enum ReviewHarness {
     }
 
     // Ablauf "Start, Stream endet von selbst, erneuter Start desselben Senders":
-    // Nach dem Terminaluebergang (stop()) muss der naechste Klick auf denselben
-    // Sender wieder .replace liefern — genau diesen Uebergang ruft der
-    // PreviewPlayer bei .ended/.stopped jetzt auf (frueher blieb der Koordinator
-    // auf dem beendeten Sender stehen und der erste Klick lieferte .stop).
+    // Nach dem Terminaluebergang muss der naechste Klick auf denselben Sender
+    // wieder .replace liefern (frueher blieb der Koordinator auf dem beendeten
+    // Sender stehen und der erste Klick lieferte .stop). Geprueft wird genau die
+    // Methode, die PreviewPlayer.handleState() bei .ended/.stopped aufruft —
+    // ein direkter stop() im Test wuerde die Verdrahtung nicht absichern.
     private static func testTerminalTransitionAllowsRestart() {
         var preview = PreviewSwitchCoordinator()
-        guard case .replace = preview.toggle(stationID: "A") else {
+        guard case let .replace(generation) = preview.toggle(stationID: "A") else {
             check(false, "Start der Vorschau war kein Replace")
             return
         }
-        preview.stop()   // Stream endet von selbst -> Terminaluebergang
+        preview.mediaInstalled(generation: generation, stationID: "A")
+        // Waehrend des Ladens gehoert ein Terminalereignis noch zum alten Medium.
+        check(!preview.finishTerminal(isLoading: true),
+              "Terminalereignis waehrend des Ladens raeumte die laufende Vorschau ab")
+        check(preview.finishTerminal(isLoading: false),
+              "Streamende raeumte die Vorschau nicht ab")
+        check(!preview.finishTerminal(isLoading: false),
+              "zweites Terminalereignis meldete erneut einen Aufraeumbedarf")
         guard case .replace = preview.toggle(stationID: "A") else {
             check(false, "Neustart desselben Senders nach Streamende lieferte kein Replace")
             return
         }
+    }
+
+    // Regression zum Review-Fund "spaeter Fehler von A trifft B": Beim Wechsel
+    // A -> B haengt A bis zur fertigen Aufloesung von B im gemeinsamen Player.
+    // Erst wenn das Medium von B wirklich installiert ist, gehoeren Player-
+    // Ereignisse zu B — sonst wuerde ein Fehler von A den Nachfolger als
+    // gescheitert markieren und dessen Start verhindern.
+    private static func testPlayerEventsBelongToInstalledMedium() {
+        var preview = PreviewSwitchCoordinator()
+        guard case let .replace(first) = preview.toggle(stationID: "A") else {
+            check(false, "Start der Vorschau war kein Replace")
+            return
+        }
+        preview.mediaInstalled(generation: first, stationID: "A")
+        check(preview.hasInstalledMedia, "installiertes Medium wurde nicht vermerkt")
+
+        guard case let .replace(second) = preview.toggle(stationID: "B") else {
+            check(false, "Wechsel A -> B war kein Replace")
+            return
+        }
+        check(!preview.hasInstalledMedia,
+              "waehrend der Aufloesung von B galten Player-Ereignisse schon als B")
+        // Spaete Installationsmeldung der ueberholten Generation von A: wirkungslos.
+        check(!preview.mediaInstalled(generation: first, stationID: "A"),
+              "ueberholte Generation durfte das Medium installieren")
+        check(!preview.hasInstalledMedia, "ueberholte Generation setzte hasInstalledMedia")
+
+        preview.mediaInstalled(generation: second, stationID: "B")
+        check(preview.hasInstalledMedia, "Medium von B wurde nicht vermerkt")
     }
 }
 
@@ -387,10 +475,25 @@ final class FixtureServer: @unchecked Sendable {
 
     private func handle(_ client: Int32) {
         defer { close(client) }
+        // Timeout, damit eine Verbindung ohne (vollstaendige) Anfrage die serielle
+        // accept-Schleife nicht dauerhaft blockiert.
+        var timeout = timeval(tv_sec: 5, tv_usec: 0)
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
+        // Bis zum Ende der Request-Header lesen: TCP garantiert nicht, dass ein
+        // einzelnes read() schon die ganze Request-Zeile liefert — ein Teil-Lesen
+        // haette sonst sporadisch eine 404-Antwort erzeugt.
+        let headerEnd = Data("\r\n\r\n".utf8)
+        var raw = Data()
         var buf = [UInt8](repeating: 0, count: 4096)
-        let n = read(client, &buf, buf.count)
-        guard n > 0,
-              let request = String(bytes: buf[0..<n], encoding: .utf8),
+        while raw.range(of: headerEnd) == nil && raw.count < 64 * 1024 {
+            let n = read(client, &buf, buf.count)
+            if n <= 0 { break }
+            raw.append(contentsOf: buf[0..<n])
+        }
+        guard !raw.isEmpty,
+              let request = String(data: raw, encoding: .utf8),
               let line = request.split(separator: "\r\n").first else { return }
         // Request-Line: "GET /pfad?query HTTP/1.1" -> Ziel inkl. Query matchen.
         let parts = line.split(separator: " ")
@@ -402,7 +505,17 @@ final class FixtureServer: @unchecked Sendable {
         out += "Connection: close\r\n"
         for header in resp.headers { out += header + "\r\n" }
         out += "\r\n" + resp.body
+        // Antwort in einer Schleife schreiben: write() darf weniger Bytes annehmen
+        // als angeboten. Ein Teil-Schreiben haette die Playlist abgeschnitten
+        // ausgeliefert und den Resolver-Test sporadisch rot gemacht.
         let bytes = Array(out.utf8)
-        _ = bytes.withUnsafeBufferPointer { write(client, $0.baseAddress, $0.count) }
+        var sent = 0
+        while sent < bytes.count {
+            let written = bytes.withUnsafeBufferPointer {
+                write(client, $0.baseAddress! + sent, bytes.count - sent)
+            }
+            if written <= 0 { break }
+            sent += written
+        }
     }
 }

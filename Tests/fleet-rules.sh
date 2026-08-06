@@ -20,9 +20,11 @@ fail=0
 ok()  { echo "  OK   $1"; }
 bad() { echo "  FAIL $1" >&2; fail=1; }
 
-# Zeilennummer des ersten Vorkommens eines festen Textes in einer Datei.
+# Zeilennummer des ersten Vorkommens eines festen Textes in einer Datei —
+# reine Kommentarzeilen zaehlen nicht mit. Sonst koennte eine Begruendung im
+# Kopfkommentar die Reihenfolge der echten Befehle vortaeuschen.
 first_line() {   # $1 = Datei, $2 = fester Text
-    grep -nF -- "$2" "$1" | head -1 | cut -d: -f1
+    grep -nF -- "$2" "$1" | grep -vE '^[0-9]+: *#' | head -1 | cut -d: -f1
 }
 
 echo "1. Regel 1: Ticket vor dem ersten Schreiben nach /Applications"
@@ -37,6 +39,20 @@ else
         && ok "notarize_app laeuft vor dem ersten Schreiben nach /Applications" \
         || bad "install.sh schreibt nach /Applications, bevor notarisiert wurde"
 fi
+
+# Reihenfolge allein genuegt nicht: Ein `notarize_app "$APP" || true` stuende an
+# derselben Stelle, liefe aber trotz Fehlschlag weiter. Deshalb zusaetzlich
+# belegen, dass der Fehler nicht abgefangen wird und das Skript bei Fehlern
+# ueberhaupt abbricht.
+if grep -nE 'notarize_app "\$APP"[[:space:]]*(\|\||;|&&[[:space:]]*(true|:))' install.sh \
+     | grep -vqE '^[0-9]+: *#'; then
+    bad "notarize_app-Fehler wird in install.sh abgefangen statt weitergereicht"
+else
+    ok "notarize_app-Fehler wird in install.sh nicht abgefangen"
+fi
+grep -qE '^set -euo pipefail$' install.sh \
+    && ok "install.sh bricht bei Fehlern ab (set -e)" \
+    || bad "install.sh hat kein 'set -euo pipefail' mehr — ein Notary-Fehler liefe weiter"
 
 grep -qF 'require_notary_profile' install.sh \
     && ok "install.sh verlangt ein Notary-Profil" \
@@ -91,6 +107,7 @@ fi
 # Direkte Probe am eigenen Binary, falls schon gebaut. Geprueft wird nur unser
 # Programm, nicht die mitgelieferten Fremd-Frameworks.
 BIN="build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
+artifact_skipped=0
 if [ -f "$BIN" ]; then
     home_paths="$(strings -a "$BIN" | grep -F "$HOME/")"
     if [ -n "$home_paths" ]; then
@@ -100,13 +117,23 @@ if [ -f "$BIN" ]; then
         ok "gebautes Binary enthaelt keine Pfade aus dem Heimatverzeichnis"
     fi
 else
-    echo "  --   Binary nicht vorhanden; Probe uebersprungen (erst 'bash build.sh')"
+    # Ein fehlender Pruefgegenstand ist kein Erfolg. Ohne Binary laeuft der Test
+    # weiter (er baut bewusst nichts), meldet den Verzicht aber im Ergebnis —
+    # und mit FLEET_RULES_REQUIRE_ARTIFACT=1 (Release/CI) ist er ein Fehlschlag.
+    artifact_skipped=1
+    if [ "${FLEET_RULES_REQUIRE_ARTIFACT:-0}" = "1" ]; then
+        bad "Binary fehlt, Artefaktprobe unmoeglich (erst 'bash build.sh')"
+    else
+        echo "  --   Binary nicht vorhanden; Probe uebersprungen (erst 'bash build.sh')"
+    fi
 fi
 
 echo
-if [ "$fail" = "0" ]; then
-    echo "fleet-rules: OK"
-else
+if [ "$fail" != "0" ]; then
     echo "fleet-rules: FEHLGESCHLAGEN" >&2
     exit 1
+elif [ "$artifact_skipped" = "1" ]; then
+    echo "fleet-rules: Quellregeln OK — Artefaktprobe uebersprungen (kein Binary)"
+else
+    echo "fleet-rules: OK"
 fi

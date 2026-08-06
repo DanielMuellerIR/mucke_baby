@@ -215,6 +215,9 @@ final class PreviewPlayer: ObservableObject {
             self.player.media = media
             self.player.audio?.volume = Int32(max(0, min(1, volume)) * 100)
             self.player.play()
+            // Ab hier gehoeren Player-Ereignisse zu DIESER Vorschau (siehe
+            // hasInstalledMedia im Koordinator).
+            self.switches.mediaInstalled(generation: generation, stationID: stationID)
         }
     }
 
@@ -238,18 +241,18 @@ final class PreviewPlayer: ObservableObject {
     private func handleState() {
         switch player.state {
         case .error:
+            // Nur ein Fehler des eigenen Mediums zählt. Beim Wechsel A -> B spielt A
+            // im gemeinsamen Player weiter, während B noch aufgelöst wird; ein später
+            // Fehler von A hätte sonst B als gescheitert markiert und dessen Start
+            // verhindert (markFailed nutzt currentID, also bereits B).
+            guard switches.hasInstalledMedia else { return }
             markFailed()
         case .ended, .stopped:
             // Stream selbst zu Ende/abgerissen -> Zustand aufräumen. Ein manueller
             // stop() hat currentID schon genullt, dann ist das hier ein No-Op.
-            if currentID != nil && !isLoading {
-                // Auch den Koordinator zurücksetzen (wie markFailed): Er hielte
-                // sonst den beendeten Sender fest, und der nächste Klick auf
-                // denselben Sender lieferte .stop statt eines Neustarts — der
-                // Sender startete erst beim zweiten Klick wieder.
-                switches.stop()
-                currentID = nil
-            }
+            // Den Übergang entscheidet der Koordinator (VLC-frei und im Harness
+            // getestet), damit der Neustart desselben Senders funktioniert.
+            if switches.finishTerminal(isLoading: isLoading) { currentID = nil }
         default:
             break
         }
