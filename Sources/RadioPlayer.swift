@@ -52,6 +52,8 @@ final class RadioPlayer: ObservableObject {
     private var desiredVolume: Float = 0.77
     private var lastState: VLCMediaPlayerState?
     private var resolveTask: Task<Void, Never>?
+    private var requests = LatestRequestGeneration()
+    private var installedGeneration: UInt64 = 0
 
     // Mitschnitt standardmaessig AUS; in den Einstellungen aktivierbar.
     static var recordingEnabled: Bool {
@@ -82,8 +84,10 @@ final class RadioPlayer: ObservableObject {
         icy.stop()
         resolveTask?.cancel()
         resolveTask = nil
+        let generation = requests.begin()
 
         currentStation = station
+        currentStreamURL = nil      // Wechselfenster: alte Stream-URL sofort nullen
         nowPlayingTitle = ""
         statusText = String(localized: "Lade …")
         isErrorState = false
@@ -101,6 +105,7 @@ final class RadioPlayer: ObservableObject {
             let resolved = await PlaylistResolver.resolve(raw)
             guard let self else { return }
             if Task.isCancelled { return }
+            guard self.requests.accepts(generation) else { return }
             guard let url = resolved else {
                 // Fail-closed-Ende ohne neues Medium: Der VORHERIGE Sender spielt
                 // sonst hoerbar weiter, waehrend UI/currentStation schon den neuen
@@ -118,16 +123,18 @@ final class RadioPlayer: ObservableObject {
                 self.isErrorState = true
                 return
             }
-            self.start(url: url)
+            self.start(url: url, generation: generation)
         }
     }
 
-    private func start(url: URL) {
+    private func start(url: URL, generation: UInt64) {
+        guard requests.accepts(generation) else { return }
         let media = VLCMedia(url: url)
         media.addOption(":network-caching=1500")
         player.media = media
         player.audio?.volume = Int32(desiredVolume * 100)
         player.play()
+        installedGeneration = generation
         currentStreamURL = url   // AudioTap starten: er tappt die eigene Prozessausgabe
 
         // ICY-Reader: Now-Playing-Titel + (bei aktivierter Aufnahme) Audio mitschneiden.
@@ -157,6 +164,8 @@ final class RadioPlayer: ObservableObject {
         icy.stop()
         resolveTask?.cancel()
         resolveTask = nil
+        requests.invalidate()
+        installedGeneration = 0
         player.stop()
         isPlaying = false
         isLoading = false
@@ -188,13 +197,12 @@ final class RadioPlayer: ObservableObject {
 
     // Erstes Voranschreiten der Zeit = wir spielen wirklich.
     private func handleTimeAdvanced() {
-        // Nur Zeit-Ereignisse eines installierten Mediums zaehlen. `currentStreamURL`
-        // ist nil, sobald wir gestoppt haben — nach gescheiterter Aufloesung (dort
-        // stoppt play() den alten Stream), nach Streamende und nach einem Fehler. Die
-        // Ereignisse kommen asynchron auf den Main-Thread; eines vom alten Medium
-        // kann also erst danach eintreffen und wuerde sonst "Wiedergabe" melden und
-        // den gerade gesetzten Fehlerzustand wieder loeschen.
-        guard currentStreamURL != nil else { return }
+        // Nur Zeit-Ereignisse des installierten Mediums der aktuellen Generation zaehlen.
+        // `currentStreamURL` ist nil waehrend der Aufloesung und nach Stop/Fehler.
+        // Ein Ereignis des alten Mediums kann asynchron auf dem Main-Thread eintreffen
+        // und wuerde sonst "Wiedergabe" fuer den neuen Sender melden, obwohl noch der
+        // alte hoerbar ist.
+        guard requests.accepts(installedGeneration), currentStreamURL != nil else { return }
         guard !isPlaying else { return }
         isPlaying = true
         isLoading = false
@@ -208,6 +216,11 @@ final class RadioPlayer: ObservableObject {
         let state = player.state
         guard state != lastState else { return }
         lastState = state
+
+        // Ereignisse des vorherigen Mediums waehrend der Aufloesung eines neuen
+        // Senders (installedGeneration != requests.current) duerfen den neuen Zustand
+        // nicht ueberschreiben.
+        guard requests.accepts(installedGeneration) else { return }
 
         switch state {
         case .opening, .buffering:

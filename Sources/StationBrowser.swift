@@ -162,7 +162,8 @@ extension CharacterSet {
 @MainActor
 final class PreviewPlayer: ObservableObject {
     /// stationuuid des gerade spielenden/ladenden Senders (nil = still).
-    @Published private(set) var currentID: String?
+    /// Abgeleitet aus dem PreviewSwitchCoordinator als einzige Wahrheitsquelle.
+    var currentID: String? { switches.currentID }
     @Published private(set) var isLoading = false
     @Published private(set) var failedID: String?   // letzter Sender, der nicht spielte
 
@@ -175,12 +176,18 @@ final class PreviewPlayer: ObservableObject {
         player.delegate = shim
         // Erstes Zeit-Event = spielt hörbar (state kann bei Live-Streams auf
         // .buffering hängen bleiben — gleiche Invariante wie im RadioPlayer).
-        shim.onTime = { [weak self] in self?.isLoading = false }
+        // Nur Ereignisse des installierten Mediums duerfen isLoading zuruecksetzen,
+        // damit ein Zeit-Event des vorherigen Senders den Wechsel A -> B nicht stoert.
+        shim.onTime = { [weak self] in
+            guard let self, self.switches.hasInstalledMedia else { return }
+            if self.isLoading { self.isLoading = false }
+        }
         shim.onState = { [weak self] in self?.handleState() }
     }
 
     /// Probehören starten/stoppen (Klick auf denselben Sender = Stopp).
     func toggle(_ station: RBStation, volume: Float) {
+        objectWillChange.send()
         let action = switches.toggle(stationID: station.stationuuid)
         if case .stop = action {
             stop(invalidateGeneration: false)
@@ -192,7 +199,6 @@ final class PreviewPlayer: ObservableObject {
         // sonst erst nach B.play() eintreffen und die neue Vorschau abwuergen.
         resolveTask?.cancel()
         resolveTask = nil
-        currentID = station.stationuuid
         failedID = nil
         isLoading = true
         let stationID = station.stationuuid
@@ -230,11 +236,11 @@ final class PreviewPlayer: ObservableObject {
     }
 
     private func stop(invalidateGeneration: Bool) {
+        objectWillChange.send()
         if invalidateGeneration { switches.stop() }
         resolveTask?.cancel()
         resolveTask = nil
         if player.isPlaying || player.media != nil { player.stop() }
-        currentID = nil
         isLoading = false
     }
 
@@ -244,7 +250,7 @@ final class PreviewPlayer: ObservableObject {
             // Nur ein Fehler des eigenen Mediums zählt. Beim Wechsel A -> B spielt A
             // im gemeinsamen Player weiter, während B noch aufgelöst wird; ein später
             // Fehler von A hätte sonst B als gescheitert markiert und dessen Start
-            // verhindert (markFailed nutzt currentID, also bereits B).
+            // verhindert (markFailed nutzt switches.currentID, also bereits B).
             guard switches.hasInstalledMedia else { return }
             markFailed()
         case .ended, .stopped:
@@ -252,7 +258,10 @@ final class PreviewPlayer: ObservableObject {
             // stop() hat currentID schon genullt, dann ist das hier ein No-Op.
             // Den Übergang entscheidet der Koordinator (VLC-frei und im Harness
             // getestet), damit der Neustart desselben Senders funktioniert.
-            if switches.finishTerminal(isLoading: isLoading) { currentID = nil }
+            if switches.finishTerminal() {
+                objectWillChange.send()
+                isLoading = false
+            }
         default:
             break
         }
@@ -261,9 +270,9 @@ final class PreviewPlayer: ObservableObject {
     private func markFailed(generation: UInt64? = nil, stationID: String? = nil) {
         if let generation, let stationID,
            !switches.accepts(generation, stationID: stationID) { return }
-        failedID = currentID
+        objectWillChange.send()
+        failedID = switches.currentID
         switches.stop()
-        currentID = nil
         isLoading = false
         player.stop()
     }

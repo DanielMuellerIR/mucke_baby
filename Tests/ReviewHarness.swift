@@ -372,18 +372,29 @@ enum ReviewHarness {
             check(false, "Start der Vorschau war kein Replace")
             return
         }
+        // Bevor das Medium installiert ist, gehoert ein Terminalereignis noch zum alten Medium.
+        check(!preview.finishTerminal(),
+              "Terminalereignis vor Medieninstallation raeumte die laufende Vorschau ab")
         preview.mediaInstalled(generation: generation, stationID: "A")
-        // Waehrend des Ladens gehoert ein Terminalereignis noch zum alten Medium.
-        check(!preview.finishTerminal(isLoading: true),
-              "Terminalereignis waehrend des Ladens raeumte die laufende Vorschau ab")
-        check(preview.finishTerminal(isLoading: false),
-              "Streamende raeumte die Vorschau nicht ab")
-        check(!preview.finishTerminal(isLoading: false),
+        check(preview.finishTerminal(),
+              "Streamende raeumte die installierte Vorschau nicht ab")
+        check(!preview.finishTerminal(),
               "zweites Terminalereignis meldete erneut einen Aufraeumbedarf")
         guard case .replace = preview.toggle(stationID: "A") else {
             check(false, "Neustart desselben Senders nach Streamende lieferte kein Replace")
             return
         }
+
+        // Wechsel A -> B: Altes Terminalereignis waehrend B noch laedt darf B nicht invalidieren.
+        preview.mediaInstalled(generation: generation, stationID: "A")
+        guard case let .replace(secondGen) = preview.toggle(stationID: "B") else {
+            check(false, "Wechsel A -> B war kein Replace")
+            return
+        }
+        check(!preview.finishTerminal(),
+              "spaetes Terminalereignis waehrend B laedt invalidierte B")
+        check(preview.accepts(secondGen, stationID: "B"),
+              "Generation von B wurde durch spaetes Terminalereignis zerstoert")
     }
 
     // Regression zum Review-Fund "spaeter Fehler von A trifft B": Beim Wechsel

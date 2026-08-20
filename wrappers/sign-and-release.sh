@@ -98,6 +98,10 @@ fi
 echo "==> Baue App-Bundle"
 bash "$PROJECT_ROOT/build.sh"
 
+# ---------- 1a. Fleet-Regeln am gebauten Artefakt prüfen ----------
+echo "==> Prüfe Fleet-Regeln am gebauten Artefakt"
+FLEET_RULES_REQUIRE_ARTIFACT=1 bash "$PROJECT_ROOT/Tests/fleet-rules.sh"
+
 # ---------- 1b. Seed-Liste im Bundle muss die öffentliche Vorlage sein ----------
 # build.sh bevorzugt eine lokale, gitignorierte Resources/seed-stations.json
 # (persönliche Senderliste) — richtig für den Eigen-Build via install.sh, aber

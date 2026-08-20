@@ -29,3 +29,4 @@ swiftc -parse-as-library \
   -o "$BUILD/review-harness"
 
 "$BUILD/review-harness"
+bash Tests/fleet-rules.sh

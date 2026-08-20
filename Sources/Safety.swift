@@ -140,14 +140,18 @@ struct PreviewSwitchCoordinator {
     }
 
     /// Terminaler Player-Zustand (.ended/.stopped): Der Stream ist von selbst zu
-    /// Ende oder abgerissen. `isLoading` == true heisst, dass gerade ein Wechsel
-    /// laeuft — dann stammt das Ereignis noch vom vorherigen Medium. Sonst wird der
-    /// Koordinator zurueckgesetzt; er hielte den beendeten Sender sonst fest, und
-    /// der naechste Klick auf denselben Sender lieferte .stop statt eines Neustarts
-    /// (der Sender startete erst beim zweiten Klick wieder). Rueckgabe true: Die
-    /// Oberflaeche muss den laufenden Sender jetzt loeschen.
-    mutating func finishTerminal(isLoading: Bool) -> Bool {
-        guard currentID != nil, !isLoading else { return false }
+    /// Ende oder abgerissen. Nur wenn fuer die aktuelle Auswahl wirklich ein Medium
+    /// installiert war (`hasInstalledMedia`), gehoert das Ereignis zum aktuellen Sender.
+    /// Waehrend des Ladens eines neuen Senders (Wechsel A -> B) gehoert ein spaetes
+    /// Terminalereignis noch zum vorherigen Medium und darf den neuen Sender weder
+    /// abbrechen noch dessen Generation invalidieren. Sonst wird der Koordinator
+    /// zurueckgesetzt; er hielte den beendeten Sender sonst fest, und der naechste
+    /// Klick auf denselben Sender lieferte .stop statt eines Neustarts (der Sender
+    /// startete erst beim zweiten Klick wieder). Rueckgabe true: Die Oberflaeche
+    /// muss den laufenden Sender jetzt loeschen.
+    @discardableResult
+    mutating func finishTerminal() -> Bool {
+        guard currentID != nil, hasInstalledMedia else { return false }
         stop()
         return true
     }

@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let log = Logger(subsystem: "de.danielmuller.macradio", category: "recorder")
 
 // Schreibt den laufenden Stream als Roh-Audio-Dump in Dateien unter
 // ~/Music/MuckeBaby/Aufnahmen/. Eine Datei pro Sender-Session; Rollover am
@@ -112,6 +115,7 @@ final class Recorder: @unchecked Sendable {
                 // der fileNoSuchFile-Zweig und der Eintrag darf raus.
                 let attributes = try? FileManager.default.attributesOfItem(atPath: target.path)
                 if let type = attributes?[.type] as? FileAttributeType, type != .typeRegular {
+                    log.error("prune: Eintrag \(c.file, privacy: .public) ist keine reguläre Datei (type=\(String(describing: type), privacy: .public)) — bleibt im Index")
                     kept.append(c)
                     continue
                 }
@@ -124,6 +128,7 @@ final class Recorder: @unchecked Sendable {
                     // BEHALTEN. Frueher verschwand er trotzdem aus dem Index —
                     // die Datei blieb dann verwaist auf der Platte und war ueber
                     // die App weder erneut loeschbar noch exportierbar.
+                    log.error("prune: Löschen von \(c.file, privacy: .public) fehlgeschlagen: \(error.localizedDescription, privacy: .public) — bleibt im Index")
                     kept.append(c)
                     continue
                 }
@@ -231,10 +236,15 @@ final class Recorder: @unchecked Sendable {
     }
 
     private func loadIndex() {
-        guard let data = try? Data(contentsOf: indexURL),
-              let list = try? JSONDecoder.iso.decode([Clip].self, from: data) else { return }
-        // Unsichere Dateinamen sofort verwerfen (siehe isSafeClipFileName).
-        clips = list.filter { Self.isSafeClipFileName($0.file) }
+        guard FileManager.default.fileExists(atPath: indexURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: indexURL)
+            let list = try JSONDecoder.iso.decode([Clip].self, from: data)
+            // Unsichere Dateinamen sofort verwerfen (siehe isSafeClipFileName).
+            clips = list.filter { Self.isSafeClipFileName($0.file) }
+        } catch {
+            log.error("loadIndex: Indexdatei \(self.indexURL.path, privacy: .public) unlesbar oder beschädigt: \(error.localizedDescription, privacy: .public)")
+        }
     }
     private func saveIndex() {
         if let data = try? JSONEncoder.isoPretty.encode(clips) {

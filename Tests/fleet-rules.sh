@@ -20,11 +20,17 @@ fail=0
 ok()  { echo "  OK   $1"; }
 bad() { echo "  FAIL $1" >&2; fail=1; }
 
+# Filtert reine Kommentarzeilen (# in Shell, // in Swift) mit beliebigem Whitespace
+# (Leerzeichen/Tabs) vor dem Kommentarzeichen aus Zeilenlisten mit Zeilennummern.
+filter_comments() {
+    grep -vE '^([^:]+:)?[0-9]+:[[:space:]]*(#|//)'
+}
+
 # Zeilennummer des ersten Vorkommens eines festen Textes in einer Datei —
 # reine Kommentarzeilen zaehlen nicht mit. Sonst koennte eine Begruendung im
 # Kopfkommentar die Reihenfolge der echten Befehle vortaeuschen.
 first_line() {   # $1 = Datei, $2 = fester Text
-    grep -nF -- "$2" "$1" | grep -vE '^[0-9]+: *#' | head -1 | cut -d: -f1
+    grep -nF -- "$2" "$1" | filter_comments | head -1 | cut -d: -f1
 }
 
 echo "1. Regel 1: Ticket vor dem ersten Schreiben nach /Applications"
@@ -44,11 +50,15 @@ fi
 # derselben Stelle, liefe aber trotz Fehlschlag weiter. Deshalb zusaetzlich
 # belegen, dass der Fehler nicht abgefangen wird und das Skript bei Fehlern
 # ueberhaupt abbricht.
-if grep -nE 'notarize_app "\$APP"[[:space:]]*(\|\||;|&&[[:space:]]*(true|:))' install.sh \
-     | grep -vqE '^[0-9]+: *#'; then
-    bad "notarize_app-Fehler wird in install.sh abgefangen statt weitergereicht"
+if grep -nE 'set \+[eo]' install.sh | filter_comments | grep -q .; then
+    bad "install.sh schaltet die Fehlerbehandlung ab (set +e)"
+fi
+notarize_traps="$(grep -nE 'notarize_app "\$APP"[[:space:]]*(\|\|[[:space:]]*(true|:)|;|&&[[:space:]]*(true|:))' install.sh \
+    | filter_comments || true)"
+if [ -n "$notarize_traps" ]; then
+    bad "notarize_app-Fehler wird in install.sh ignoriert statt weitergereicht"
 else
-    ok "notarize_app-Fehler wird in install.sh nicht abgefangen"
+    ok "notarize_app-Fehler wird in install.sh nicht ignoriert"
 fi
 grep -qE '^set -euo pipefail$' install.sh \
     && ok "install.sh bricht bei Fehlern ab (set -e)" \
@@ -80,7 +90,7 @@ echo "2. Regel 2: keine absoluten Build-Mac-Pfade im ausgelieferten Bundle"
 # an SIGPIPE, und `pipefail` machte daraus faelschlich einen Fehlschlag.
 code_matches() {   # $1 = erweiterter regulaerer Ausdruck
     grep -rnE --include='*.swift' "$1" Sources 2>/dev/null \
-        | grep -vE '^[^:]+:[0-9]+: *//'
+        | filter_comments
 }
 
 # `#filePath`/`#file` setzen den absoluten Quellpfad des Build-Rechners als
@@ -120,10 +130,10 @@ else
     # Ein fehlender Pruefgegenstand ist kein Erfolg. Ohne Binary laeuft der Test
     # weiter (er baut bewusst nichts), meldet den Verzicht aber im Ergebnis —
     # und mit FLEET_RULES_REQUIRE_ARTIFACT=1 (Release/CI) ist er ein Fehlschlag.
-    artifact_skipped=1
     if [ "${FLEET_RULES_REQUIRE_ARTIFACT:-0}" = "1" ]; then
         bad "Binary fehlt, Artefaktprobe unmoeglich (erst 'bash build.sh')"
     else
+        artifact_skipped=1
         echo "  --   Binary nicht vorhanden; Probe uebersprungen (erst 'bash build.sh')"
     fi
 fi

@@ -7,13 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - Playlist detection now looks at the URL path only. A crafted playlist URL with ".m3u8" elsewhere (for example in the query) can no longer bypass the fail-closed resolver and hand the raw container to the player, and a ".pls" in the host name no longer misclassifies a direct stream as a playlist.
 - When a station switch fails URL resolution, the previously playing stream now stops and the player state is cleaned up. Before, the old station kept playing audibly while the UI already showed the new station with "Invalid URL".
+- Station switching and preview playback are generation-gated: media identity and request generations prevent late time and state events of a previous stream from misrepresenting playback state or aborting an in-progress station switch.
 - Recording index entries are validated to plain file names on load and again before deletion, so a manipulated or restored `recordings-index.json` can no longer steer "delete all recordings" outside the recordings folder.
-- A recording whose file cannot be deleted (for example due to permissions) now stays in the index instead of silently becoming an orphaned file that the app can no longer reach. A file that is already gone still counts as deleted.
+- Deleting recordings only removes regular files, preventing manipulated or directory index entries from deleting entire folder trees. Undeletable or non-regular files are retained in the index for diagnosis and logged. A file that is already gone still counts as deleted.
 - A catalog preview stream that ends on its own can be restarted with a single click again (previously the first click was swallowed).
 - A late failure of the catalog's genre-tag request no longer overwrites the results of a search that already succeeded.
 
 ### Security
-- Stream URLs are logged without user info and query parameters, so passwords, access tokens, and signed stream parameters no longer reach the unified log.
+- Stream URLs are redacted to scheme and host (with port if non-default) before logging, stripping path, query, fragment, and user info so tokens in paths, passwords, and query parameters no longer reach the unified log. An omitted path is indicated with `/…`.
 - Release tooling is stricter: the Gatekeeper assessment of the DMG is a hard gate, `--publish` requires a clean working tree and a tag that matches the built source state, and the bundled station seed list must be byte-identical to the public example before a DMG is produced. Failed notarization runs now clean up their temporary archives.
 - Published release files are treated as immutable: if a release already exists for the tag, `--publish` aborts instead of replacing its DMG. The appcast is only regenerated when a release is published, so a swapped file would no longer match the length and Ed25519 signature in the feed and Sparkle would reject the update. Raising the version is the supported path; re-running the appcast workflow manually stays available for an unchanged release.
 

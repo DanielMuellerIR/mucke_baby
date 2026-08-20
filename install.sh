@@ -33,6 +33,7 @@ VERSION=$(grep -Eo 'static let version = "[0-9]+\.[0-9]+\.[0-9]+"' Sources/Model
 
 echo "=== 1/4 App bauen ==="
 bash build.sh
+FLEET_RULES_REQUIRE_ARTIFACT=1 bash Tests/fleet-rules.sh
 
 echo "=== 2/4 Signieren (Sparkle und VLCKit von innen nach außen) ==="
 sign_app_chain "$APP"
