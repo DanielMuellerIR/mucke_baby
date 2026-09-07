@@ -29,4 +29,8 @@ swiftc -parse-as-library \
   -o "$BUILD/review-harness"
 
 "$BUILD/review-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/ICYMetadataReader.swift Tests/ICYHarness.swift -o "$BUILD/icy-harness"
+"$BUILD/icy-harness"
 bash Tests/fleet-rules.sh

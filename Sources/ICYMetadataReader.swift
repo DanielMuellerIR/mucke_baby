@@ -20,6 +20,10 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     private var session: URLSession?          // nur Main-Thread (start/stop)
     private var task: URLSessionDataTask?     // nur Main-Thread (start/stop)
 
+    private var generation = UUID()          // nur Main (start/stop/Titelausgabe)
+    private var parserGeneration = UUID()    // nur q
+    private var parserTask: URLSessionDataTask? // nur q
+
     // Serielle Queue: serialisiert ALLEN veraenderlichen Parser-/Senken-Zustand. Die
     // URLSession-Delegate-Callbacks laufen auf einer eigenen Hintergrund-Queue; ihre
     // Rumpf-Arbeit wird auf `q` gehopst, ebenso der Reset in stop(). So koennen sich
@@ -37,23 +41,20 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     private var buf = [UInt8]()
     private var lastTitle = ""
 
+    private let configuration: URLSessionConfiguration
+    private let titleQueue: DispatchQueue
+
+    init(configuration: URLSessionConfiguration = .ephemeral, titleQueue: DispatchQueue = .main) {
+        self.configuration = configuration
+        self.titleQueue = titleQueue
+        super.init()
+    }
+
     func start(url: URL, allowAudioOnly: Bool = false,
                onContentType: ((String?) -> Void)? = nil,
                onAudio: ((Data) -> Void)? = nil) {
         stop()
-        // Per-Session-Konfiguration + frischer Parser-Reset auf `q`. Da `q` seriell ist
-        // und der Reaktivierungs-Block VOR dem Resume der neuen Session eingereiht wird,
-        // greift er garantiert vor den Delegate-Callbacks dieser Session.
-        q.async {
-            self.allowAudioOnly = allowAudioOnly
-            self.onContentType = onContentType
-            self.onAudio = onAudio
-            self.metaint = 0; self.audioOnly = false; self.skip = 0
-            self.inMeta = false; self.metaLeft = 0
-            // codereview-ok: removeAll-keepingCapacity-Nuance ist harmlos, kein Verhaltensunterschied im Fehlerfall (2026-07-01)
-            self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
-        }
-        let cfg = URLSessionConfiguration.ephemeral
+        let cfg = configuration
         cfg.timeoutIntervalForRequest = 20
         let s = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
         session = s
@@ -62,16 +63,35 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
         let t = s.dataTask(with: req)
         task = t
+        // Per-Session-Konfiguration + frischer Parser-Reset auf `q`. Da `q` seriell ist
+        // und der Reaktivierungs-Block VOR dem Resume der neuen Session eingereiht wird,
+        // greift er garantiert vor den Delegate-Callbacks dieser Session.
+        let streamGeneration = generation
+        q.async {
+            self.parserTask = t
+            self.parserGeneration = streamGeneration
+            self.allowAudioOnly = allowAudioOnly
+            self.onContentType = onContentType
+            self.onAudio = onAudio
+            self.metaint = 0; self.audioOnly = false; self.skip = 0
+            self.inMeta = false; self.metaLeft = 0
+            // codereview-ok: removeAll-keepingCapacity-Nuance ist harmlos, kein Verhaltensunterschied im Fehlerfall (2026-07-01)
+            self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
+        }
         t.resume()
     }
 
     func stop() {
+        // Schon eingereihte Titel verlieren sofort ihre Gültigkeit, bevor
+        // der asynchrone Parser-Reset auf q an die Reihe kommt.
+        generation = UUID()
         // Task/Session synchron auf dem Aufrufer (Main) abbauen, damit start() sofort eine
         // neue Session bauen kann; den Zustands-Reset auf `q` nachziehen, damit er nicht mit
         // einem noch laufenden Delegate-Callback kollidiert.
         task?.cancel(); task = nil
         session?.invalidateAndCancel(); session = nil
         q.async {
+            self.parserTask = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
             self.inMeta = false; self.metaLeft = 0
             self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
@@ -86,6 +106,10 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         let contentType = http?.value(forHTTPHeaderField: "Content-Type")
         let metaintHeader = http?.value(forHTTPHeaderField: "icy-metaint") ?? http?.value(forHTTPHeaderField: "Icy-MetaInt")
         q.async {
+            guard self.parserTask === dataTask else {
+                completionHandler(.cancel)
+                return
+            }
             self.onContentType?(contentType)
             if let v = metaintHeader, let n = Int(v), n > 0 {
                 self.metaint = n; self.skip = n; self.inMeta = false; self.audioOnly = false
@@ -101,6 +125,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         q.async {
+            guard self.parserTask === dataTask else { return }
             if self.audioOnly { self.onAudio?(data); return }
             guard self.metaint > 0 else { return }
             // Chunk in Audio-Laufstuecke + Metadatenbloecke zerlegen.
@@ -141,7 +166,11 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         let title = decodeICY(titleBytes).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title != lastTitle else { return }
         lastTitle = title
-        DispatchQueue.main.async { self.onTitle?(title) }
+        let streamGeneration = parserGeneration
+        titleQueue.async {
+            guard self.generation == streamGeneration, self.task != nil else { return }
+            self.onTitle?(title)
+        }
     }
 
     // Dekodiert die rohen Titel-Bytes mit einer Fallback-Kette. Viele Sender

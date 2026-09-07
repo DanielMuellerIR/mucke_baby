@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.3] - 2026-09-07
+### Fixed
+- ICY titles queued before stopping or switching stations are discarded. Late responses and audio data from previous stream tasks cannot alter the current parser or recording callbacks.
+
 ## [1.8.2] - 2026-08-02
 ### Fixed
 - Playlist detection now looks at the URL path only. A crafted playlist URL with ".m3u8" elsewhere (for example in the query) can no longer bypass the fail-closed resolver and hand the raw container to the player, and a ".pls" in the host name no longer misclassifies a direct stream as a playlist.
