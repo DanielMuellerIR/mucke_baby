@@ -167,23 +167,10 @@ final class PreviewPlayer: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var failedID: String?   // letzter Sender, der nicht spielte
 
-    private let player = VLCMediaPlayer()
-    private let shim = PlayerDelegateShim()
+    private var player = VLCMediaPlayer()
+    private var shim: PlayerDelegateShim?
     private var resolveTask: Task<Void, Never>?
     private var switches = PreviewSwitchCoordinator()
-
-    init() {
-        player.delegate = shim
-        // Erstes Zeit-Event = spielt hörbar (state kann bei Live-Streams auf
-        // .buffering hängen bleiben — gleiche Invariante wie im RadioPlayer).
-        // Nur Ereignisse des installierten Mediums duerfen isLoading zuruecksetzen,
-        // damit ein Zeit-Event des vorherigen Senders den Wechsel A -> B nicht stoert.
-        shim.onTime = { [weak self] in
-            guard let self, self.switches.hasInstalledMedia else { return }
-            if self.isLoading { self.isLoading = false }
-        }
-        shim.onState = { [weak self] in self?.handleState() }
-    }
 
     /// Probehören starten/stoppen (Klick auf denselben Sender = Stopp).
     func toggle(_ station: RBStation, volume: Float) {
@@ -195,8 +182,8 @@ final class PreviewPlayer: ObservableObject {
         }
         guard case let .replace(generation) = action else { return }
 
-        // A -> B ersetzt das Medium direkt. Ein asynchroner stop() von A koennte
-        // sonst erst nach B.play() eintreffen und die neue Vorschau abwuergen.
+        // A bleibt waehrend der Aufloesung aktiv; B erhaelt anschliessend eine
+        // eigene VLC-Instanz, damit spaete Ereignisse eindeutig A gehoeren.
         resolveTask?.cancel()
         resolveTask = nil
         failedID = nil
@@ -216,14 +203,31 @@ final class PreviewPlayer: ObservableObject {
                 return
             }
             RadioBrowserAPI.countClick(stationUUID: stationID)
+            let previous = self.player
+            previous.delegate = nil
+            self.player = VLCMediaPlayer()
+            let nextShim = PlayerDelegateShim(
+                onState: { [weak self] in
+                    guard let self, self.switches.accepts(generation, stationID: stationID),
+                          self.switches.hasInstalledMedia else { return }
+                    self.handleState()
+                },
+                onTime: { [weak self] in
+                    guard let self, self.switches.accepts(generation, stationID: stationID),
+                          self.switches.hasInstalledMedia else { return }
+                    self.isLoading = false
+                })
+            self.shim = nextShim
+            self.player.delegate = nextShim
+            previous.stop()  // ein spaeter Stop erreicht niemals die neue Instanz
             let media = VLCMedia(url: url)
             media.addOption(":network-caching=1500")
             self.player.media = media
             self.player.audio?.volume = Int32(max(0, min(1, volume)) * 100)
-            self.player.play()
             // Ab hier gehoeren Player-Ereignisse zu DIESER Vorschau (siehe
             // hasInstalledMedia im Koordinator).
             self.switches.mediaInstalled(generation: generation, stationID: stationID)
+            self.player.play()
         }
     }
 

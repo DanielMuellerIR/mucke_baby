@@ -31,6 +31,9 @@ swiftc -parse-as-library \
 "$BUILD/review-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/ICYMetadataReader.swift Tests/ICYHarness.swift -o "$BUILD/icy-harness"
+  Sources/ICYMetadataReader.swift Sources/Recorder.swift Sources/Models.swift \
+  Sources/SongHistory.swift Tests/ICYHarness.swift -o "$BUILD/icy-harness"
 "$BUILD/icy-harness"
 bash Tests/fleet-rules.sh
+
+python3 Tests/player-events.py

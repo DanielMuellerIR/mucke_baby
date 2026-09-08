@@ -26,7 +26,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
 
     // Serielle Queue: serialisiert ALLEN veraenderlichen Parser-/Senken-Zustand. Die
     // URLSession-Delegate-Callbacks laufen auf einer eigenen Hintergrund-Queue; ihre
-    // Rumpf-Arbeit wird auf `q` gehopst, ebenso der Reset in stop(). So koennen sich
+    // Rumpf-Arbeit wird auf `q` gehopst, stop() wartet den Reset auf derselben Queue ab. So koennen sich
     // weder Main-vs-Delegate noch alte-vs-neue Session in die Quere kommen.
     private let q = DispatchQueue(label: "de.danielmuller.macradio.icy")
 
@@ -83,15 +83,17 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
 
     func stop() {
         // Schon eingereihte Titel verlieren sofort ihre Gültigkeit, bevor
-        // der asynchrone Parser-Reset auf q an die Reihe kommt.
+        // der synchrone Parser-Reset auf q an die Reihe kommt.
         generation = UUID()
-        // Task/Session synchron auf dem Aufrufer (Main) abbauen, damit start() sofort eine
-        // neue Session bauen kann; den Zustands-Reset auf `q` nachziehen, damit er nicht mit
-        // einem noch laufenden Delegate-Callback kollidiert.
+        // Nur vom steuernden Thread aufrufen, niemals aus einer Senke auf q.
+        // Nach Rueckkehr darf keine alte Senke mehr Recorder-Arbeit einreihen.
+        // q.sync wartet deshalb auch einen bereits laufenden Callback ab.
         task?.cancel(); task = nil
         session?.invalidateAndCancel(); session = nil
-        q.async {
+        q.sync {
             self.parserTask = nil
+            self.onContentType = nil
+            self.onAudio = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
             self.inMeta = false; self.metaLeft = 0
             self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""

@@ -7,16 +7,24 @@ private let log = Logger(subsystem: "de.danielmuller.macradio", category: "playe
 // Delegate-Bruecke: VLCKit ruft ObjC-Delegate-Methoden auf. Diese kleine
 // NSObject-Klasse faengt sie ab und leitet sie als Closures auf den Main-Thread.
 final class PlayerDelegateShim: NSObject, VLCMediaPlayerDelegate {
-    var onState: (() -> Void)?
-    var onTime: (() -> Void)?
+    // Jede Bruecke gehoert genau einer VLC-Instanz und einer Wiedergabe.
+    // Die Closures bleiben unveraendert, auch wenn ein Ereignis auf Main wartet.
+    let onState: () -> Void
+    let onTime: () -> Void
+
+    init(onState: @escaping () -> Void, onTime: @escaping () -> Void) {
+        self.onState = onState
+        self.onTime = onTime
+        super.init()
+    }
 
     func mediaPlayerStateChanged(_ aNotification: Notification) {
-        DispatchQueue.main.async { self.onState?() }
+        DispatchQueue.main.async { self.onState() }
     }
     // Zeit laeuft -> zuverlaessiges "spielt jetzt"-Signal (state bleibt bei
     // Live-Streams oft auf .buffering haengen).
     func mediaPlayerTimeChanged(_ aNotification: Notification) {
-        DispatchQueue.main.async { self.onTime?() }
+        DispatchQueue.main.async { self.onTime() }
     }
 }
 
@@ -46,8 +54,8 @@ final class RadioPlayer: ObservableObject {
     let history = SongHistory()
     let recorder = Recorder()
 
-    private let player = VLCMediaPlayer()
-    private let shim = PlayerDelegateShim()
+    private var player = VLCMediaPlayer()
+    private var shim: PlayerDelegateShim?
     private let icy = ICYMetadataReader()
     private var desiredVolume: Float = 0.77
     private var lastState: VLCMediaPlayerState?
@@ -62,9 +70,6 @@ final class RadioPlayer: ObservableObject {
 
     init() {
         // codereview-ok: icy/recorder sind app-lebenslange Member mit [weak self]-Closures — kein Retain-Cycle/Leak (2026-07-01)
-        player.delegate = shim
-        shim.onState = { [weak self] in self?.handleState() }
-        shim.onTime  = { [weak self] in self?.handleTimeAdvanced() }
         icy.onTitle  = { [weak self] title in self?.setNowPlaying(title) }
         recorder.onLowDisk = { [weak self] in self?.lowDiskWarning = true }
     }
@@ -80,8 +85,8 @@ final class RadioPlayer: ObservableObject {
     // selbst ab. Codec/Redirect uebernimmt dann VLC.
     func play(_ station: Station) {
         history.closeCurrent()      // Senderwechsel = Songende
-        recorder.end()              // alte Aufnahme schliessen
-        icy.stop()
+        icy.stop()                  // erst alle noch laufenden Senken abwarten
+        recorder.end()              // danach kann kein alter begin-Auftrag mehr folgen
         resolveTask?.cancel()
         resolveTask = nil
         let generation = requests.begin()
@@ -129,12 +134,23 @@ final class RadioPlayer: ObservableObject {
 
     private func start(url: URL, generation: UInt64) {
         guard requests.accepts(generation) else { return }
+        // Ein wiederverwendeter VLC-Player kann die Herkunft spaeter Events
+        // nicht unterscheiden. Pro Medium eine Instanz mit fester Generation.
+        let previous = player
+        previous.delegate = nil
+        player = VLCMediaPlayer()
+        let nextShim = PlayerDelegateShim(
+            onState: { [weak self] in self?.handleState(generation: generation) },
+            onTime: { [weak self] in self?.handleTimeAdvanced(generation: generation) })
+        shim = nextShim
+        player.delegate = nextShim
+        previous.stop()  // trifft ausschliesslich die alte Instanz
         let media = VLCMedia(url: url)
         media.addOption(":network-caching=1500")
         player.media = media
         player.audio?.volume = Int32(desiredVolume * 100)
-        player.play()
         installedGeneration = generation
+        player.play()
         currentStreamURL = url   // AudioTap starten: er tappt die eigene Prozessausgabe
 
         // ICY-Reader: Now-Playing-Titel + (bei aktivierter Aufnahme) Audio mitschneiden.
@@ -160,8 +176,8 @@ final class RadioPlayer: ObservableObject {
 
     func stop() {
         history.closeCurrent()
-        recorder.end()
         icy.stop()
+        recorder.end()
         resolveTask?.cancel()
         resolveTask = nil
         requests.invalidate()
@@ -196,13 +212,13 @@ final class RadioPlayer: ObservableObject {
     // MARK: - intern
 
     // Erstes Voranschreiten der Zeit = wir spielen wirklich.
-    private func handleTimeAdvanced() {
+    private func handleTimeAdvanced(generation: UInt64) {
         // Nur Zeit-Ereignisse des installierten Mediums der aktuellen Generation zaehlen.
         // `currentStreamURL` ist nil waehrend der Aufloesung und nach Stop/Fehler.
         // Ein Ereignis des alten Mediums kann asynchron auf dem Main-Thread eintreffen
         // und wuerde sonst "Wiedergabe" fuer den neuen Sender melden, obwohl noch der
         // alte hoerbar ist.
-        guard requests.accepts(installedGeneration), currentStreamURL != nil else { return }
+        guard generation == installedGeneration, requests.accepts(generation), currentStreamURL != nil else { return }
         guard !isPlaying else { return }
         isPlaying = true
         isLoading = false
@@ -212,15 +228,11 @@ final class RadioPlayer: ObservableObject {
         log.notice("status=playing \(self.currentStation?.name ?? "?", privacy: .public)")
     }
 
-    private func handleState() {
+    private func handleState(generation: UInt64) {
+        guard generation == installedGeneration, requests.accepts(generation) else { return }
         let state = player.state
         guard state != lastState else { return }
         lastState = state
-
-        // Ereignisse des vorherigen Mediums waehrend der Aufloesung eines neuen
-        // Senders (installedGeneration != requests.current) duerfen den neuen Zustand
-        // nicht ueberschreiben.
-        guard requests.accepts(installedGeneration) else { return }
 
         switch state {
         case .opening, .buffering:
@@ -228,7 +240,7 @@ final class RadioPlayer: ObservableObject {
         case .esAdded:
             break
         case .playing:
-            handleTimeAdvanced()
+            handleTimeAdvanced(generation: generation)
         case .paused, .stopped, .ended:
             isPlaying = false
             isLoading = false
@@ -237,8 +249,8 @@ final class RadioPlayer: ObservableObject {
             // Stirbt der Stream von selbst (Senderabbruch/Netzverlust), raeumen die
             // Seitenressourcen sonst nie auf — nur stop()/play() taten das bisher.
             // Alle drei Aufrufe sind idempotent (no-op, wenn nichts laeuft).
-            recorder.end()              // offene Aufnahme schliessen
-            icy.stop()                  // ICY-Zweitverbindung beenden
+            icy.stop()                  // laufende Senken abschliessen
+            recorder.end()              // danach die letzte Aufnahme schliessen
             currentStreamURL = nil      // AudioTap stoppen (onChange -> setStream(nil))
             if !isErrorState { statusText = String(localized: "Gestoppt") }
             log.notice("status=stopped \(self.currentStation?.name ?? "?", privacy: .public)")
@@ -247,8 +259,8 @@ final class RadioPlayer: ObservableObject {
             isLoading = false
             playStartedAt = nil
             history.closeCurrent()
-            recorder.end()
             icy.stop()
+            recorder.end()
             currentStreamURL = nil
             statusText = String(localized: "Fehler: Stream nicht abspielbar")
             isErrorState = true

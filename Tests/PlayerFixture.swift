@@ -1,0 +1,101 @@
+// Testdoubles fuer VLC und Seiteneffekte. RadioPlayer/PreviewPlayer/Shim werden
+// unveraendert aus den Produktquellen kompiliert; nur die Main-Queue ist steuerbar.
+import Foundation
+import Combine
+
+protocol VLCMediaPlayerDelegate: AnyObject {
+    func mediaPlayerStateChanged(_ notification: Notification)
+    func mediaPlayerTimeChanged(_ notification: Notification)
+}
+enum VLCMediaPlayerState { case opening, buffering, esAdded, playing, paused, stopped, ended, error }
+final class VLCAudio { var volume: Int32 = 0 }
+final class VLCMedia { init(url: URL) {}; func addOption(_ option: String) {} }
+final class VLCMediaPlayer {
+    static var latest: VLCMediaPlayer!
+    weak var delegate: VLCMediaPlayerDelegate?
+    var audio: VLCAudio? = VLCAudio()
+    var media: VLCMedia?
+    var state = VLCMediaPlayerState.stopped
+    var isPlaying = false
+    init() { Self.latest = self }
+    func play() { state = .playing }
+    func stop() { state = .stopped }
+    func timeEvent() { delegate?.mediaPlayerTimeChanged(Notification(name: Notification.Name("time"))) }
+    func stateEvent() { delegate?.mediaPlayerStateChanged(Notification(name: Notification.Name("state"))) }
+}
+struct Station { var id = UUID(); var name: String; var url: String }
+struct RBStation { var stationuuid: String; var streamURL: String }
+enum RadioBrowserAPI { static func countClick(stationUUID: String) {} }
+enum PlaylistResolver { static func resolve(_ raw: String) async -> URL? { URL(string: raw) } }
+final class SongHistory {
+    func closeCurrent() {}
+    func beginSession(station: String, at: Date) {}
+    func note(station: String, raw: String) {}
+    func remove(olderThan: Date) {}
+}
+final class Recorder {
+    var onLowDisk: (() -> Void)?
+    func end() {}
+    func begin(station: String, contentType: String?, at: Date) {}
+    func write(_ data: Data) {}
+    func prune(olderThan: Date) {}
+    func songBoundary() {}
+}
+final class ICYMetadataReader {
+    var onTitle: ((String) -> Void)?
+    func stop() {}
+    func start(url: URL, allowAudioOnly: Bool, onContentType: @escaping (String?) -> Void,
+               onAudio: @escaping (Data) -> Void) {}
+}
+enum TestEvents { static let queue = DispatchQueue(label: "fixture.events", target: .main) }
+
+@main
+struct PlayerHarness {
+    static func check(_ value: Bool, _ message: String) {
+        guard value else { fatalError(message) }
+    }
+    @MainActor
+    static func waitFor(_ condition: () -> Bool) async {
+        for _ in 0..<500 {
+            if condition() { return }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        fatalError("Player-Fixture wurde nicht installiert")
+    }
+    @MainActor
+    static func main() async {
+        let radio = RadioPlayer()
+        radio.play(Station(name: "A", url: "https://fixture.invalid/a"))
+        await waitFor { radio.currentStreamURL?.lastPathComponent == "a" }
+        let old = VLCMediaPlayer.latest!
+        TestEvents.queue.suspend()
+        old.timeEvent()
+        old.stateEvent()
+        radio.play(Station(name: "B", url: "https://fixture.invalid/b"))
+        await waitFor { radio.currentStreamURL?.lastPathComponent == "b" }
+        check(VLCMediaPlayer.latest !== old, "B verwendet noch die VLC-Instanz von A")
+        TestEvents.queue.resume()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        check(!radio.isPlaying && radio.isLoading, "A-Ereignis hat B als spielend markiert")
+        VLCMediaPlayer.latest.timeEvent()
+        await waitFor { radio.isPlaying }
+        radio.stop()
+
+        let preview = PreviewPlayer()
+        preview.toggle(RBStation(stationuuid: "A", streamURL: "https://fixture.invalid/a"), volume: 0)
+        await waitFor { VLCMediaPlayer.latest.media != nil }
+        let previewOld = VLCMediaPlayer.latest!
+        TestEvents.queue.suspend()
+        previewOld.timeEvent()
+        previewOld.stateEvent()
+        preview.toggle(RBStation(stationuuid: "B", streamURL: "https://fixture.invalid/b"), volume: 0)
+        await waitFor { VLCMediaPlayer.latest !== previewOld && VLCMediaPlayer.latest.media != nil }
+        TestEvents.queue.resume()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        check(preview.isLoading && preview.currentID == "B", "A-Ereignis hat B-Vorschau veraendert")
+        VLCMediaPlayer.latest.timeEvent()
+        await waitFor { !preview.isLoading }
+        preview.stop()
+        print("PlayerHarness: OK")
+    }
+}

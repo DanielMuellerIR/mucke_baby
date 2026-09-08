@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.4] - 2026-09-08
+### Fixed
+- Each playback uses its own VLC player and immutable callbacks, so queued events from an earlier station cannot change the current playback or preview state.
+- Stopping waits for active ICY callbacks before closing the recorder. Stop and quit cannot leave a recording open through a delayed content-type callback.
+
 ## [1.8.3] - 2026-09-07
 ### Fixed
 - ICY titles queued before stopping or switching stations are discarded. Late responses and audio data from previous stream tasks cannot alter the current parser or recording callbacks.
