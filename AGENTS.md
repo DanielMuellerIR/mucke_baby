@@ -160,7 +160,7 @@ diesen Pfaden.
 bleibt in `build/`), und kein absoluter Pfad des Build-Rechners darf im
 ausgelieferten Bundle landen. Der Test liest nur Quellen und baut, signiert und
 installiert nichts. Diese Prüfung nie dadurch „belegen", dass der echte
-Installationsweg gegen `/Applications` läuft — das ersetzt Daniels installierte
+Installationsweg gegen `/Applications` läuft — das ersetzt die installierte
 App.
 
 Darüber hinaus besitzt das Repo noch keine ausreichende
