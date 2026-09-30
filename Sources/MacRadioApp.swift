@@ -389,6 +389,7 @@ struct ContentView: View {
             player.stop()
             player.recorder.flush()
             player.history.pruneOnLaunchOrQuit()
+            SongExporter.cleanupTemporaryExports()
         }
     }
 

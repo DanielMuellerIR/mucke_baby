@@ -40,6 +40,12 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   Sources/ICYMetadataReader.swift Sources/Recorder.swift Sources/Models.swift \
   Sources/SongHistory.swift Tests/ICYHarness.swift -o "$BUILD/icy-harness"
 "$BUILD/icy-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/Recorder.swift \
+  Sources/Models.swift Sources/SongHistory.swift Tests/ExportHarness.swift \
+  -o "$BUILD/export-harness"
+"$BUILD/export-harness"
 bash Tests/fleet-rules.sh
 
 python3 Tests/player-events.py

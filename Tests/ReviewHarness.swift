@@ -8,6 +8,7 @@ enum ReviewHarness {
         try testRecordingDeletionInTemporaryDirectory()
         try testRecordingIndexSafety()
         try testRecordingDeletionSkipsDirectories()
+        try testRecordingLifecycle()
         testURLPolicyAndIdentity()
         testLatestRequestWins()
         testPreviewSwitchDoesNotStopReplacement()
@@ -26,6 +27,66 @@ enum ReviewHarness {
             FileHandle.standardError.write(Data("FEHLER: \(message)\n".utf8))
             exit(1)
         }
+    }
+
+    private static func testRecordingLifecycle() throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory.appendingPathComponent("MuckeBaby-Lifecycle-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: directory) }
+        let capacity = FixtureCapacity()
+        let recorder = Recorder(directory: directory, availableCapacity: { capacity.read() })
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        recorder.begin(station: "../Fixture:\0", contentType: "audio/mpeg", at: start)
+        recorder.write(Data([1, 2, 3]))
+        recorder.flush()
+        let first = recorder.snapshot()[0]
+        recorder.songBoundary(at: start.addingTimeInterval(24 * 3600))
+        recorder.flush()
+        check(recorder.snapshot().count == 1, "Rollover schon vor Überschreiten von 24 h")
+        recorder.songBoundary(at: start.addingTimeInterval(24 * 3600 + 1))
+        recorder.flush()
+        check(recorder.snapshot().count == 2, "Rollover am nächsten Songwechsel fehlt")
+        recorder.end(at: start.addingTimeInterval(24 * 3600 + 2))
+        recorder.begin(station: "../Fixture:\0", contentType: "audio/mpeg", at: start)
+        recorder.write(Data([4]))
+        recorder.end(at: start.addingTimeInterval(10))
+        recorder.flush()
+        let clips = recorder.snapshot()
+        check(Set(clips.map(\.file)).count == clips.count, "Dateikollision im selben Sekundenstempel")
+        check(clips.allSatisfy { Recorder.isSafeClipFileName($0.file) }, "Recorder-Dateiname enthält Pfad")
+        let bytes = try Data(contentsOf: directory.appendingPathComponent(first.file))
+        check(bytes == Data([1, 2, 3]), "Rollover/Kollision hat erste Aufnahme überschrieben")
+
+        capacity.set(Recorder.minFreeBytes - 1)
+        recorder.begin(station: "Low disk", contentType: "audio/aac")
+        recorder.flush()
+        check(recorder.snapshot().count == clips.count, "Aufnahme unter Disk-Grenze begann")
+        capacity.set(Recorder.minFreeBytes + 1)
+        recorder.begin(station: "Periodic", contentType: "audio/aac", at: start)
+        recorder.flush()
+        capacity.set(Recorder.minFreeBytes - 1)
+        recorder.write(Data(repeating: 7, count: 8 * 1024 * 1024 + 1))
+        recorder.flush()
+        check(recorder.snapshot().last?.end != nil, "periodische Disk-Prüfung schloss Aufnahme nicht")
+
+        // Ein offener Indexeintrag nach Crash bekommt die echte Datei-mtime,
+        // nicht end=start; weder Audio noch Song-Zuordnung dürfen verloren gehen.
+        capacity.set(Recorder.minFreeBytes + 1)
+        let recoveryDirectory = directory.appendingPathComponent("Recovery")
+        let interrupted = Recorder(directory: recoveryDirectory, minimumFreeBytes: -1)
+        interrupted.begin(station: "Recovery", contentType: "audio/ogg", at: start)
+        interrupted.write(Data([9, 8, 7]))
+        interrupted.flush()
+        let open = interrupted.snapshot().last!
+        let url = recoveryDirectory.appendingPathComponent(open.file)
+        try fm.setAttributes([.modificationDate: start.addingTimeInterval(30)], ofItemAtPath: url.path)
+        let recovered = Recorder(directory: recoveryDirectory)
+        check(recovered.snapshot().last?.end == start.addingTimeInterval(30), "Recovery kollabierte Zeitspanne")
+        check(recovered.clip(covering: start.addingTimeInterval(20)) != nil, "Recovery verlor Song-Zuordnung")
+        let recoveredBytes = try Data(contentsOf: url)
+        check(recoveredBytes == Data([9, 8, 7]), "Recovery veränderte Aufnahmebytes")
+        interrupted.end(at: start.addingTimeInterval(30))
+        interrupted.flush()
     }
 
     private static func testRecordingDeletionInTemporaryDirectory() throws {
@@ -528,5 +589,18 @@ final class FixtureServer: @unchecked Sendable {
             if written <= 0 { break }
             sent += written
         }
+    }
+}
+
+private final class FixtureCapacity: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bytes = Recorder.minFreeBytes + 1
+    func read() -> Int64 {
+        lock.lock(); defer { lock.unlock() }
+        return bytes
+    }
+    func set(_ value: Int64) {
+        lock.lock(); defer { lock.unlock() }
+        bytes = value
     }
 }

@@ -33,13 +33,15 @@ final class Recorder: @unchecked Sendable {
 
     private let indexURL: URL
     private let minimumFreeBytes: Int64
+    private let availableCapacity: (@Sendable () -> Int64?)?
     private let q = DispatchQueue(label: "de.danielmuller.macradio.recorder")
     private var handle: FileHandle?
     private var fileStart: Date?
     private var bytesSinceCheck = 0
     private var clips: [Clip] = []
 
-    init(directory: URL? = nil, minimumFreeBytes: Int64 = Recorder.minFreeBytes) {
+    init(directory: URL? = nil, minimumFreeBytes: Int64 = Recorder.minFreeBytes,
+         availableCapacity: (@Sendable () -> Int64?)? = nil) {
         if let directory {
             // Expliziter Pfad ist fuer Headless-Tests/isolierte Werkzeuge; dabei
             // niemals reale Musikordner migrieren oder beruehren.
@@ -50,6 +52,7 @@ final class Recorder: @unchecked Sendable {
             dir = music.appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
         }
         self.minimumFreeBytes = minimumFreeBytes
+        self.availableCapacity = availableCapacity
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         indexURL = dir.appendingPathComponent("recordings-index.json")
         q.sync { loadIndex(); closeDangling() }
@@ -198,6 +201,7 @@ final class Recorder: @unchecked Sendable {
     }
 
     private func hasSpace() -> Bool {
+        if let availableCapacity, let free = availableCapacity() { return free > minimumFreeBytes }
         guard let vals = try? dir.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
               let free = vals.volumeAvailableCapacityForImportantUsage else { return true }
         return free > minimumFreeBytes

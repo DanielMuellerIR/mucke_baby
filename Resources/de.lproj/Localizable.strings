@@ -143,4 +143,6 @@
 "Exportiere …" = "Exportiere …";
 "Ausschnitt zu kurz." = "Ausschnitt zu kurz.";
 "Export nicht möglich." = "Export nicht möglich.";
-"Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg)." = "Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg).";
+"Aufnahme nicht lesbar." = "Aufnahme nicht lesbar.";
+
+"Exportziel darf nicht die Aufnahme sein." = "Exportziel darf nicht die Aufnahme sein.";

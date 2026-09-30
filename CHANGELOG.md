@@ -3,6 +3,17 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.6] - 2026-09-30
+### Fixed
+- Song export protects the recording even when the destination is the source itself, a symbolic link or a hard link. Failed and cancelled exports preserve an existing destination and remove their staging file.
+- Cancelling an export task now cancels the media operation as well. Faded exports use the cut song's timeline, preventing loud decoder pre-roll at the beginning of the fade.
+- Drag exports use separate temporary directories, sanitize long file names and remove failed exports immediately. Completed drag files remain available for transfer until the app quits, when its temporary exports are removed.
+- Unreadable recordings report a codec-neutral error; format support follows the installed macOS decoders.
+
+### Added
+- Export harness for source protection, cancellation, fades, filename sanitizing and temporary file cleanup. Recorder tests cover the disk limit, rollover, collisions and crash recovery; ICY tests verify fragmented metadata and byte-exact audio forwarding.
+- `Tests/export-codecs.py` generates controlled MP3, AAC, Ogg/Vorbis and Ogg/Opus fixtures, runs the production recorder/export path and independently decodes eight M4A outputs with ffmpeg.
+
 ## [1.8.5] - 2026-09-30
 ### Fixed
 - Adding, editing and initial station seeding now enforce the central HTTP(S) URL policy before storage. The station editor keeps invalid entries open and displays a localized validation message; failed saves do not change station data or the favorite.

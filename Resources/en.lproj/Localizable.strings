@@ -143,4 +143,6 @@
 "Exportiere …" = "Exporting…";
 "Ausschnitt zu kurz." = "Clip too short.";
 "Export nicht möglich." = "Export not possible.";
-"Aufnahme nicht lesbar (ogg/opus brauchen ffmpeg)." = "Recording not readable (ogg/opus require ffmpeg).";
+"Aufnahme nicht lesbar." = "Recording not readable.";
+
+"Exportziel darf nicht die Aufnahme sein." = "Export destination must not be the recording.";

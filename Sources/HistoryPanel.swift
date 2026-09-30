@@ -251,11 +251,7 @@ struct HistoryPanel: View {
     // Datei) und ":" (Finder zeigt es als "/") durch. Leeres/punkt-fuehrendes Ergebnis
     // mit "Song_" praefixen.
     static func safeFileBase(_ raw: String) -> String {
-        var safe = raw.replacingOccurrences(of: #"[^A-Za-z0-9 _.-]"#, with: "_",
-                                            options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
-        if safe.isEmpty || safe.hasPrefix(".") { safe = "Song_" + safe }
-        return safe
+        SongExporter.safeFileBase(raw)
     }
 
     private func exportToFile(_ mode: SongExporter.Mode) {
@@ -489,8 +485,12 @@ struct DraggableSong: Transferable {
     let recorder: Recorder
 
     var fileName: String {
+        fileBase + ".m4a"
+    }
+
+    private var fileBase: String {
         let base = (entry.artist.map { "\($0) - " } ?? "") + (entry.title ?? entry.raw)
-        return HistoryPanel.safeFileBase(base) + ".m4a"
+        return HistoryPanel.safeFileBase(base)
     }
 
     static var transferRepresentation: some TransferRepresentation {
@@ -501,9 +501,8 @@ struct DraggableSong: Transferable {
             let url = song.recorder.dir.appendingPathComponent(clip.file)
             let offset = song.entry.start.timeIntervalSince(clip.start)
             let duration = (song.entry.end ?? Date()).timeIntervalSince(song.entry.start)
-            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(song.fileName)
-            try await SongExporter.export(source: url, offset: offset,
-                                          duration: duration, mode: .hardCut, to: tmp)
+            let tmp = try await SongExporter.exportTemporary(source: url, offset: offset,
+                                                            duration: duration, name: song.fileBase)
             return SentTransferredFile(tmp)
         }
         .suggestedFileName { $0.fileName }
