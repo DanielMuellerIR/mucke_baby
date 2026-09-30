@@ -20,11 +20,13 @@
    Schließen während Vorschau, Übernahme und URL-Dubletten-Haken. Prozesslokale
    Netzwerkfehler belegen die Stream-, Katalog- und Suchfehlermeldungen in der GUI
    auf macOS 26.6.2; verzögerte Fehler-/Stopp-Ereignisse deckt der Player-Harness ab.
-7. Sparkle-Update-Kette end-to-end testen: signierter Test-Build mit kleinerer
-   `CFBundleVersion` muss v1.8.0+ über „Nach Updates suchen …" finden und
-   installieren (Ablauf: docs/sparkle-release.md).
-8. Privaten Sparkle-Schlüssel verschlüsselt sichern (liegt nur im
-   Login-Schlüsselbund des Release-Rechners; synct nicht über iCloud).
+7. Am 2026-09-30 geprüft: eine frisch gebaute, notarisierte Testkopie von
+   v1.8.1 findet v1.8.4 über den bestehenden signierten Appcast, installiert
+   und startet neu. Zielbinary mit dem signierten DMG abgeglichen;
+   Nutzerdaten unverändert (Ablauf: docs/sparkle-release.md).
+8. Am 2026-09-30 erledigt: privaten Sparkle-Schlüssel verschlüsselt gesichert.
+   Wiederherstellung ohne Klartextdatei und Testsignatur gegen den öffentlichen
+   App-Schlüssel geprüft; zusätzliche verschlüsselte Sicherung vorhanden.
 9. Seit v1.8.5 erledigt: die aktuelle notarisierte App ist nach `/Applications`
    installiert. Für den Sparkle-End-to-End-Test ist eine separate ältere
    notarisierte Testkopie nötig.

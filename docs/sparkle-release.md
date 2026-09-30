@@ -30,9 +30,12 @@ Jede App hat ihr eigenes Schlüsselpaar; Schlüssel nie zwischen Projekten teile
 2. Privater Schlüssel als Actions-Secret `SPARKLE_PRIVATE_KEY` hinterlegt
    (`generate_keys -x <datei>` → `gh secret set … < datei` → Datei mit `rm -P`
    entfernt; der Schlüssel stand nie in argv oder Logs).
-3. Offen: den Schlüssel zusätzlich verschlüsselt sichern (Login-Schlüsselbund
-   synct nicht über iCloud). Geht er verloren, ist eine kontrollierte
-   Schlüsselrotation über ein Developer-ID-signiertes DMG nötig.
+3. Verschlüsseltes Schlüsselbackup am 2026-09-30 erstellt und zusätzlich
+   gesichert. Die Wiederherstellung wurde ohne Klartextdatei geprüft: Eine
+   Testsignatur mit dem restaurierten Schlüssel passt zum öffentlichen
+   App-Schlüssel. Der Login-Schlüsselbund synct nicht über iCloud; gehen
+   Schlüssel und Backup verloren, ist eine kontrollierte Schlüsselrotation
+   über ein Developer-ID-signiertes DMG nötig.
 
 ## Ablauf pro Release
 
@@ -71,6 +74,22 @@ ein neues Artefakt.
 Der Feed führt nur das aktuelle Vollupdate; Delta-Updates sind bewusst
 deaktiviert (`--maximum-deltas 0`), bis der Pages-Workflow mehrere historische
 Archive mit ihren jeweiligen Download-URLs verwaltet.
+
+## Verifizierter Update-Lauf
+
+Am 2026-09-30 wurde eine separate Testkopie aus dem Quellstand von v1.8.1
+frisch gebaut, mit Developer ID signiert, notarisiert und mit Ticket versehen.
+Sie fand v1.8.4 über den bestehenden signierten Feed, installierte das Update
+nach Bestätigung und startete neu. Das Zielbinary war bytegleich mit dem
+signierten Release-DMG; Signatur, angeheftetes Ticket und Gatekeeper wurden
+nach der Installation erneut geprüft. Sender, Verlauf und Aufnahmen blieben
+unverändert. Die für den Test geänderten Preferences wurden zurückgesetzt.
+
+Vor weiteren Tests alte App und Nutzerdaten als Rückbauziel erhalten sowie
+Preferences vor dem ersten Start sichern. Sparkles automatischer Neustart
+öffnet die App über LaunchServices ohne Übernahme der expliziten
+Test-Startumgebung. `CFFIXED_USER_HOME` ist deshalb kein verlässlicher Schutz
+für diesen Ablauf und isoliert auch den Preferences-Daemon nicht zuverlässig.
 
 Hinweis für Screenshot-/Testläufe: Mit gesetztem `MUCKE_SHOTS` startet der
 Updater nicht (kein Netz-Check, kein Dialog in den Theme-Fotos) — siehe
