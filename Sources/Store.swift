@@ -1,20 +1,32 @@
 import Foundation
 import SwiftUI
 
+enum StationSaveError: Error {
+    case invalidURL
+    case stationNotFound
+}
+
 // Haelt die Senderliste und kuemmert sich um Laden/Speichern.
 // Speicherort: ~/Library/Application Support/MuckeBaby/stations.json
 // (gut von Hand editierbar und damit auch agent-/skriptsteuerbar).
 @MainActor
 final class Store: ObservableObject {
-    @Published var stations: [Station] = []
+    @Published private(set) var stations: [Station] = []
 
     let dir: URL
     let stationsURL: URL
+    private let seedURL: URL?
 
-    init() {
-        migrateLegacyAppDir(in: .applicationSupportDirectory)   // alten „MacRadio"-Ordner übernehmen
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        dir = base.appendingPathComponent("MuckeBaby", isDirectory: true)
+    init(directory: URL? = nil,
+         seedURL: URL? = Bundle.main.url(forResource: "seed-stations", withExtension: "json")) {
+        if let directory {
+            dir = directory
+        } else {
+            migrateLegacyAppDir(in: .applicationSupportDirectory)   // alten „MacRadio"-Ordner übernehmen
+            let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            dir = base.appendingPathComponent("MuckeBaby", isDirectory: true)
+        }
+        self.seedURL = seedURL
         stationsURL = dir.appendingPathComponent("stations.json")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         loadStations()
@@ -31,7 +43,7 @@ final class Store: ObservableObject {
     func loadStations() {
         if let data = try? Data(contentsOf: stationsURL) {
             // Datei vorhanden: Dekodierung versuchen.
-            if let list = try? JSONDecoder().decode([Station].self, from: data), !list.isEmpty {
+            if let list = try? JSONDecoder().decode([Station].self, from: data) {
                 stations = list
                 return
             }
@@ -48,7 +60,7 @@ final class Store: ObservableObject {
         saveStations()
     }
 
-    func saveStations() {
+    private func saveStations() {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let data = try? enc.encode(stations) {
@@ -62,13 +74,13 @@ final class Store: ObservableObject {
     // generische Default-Liste zurueck (relevant fuer eine spaetere
     // GitHub-Veroeffentlichung ohne persoenliche Sender).
     private func seededStations() -> [Station] {
-        if let url = Bundle.main.url(forResource: "seed-stations", withExtension: "json"),
+        if let url = seedURL,
            let data = try? Data(contentsOf: url),
            let seeds = try? JSONDecoder().decode([SeedStation].self, from: data),
            !seeds.isEmpty {
-            return seeds.map { $0.toStation() }
+            return seeds.compactMap { try? validatedStation($0.toStation()) }
         }
-        return Self.builtinDefaults.map { $0.toStation() }
+        return Self.builtinDefaults.compactMap { try? validatedStation($0.toStation()) }
     }
 
     // Fallback, falls keine Seed-Datei gebuendelt ist.
@@ -86,14 +98,27 @@ final class Store: ObservableObject {
 
     // MARK: - CRUD
 
-    func add(_ station: Station) {
-        stations.append(station)
+    private func validatedStation(_ station: Station) throws -> Station {
+        guard let url = StreamURLPolicy.validatedURL(station.url) else {
+            throw StationSaveError.invalidURL
+        }
+        var validated = station
+        validated.url = url.absoluteString
+        return validated
+    }
+
+    func add(_ station: Station) throws {
+        let validated = try validatedStation(station)
+        stations.append(validated)
         saveStations()
     }
 
-    func update(_ station: Station) {
-        guard let i = stations.firstIndex(where: { $0.id == station.id }) else { return }
-        stations[i] = station
+    func update(_ station: Station) throws {
+        let validated = try validatedStation(station)
+        guard let i = stations.firstIndex(where: { $0.id == station.id }) else {
+            throw StationSaveError.stationNotFound
+        }
+        stations[i] = validated
         saveStations()
     }
 

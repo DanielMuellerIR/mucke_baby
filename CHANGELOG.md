@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.5] - 2026-09-30
+### Fixed
+- Adding, editing and initial station seeding now enforce the central HTTP(S) URL policy before storage. The station editor keeps invalid entries open and displays a localized validation message; failed saves do not change station data or the favorite.
+- Existing stations remain readable even if their URLs no longer meet the policy. Editing such a station requires correcting its URL, while imports preserve existing entries and continue to skip unsafe URLs and duplicates.
+- An intentionally empty saved station list remains empty after restarting instead of being replaced with bundled defaults.
+
 ## [1.8.4] - 2026-09-08
 ### Fixed
 - Each playback uses its own VLC player and immutable callbacks, so queued events from an earlier station cannot change the current playback or preview state.

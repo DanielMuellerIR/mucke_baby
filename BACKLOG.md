@@ -17,17 +17,15 @@
    installieren (Ablauf: docs/sparkle-release.md).
 8. Privaten Sparkle-Schlüssel verschlüsselt sichern (liegt nur im
    Login-Schlüsselbund des Release-Rechners; synct nicht über iCloud).
-9. Entscheiden: alte echte Kopie v1.7.35 in /Applications entfernen oder
-   durch v1.8.0 ersetzen (der genutzte Weg ist der ~/Applications-Symlink in den
-   Repo-Build; die Altkopie taugt ggf. als Ziel für den Sparkle-E2E-Test, Punkt 7).
+9. Seit v1.8.5 erledigt: die aktuelle notarisierte App ist nach `/Applications`
+   installiert. Für den Sparkle-End-to-End-Test ist eine separate ältere
+   notarisierte Testkopie nötig.
 10. Seit v1.8.4 erledigt: Vorschauereignisse sind durch getrennte VLC-Instanzen
     an ihre Wiedergabe gebunden; verspätete Ereignisse deckt der Player-Harness ab.
-11. Store: auch die Schreibpfade `add`, `update` und `seededStations()` durch
-    die zentrale URL-Policy führen und einen Validierungsfehler im Sender-Editor
-    sichtbar machen (der Changelog zu 1.8.1 verspricht die Policy vor jeder
-    Speicherung; heute prüfen nur `addIfNew` und die Import-Pfade). Braucht
-    sichtbare Editor-Rückmeldung samt Lokalisierung, daher nicht still im Store
-    allein ändern.
+11. Seit v1.8.5 erledigt: `add`, `update` und Erstbefüllung prüfen die zentrale
+    URL-Policy; der Sendereditor zeigt Validierungsfehler auf Deutsch und Englisch.
+    Store-Harness und notarisierter Editor belegen die Schreibgrenzen und den
+    Erhalt bestehender Sender.
 12. `Tests/run-tests.sh` als CI-Gate ausführen (z. B. GitHub-Actions-Workflow
     auf einem macOS-Runner), damit der Headless-Harness Regressionen auch ohne
     lokalen Lauf verhindert.

@@ -2,8 +2,9 @@
 # Tests/run-tests.sh — kompiliert den Headless-Test-Harness und fuehrt ihn aus.
 #
 # Der Harness testet reinen Foundation-Code (URL-Policy, Playlist-Resolver,
-# Recorder-Loeschgrenzen, Preview-Koordinator) — ohne VLCKit, SwiftUI oder
-# Netzverbindungen nach aussen (HTTP-Fixtures laufen auf 127.0.0.1). Er laeuft
+# Recorder-Loeschgrenzen, Preview-Koordinator) sowie den Store — ohne App-Start,
+# VLCKit oder Netzverbindungen nach aussen (HTTP-Fixtures: 127.0.0.1). Der Store
+# nutzt SwiftUI nur fuer ObservableObject; es wird keine GUI gestartet. Er laeuft
 # damit auch in CI-/Agent-Umgebungen ohne App-Build und ohne Vendor-Cache.
 # Exit-Code 0 = alle Pruefungen gruen.
 set -euo pipefail
@@ -29,6 +30,11 @@ swiftc -parse-as-library \
   -o "$BUILD/review-harness"
 
 "$BUILD/review-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/Store.swift \
+  Tests/StoreHarness.swift -o "$BUILD/store-harness"
+"$BUILD/store-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
   Sources/ICYMetadataReader.swift Sources/Recorder.swift Sources/Models.swift \

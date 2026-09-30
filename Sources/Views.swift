@@ -12,6 +12,7 @@ struct StationEditView: View {
     @State private var url = ""
     @State private var enabled = true
     @State private var favorite = false
+    @State private var saveError: StationSaveError?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -26,6 +27,14 @@ struct StationEditView: View {
                 Toggle("Favorit (Autostart)", isOn: $favorite)
             }
             .formStyle(.grouped)
+
+            if let saveError {
+                Text(LocalizedStringKey(saveError == .invalidURL
+                     ? "Bitte eine gültige HTTP- oder HTTPS-URL mit Hostnamen eingeben."
+                     : "Der Sender ist nicht mehr vorhanden. Bitte den Editor erneut öffnen."))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             HStack {
                 if station != nil {
@@ -44,6 +53,7 @@ struct StationEditView: View {
         }
         .padding(18)
         .frame(width: 440)
+        .onChange(of: url) { _, _ in saveError = nil }
         .onAppear {
             if let s = station {
                 name = s.name; url = s.url; enabled = s.enabled; favorite = s.favorite
@@ -54,16 +64,21 @@ struct StationEditView: View {
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let trimmedURL = url.trimmingCharacters(in: .whitespaces)
-        if var s = station {
+        do {
+            var s = station ?? Station(name: trimmedName, url: trimmedURL)
             s.name = trimmedName; s.url = trimmedURL; s.enabled = enabled; s.favorite = favorite
-            store.update(s)
+            if station != nil {
+                try store.update(s)
+            } else {
+                try store.add(s)
+            }
             if favorite { store.setFavorite(s) }   // sorgt fuer Eindeutigkeit
-        } else {
-            let s = Station(name: trimmedName, url: trimmedURL, enabled: enabled, favorite: favorite)
-            store.add(s)
-            if favorite { store.setFavorite(s) }
+            dismiss()
+        } catch let error as StationSaveError {
+            saveError = error
+        } catch {
+            saveError = .invalidURL
         }
-        dismiss()
     }
 }
 

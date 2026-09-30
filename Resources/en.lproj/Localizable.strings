@@ -14,6 +14,9 @@
 "Abbrechen" = "Cancel";
 "Sichern" = "Save";
 
+"Bitte eine gültige HTTP- oder HTTPS-URL mit Hostnamen eingeben." = "Enter a valid HTTP or HTTPS URL with a host name.";
+"Der Sender ist nicht mehr vorhanden. Bitte den Editor erneut öffnen." = "This station no longer exists. Please reopen the editor.";
+
 /* --- Einstellungen --- */
 "Einstellungen" = "Settings";
 "Start" = "Startup";
