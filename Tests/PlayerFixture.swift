@@ -21,7 +21,7 @@ final class VLCMediaPlayer {
     func play() { state = .playing }
     func stop() { state = .stopped }
     func timeEvent() { delegate?.mediaPlayerTimeChanged(Notification(name: Notification.Name("time"))) }
-    func stateEvent() { delegate?.mediaPlayerStateChanged(Notification(name: Notification.Name("state"))) }
+    func stateEvent() { delegate?.mediaPlayerStateChanged(Notification(name: Notification.Name("state"), object: self)) }
 }
 struct Station { var id = UUID(); var name: String; var url: String }
 struct RBStation { var stationuuid: String; var streamURL: String }
@@ -62,6 +62,11 @@ struct PlayerHarness {
         }
         fatalError("Player-Fixture wurde nicht installiert")
     }
+    static func drainEvents() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            TestEvents.queue.async { continuation.resume() }
+        }
+    }
     @MainActor
     static func main() async {
         let radio = RadioPlayer()
@@ -70,15 +75,31 @@ struct PlayerHarness {
         let old = VLCMediaPlayer.latest!
         TestEvents.queue.suspend()
         old.timeEvent()
+        old.state = .error
         old.stateEvent()
         radio.play(Station(name: "B", url: "https://fixture.invalid/b"))
         await waitFor { radio.currentStreamURL?.lastPathComponent == "b" }
         check(VLCMediaPlayer.latest !== old, "B verwendet noch die VLC-Instanz von A")
         TestEvents.queue.resume()
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        await drainEvents()
         check(!radio.isPlaying && radio.isLoading, "A-Ereignis hat B als spielend markiert")
         VLCMediaPlayer.latest.timeEvent()
         await waitFor { radio.isPlaying }
+        radio.stop()
+
+        let radioStopped = VLCMediaPlayer.latest!
+        radio.play(Station(name: "Failure", url: "https://fixture.invalid/failure"))
+        await waitFor { VLCMediaPlayer.latest !== radioStopped && radio.currentStreamURL != nil }
+        let radioFailing = VLCMediaPlayer.latest!
+        TestEvents.queue.suspend()
+        radioFailing.state = .error
+        radioFailing.stateEvent()
+        radioFailing.state = .stopped
+        radioFailing.stateEvent()
+        TestEvents.queue.resume()
+        await drainEvents()
+        check(radio.statusText == String(localized: "Fehler: Stream nicht abspielbar") && !radio.isPlaying && !radio.isLoading,
+              "Spaeter Stopp hat den Hauptplayer-Fehler verdeckt")
         radio.stop()
 
         let preview = PreviewPlayer()
@@ -87,14 +108,36 @@ struct PlayerHarness {
         let previewOld = VLCMediaPlayer.latest!
         TestEvents.queue.suspend()
         previewOld.timeEvent()
+        previewOld.state = .error
         previewOld.stateEvent()
         preview.toggle(RBStation(stationuuid: "B", streamURL: "https://fixture.invalid/b"), volume: 0)
         await waitFor { VLCMediaPlayer.latest !== previewOld && VLCMediaPlayer.latest.media != nil }
         TestEvents.queue.resume()
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        await drainEvents()
         check(preview.isLoading && preview.currentID == "B", "A-Ereignis hat B-Vorschau veraendert")
         VLCMediaPlayer.latest.timeEvent()
         await waitFor { !preview.isLoading }
+        preview.stop()
+
+        let previewStopped = VLCMediaPlayer.latest!
+        let failureStation = RBStation(stationuuid: "failure", streamURL: "https://fixture.invalid/failure")
+        preview.toggle(failureStation, volume: 0)
+        await waitFor { VLCMediaPlayer.latest !== previewStopped && VLCMediaPlayer.latest.media != nil }
+        let failing = VLCMediaPlayer.latest!
+        TestEvents.queue.suspend()
+        failing.state = .error
+        failing.stateEvent()
+        failing.state = .stopped
+        failing.stateEvent()
+        TestEvents.queue.resume()
+        await drainEvents()
+        check(preview.failedID == "failure" && preview.currentID == nil && !preview.isLoading,
+              "Spaeter Stopp hat den Vorschaufehler verdeckt")
+        preview.toggle(failureStation, volume: 0)
+        await waitFor { VLCMediaPlayer.latest !== failing && VLCMediaPlayer.latest.media != nil }
+        VLCMediaPlayer.latest.timeEvent()
+        await waitFor { !preview.isLoading }
+        check(preview.failedID == nil && preview.currentID == "failure", "Neustart behaelt den alten Fehler")
         preview.stop()
         print("PlayerHarness: OK")
     }

@@ -207,10 +207,10 @@ final class PreviewPlayer: ObservableObject {
             previous.delegate = nil
             self.player = VLCMediaPlayer()
             let nextShim = PlayerDelegateShim(
-                onState: { [weak self] in
+                onState: { [weak self] state in
                     guard let self, self.switches.accepts(generation, stationID: stationID),
                           self.switches.hasInstalledMedia else { return }
-                    self.handleState()
+                    self.handleState(state)
                 },
                 onTime: { [weak self] in
                     guard let self, self.switches.accepts(generation, stationID: stationID),
@@ -248,13 +248,11 @@ final class PreviewPlayer: ObservableObject {
         isLoading = false
     }
 
-    private func handleState() {
-        switch player.state {
+    private func handleState(_ state: VLCMediaPlayerState) {
+        switch state {
         case .error:
-            // Nur ein Fehler des eigenen Mediums zählt. Beim Wechsel A -> B spielt A
-            // im gemeinsamen Player weiter, während B noch aufgelöst wird; ein später
-            // Fehler von A hätte sonst B als gescheitert markiert und dessen Start
-            // verhindert (markFailed nutzt switches.currentID, also bereits B).
+            // Nur ein Fehler des eigenen installierten Mediums zaehlt. Instanz
+            // und Generation wurden bereits in der Delegate-Closure geprueft.
             guard switches.hasInstalledMedia else { return }
             markFailed()
         case .ended, .stopped:

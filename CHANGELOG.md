@@ -3,6 +3,14 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.7] - 2026-09-30
+### Fixed
+- Playback and catalogue previews preserve the VLC state observed by each callback. A stop queued immediately after a stream error no longer hides the error message; events from an earlier station remain ignored.
+
+### Added
+- A macOS GitHub Actions workflow runs the existing headless harnesses for pushes, pull requests and manual runs, with read-only repository access and a ten-minute job limit.
+- Player regression cases cover error followed by stop, stale error events after a station switch and restarting a failed preview.
+
 ## [1.8.6] - 2026-09-30
 ### Fixed
 - Song export protects the recording even when the destination is the source itself, a symbolic link or a hard link. Failed and cancelled exports preserve an existing destination and remove their staging file.

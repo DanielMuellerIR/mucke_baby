@@ -10,12 +10,16 @@
 3. Seit v1.8.6 vorhanden: Harnesses für PlaylistResolver, ICYMetadataReader,
    Recorder, SongExporter und Store-Persistenz. Kritische neue Pfade weiterhin
    gezielt ergänzen; das Codecgate steht unter `Tests/export-codecs.py`.
-4. Theme-Screenshots als reproduzierbares Layoutgate für normale und schmale
-   Fensterbreite etablieren.
+4. Theme-Layoutgate vorhanden: `MUCKE_SHOTS` und `MUCKE_SHOT_W` erzeugen die
+   Screenshots aller sieben Themes reproduzierbar. Normale und schmale Breite
+   (940/660 Punkte), Standard Hell/Dunkel sind seit v1.8.6 geprüft. Bei relevanten
+   UI-Änderungen die betroffenen Zustände erneut prüfen.
 5. Öffentliche Präsentation nur separat: Demo-GIF, README-Einstieg und passende
    macOS-/Swift-Verzeichnisse prüfen. Keine Listen für Coding-Agent-Tools nutzen.
-6. Sender-Katalog (v1.8.0) manuell in der GUI prüfen: Genre wählen, Probehören
-   (Start/Stopp, Fehlerfall), Übernahme inkl. Dubletten-Haken.
+6. Seit v1.8.7 geprüft: echte Genre-/Namenssuche, Vorschau Start/Stopp/Neustart,
+   Schließen während Vorschau, Übernahme und URL-Dubletten-Haken. Prozesslokale
+   Netzwerkfehler belegen die Stream-, Katalog- und Suchfehlermeldungen in der GUI
+   auf macOS 26.6.2; verzögerte Fehler-/Stopp-Ereignisse deckt der Player-Harness ab.
 7. Sparkle-Update-Kette end-to-end testen: signierter Test-Build mit kleinerer
    `CFBundleVersion` muss v1.8.0+ über „Nach Updates suchen …" finden und
    installieren (Ablauf: docs/sparkle-release.md).
@@ -30,9 +34,10 @@
     URL-Policy; der Sendereditor zeigt Validierungsfehler auf Deutsch und Englisch.
     Store-Harness und notarisierter Editor belegen die Schreibgrenzen und den
     Erhalt bestehender Sender.
-12. `Tests/run-tests.sh` als CI-Gate ausführen (z. B. GitHub-Actions-Workflow
-    auf einem macOS-Runner), damit der Headless-Harness Regressionen auch ohne
-    lokalen Lauf verhindert.
+12. Seit v1.8.7 vorbereitet: `.github/workflows/tests.yml` führt
+    `Tests/run-tests.sh` auf einem macOS-Runner aus. Workflow lokal mit actionlint
+    geprüft, derselbe Testschritt lokal bestanden. Ausführung auf GitHub bleibt
+    bis zur separaten Veröffentlichung ungeprüft.
 
 Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
 Theme-Entwürfe sind kein Backlog.

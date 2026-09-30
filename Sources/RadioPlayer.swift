@@ -9,17 +9,22 @@ private let log = Logger(subsystem: "de.danielmuller.macradio", category: "playe
 final class PlayerDelegateShim: NSObject, VLCMediaPlayerDelegate {
     // Jede Bruecke gehoert genau einer VLC-Instanz und einer Wiedergabe.
     // Die Closures bleiben unveraendert, auch wenn ein Ereignis auf Main wartet.
-    let onState: () -> Void
+    let onState: (VLCMediaPlayerState) -> Void
     let onTime: () -> Void
 
-    init(onState: @escaping () -> Void, onTime: @escaping () -> Void) {
+    init(onState: @escaping (VLCMediaPlayerState) -> Void, onTime: @escaping () -> Void) {
         self.onState = onState
         self.onTime = onTime
         super.init()
     }
 
     func mediaPlayerStateChanged(_ aNotification: Notification) {
-        DispatchQueue.main.async { self.onState() }
+        // VLCKit liefert die betroffene Instanz als Notification-Objekt. Den
+        // Zustand jetzt sichern: bis zur Main-Queue kann .error bereits von
+        // .stopped abgeloest sein, wodurch der Fehlerhinweis verloren ginge.
+        guard let player = aNotification.object as? VLCMediaPlayer else { return }
+        let state = player.state
+        DispatchQueue.main.async { self.onState(state) }
     }
     // Zeit laeuft -> zuverlaessiges "spielt jetzt"-Signal (state bleibt bei
     // Live-Streams oft auf .buffering haengen).
@@ -140,7 +145,7 @@ final class RadioPlayer: ObservableObject {
         previous.delegate = nil
         player = VLCMediaPlayer()
         let nextShim = PlayerDelegateShim(
-            onState: { [weak self] in self?.handleState(generation: generation) },
+            onState: { [weak self] state in self?.handleState(state, generation: generation) },
             onTime: { [weak self] in self?.handleTimeAdvanced(generation: generation) })
         shim = nextShim
         player.delegate = nextShim
@@ -228,9 +233,8 @@ final class RadioPlayer: ObservableObject {
         log.notice("status=playing \(self.currentStation?.name ?? "?", privacy: .public)")
     }
 
-    private func handleState(generation: UInt64) {
+    private func handleState(_ state: VLCMediaPlayerState, generation: UInt64) {
         guard generation == installedGeneration, requests.accepts(generation) else { return }
-        let state = player.state
         guard state != lastState else { return }
         lastState = state
 

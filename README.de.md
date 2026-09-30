@@ -35,10 +35,12 @@ open "build/Mucke, Baby!.app"                    # starten
 
 ### Headless / Automatisierung
 
-- **Theme-Screenshots ohne UI-Sitzung:** `MUCKE_SHOTS=<verzeichnis>` setzen — die App schaltet durch alle Themes, schreibt je ein PNG und beendet sich. `MUCKE_SHOT_W=<px>` überschreibt die Fensterbreite.
+- **Headless-Regressionstests:** `bash Tests/run-tests.sh` führt die vorhandenen Harnesses auf Apple-Silicon-macOS aus, ohne App-Start oder VLCKit-Download. HTTP-Fixtures nutzen ausschließlich Loopback. Der macOS-CI-Workflow führt denselben Befehl aus.
+- **Automatische Theme-Screenshots:** `MUCKE_SHOTS=<verzeichnis>` setzen — die App schaltet durch alle Themes, schreibt je ein PNG und beendet sich. `MUCKE_SHOT_W=<punkte>` überschreibt die Fensterbreite; die Layoutbaseline nutzt 940 und 660 macOS-Punkte.
   ```bash
   MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
   ```
+  Dafür einen Testbenutzer verwenden oder vorher App-Preferences sichern und danach wiederherstellen: Der Screenshotlauf verändert das gewählte Theme. `CFFIXED_USER_HOME` isoliert Dateien, aber nicht zuverlässig den Preferences-Daemon.
 - **Installieren oder Release bauen** — drei Einstiegspunkte, bewusst getrennt:
   ```bash
   ./build.sh                        # baut nur, bleibt in build/
