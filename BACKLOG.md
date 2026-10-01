@@ -5,8 +5,10 @@
    notarisierte GUI-Ausgaben sind decodierbar; Quellschutz, Abbruch, Sanitizing
    und Temp-Cleanup sind abgedeckt. Codecunterstützung auf macOS 14.2 bleibt
    separat zu prüfen.
-2. Entscheidung: Soll „gesamten Verlauf löschen“ jemals Aufnahmedateien löschen?
-   Bis dahin getrennte Aktionen beibehalten.
+2. Festgelegter Löschvertrag: „gesamten Verlauf löschen“ entfernt ausschließlich
+   Verlaufseinträge und erhält alle Aufnahmedateien. „Alle Aufnahmen löschen“
+   entfernt separat nach Bestätigung nur abgeschlossene Aufnahmen; Verlauf und
+   laufende Aufnahme bleiben erhalten.
 3. Seit v1.8.6 vorhanden: Harnesses für PlaylistResolver, ICYMetadataReader,
    Recorder, SongExporter und Store-Persistenz. Kritische neue Pfade weiterhin
    gezielt ergänzen; das Codecgate steht unter `Tests/export-codecs.py`.

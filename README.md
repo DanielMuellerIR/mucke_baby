@@ -64,6 +64,7 @@ open "build/Mucke, Baby!.app"                    # launch
 - **Audio‑reactive visualizers** — analog VU needles, oscilloscope, spectrum bars and a piano‑roll — driven by a **CoreAudio process tap** on the app's own output. The tapped signal is normalized before analysis, so lowering the app volume does not shrink the visuals; the picture stays perfectly in sync and smooth (~90 Hz).
 - **Now‑playing** artist/title via a built‑in ICY metadata reader (selectable & copyable), with correct decoding of non‑UTF‑8 stations (UTF‑8 → Shift‑JIS/CP932 → Latin‑1, e.g. Japanese senders).
 - **History panel** ("Verlauf") — every track with start/end times and station, kept across station switches.
+- **Separate deletion actions** — clearing history preserves all recordings. “Delete all recordings” requires confirmation and removes only completed recordings, preserving history and any recording in progress.
 - **Optional stream recording** (off by default) — records the playing stream to `~/Music/MuckeBaby/Aufnahmen/`, with per‑song extraction; auto‑stops when less than 10 GB is free.
 - **One‑click links** from the history to look a track up on Apple Music or Spotify.
 - Station list with play/stop, per‑station show/hide and reordering; one **favorite** that auto‑plays on launch.
