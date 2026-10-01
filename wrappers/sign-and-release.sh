@@ -160,7 +160,7 @@ chflags hidden "$MOUNT_DIR/.background"
 if [ "$FINDER_LAYOUT" = "1" ]; then
 osascript <<APPLESCRIPT
 tell application "Finder"
-  tell disk "$VOLNAME"
+  tell folder (POSIX file "$MOUNT_DIR" as alias)
     open
     set current view of container window to icon view
     set toolbar visible of container window to false
