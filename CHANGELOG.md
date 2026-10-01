@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.8] - 2026-10-01
+### Fixed
+- Station edits report storage failures and keep the editor open. Station data and exclusive favorites are published only after successful persistence.
+- Songs at a recording rollover use the new clip and a shared history/recorder timestamp.
+- The ICY recorder fixture is independent of reported free disk capacity.
+
 ## [1.8.7] - 2026-09-30
 ### Fixed
 - Playback and catalogue previews preserve the VLC state observed by each callback. A stop queued immediately after a stream error no longer hides the error message; events from an earlier station remain ignored.

@@ -30,7 +30,7 @@ enum PlaylistResolver { static func resolve(_ raw: String) async -> URL? { URL(s
 final class SongHistory {
     func closeCurrent() {}
     func beginSession(station: String, at: Date) {}
-    func note(station: String, raw: String) {}
+    func note(station: String, raw: String, at: Date) {}
     func remove(olderThan: Date) {}
 }
 final class Recorder {
@@ -39,7 +39,7 @@ final class Recorder {
     func begin(station: String, contentType: String?, at: Date) {}
     func write(_ data: Data) {}
     func prune(olderThan: Date) {}
-    func songBoundary() {}
+    func songBoundary(at: Date) {}
 }
 final class ICYMetadataReader {
     var onTitle: ((String) -> Void)?

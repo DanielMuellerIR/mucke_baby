@@ -31,6 +31,8 @@ struct StationEditView: View {
             if let saveError {
                 Text(LocalizedStringKey(saveError == .invalidURL
                      ? "Bitte eine gültige HTTP- oder HTTPS-URL mit Hostnamen eingeben."
+                     : saveError == .persistenceFailed
+                     ? "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen."
                      : "Der Sender ist nicht mehr vorhanden. Bitte den Editor erneut öffnen."))
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
@@ -72,12 +74,11 @@ struct StationEditView: View {
             } else {
                 try store.add(s)
             }
-            if favorite { store.setFavorite(s) }   // sorgt fuer Eindeutigkeit
             dismiss()
         } catch let error as StationSaveError {
             saveError = error
         } catch {
-            saveError = .invalidURL
+            saveError = .persistenceFailed
         }
     }
 }

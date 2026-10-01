@@ -113,7 +113,7 @@ enum ICYHarness {
         // Response-Senke haelt unmittelbar vor recorder.begin an. stop muss
         // diesen Aufruf abwarten, bevor der abschliessende end-Auftrag folgt.
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let recorder = Recorder(directory: directory, minimumFreeBytes: 0)
+        let recorder = Recorder(directory: directory, minimumFreeBytes: -1)
         defer { try? FileManager.default.removeItem(at: directory) }
         let racing = ICYMetadataReader(configuration: configuration)
         let entered = DispatchSemaphore(value: 0)

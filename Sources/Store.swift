@@ -3,6 +3,7 @@ import SwiftUI
 
 enum StationSaveError: Error {
     case invalidURL
+    case persistenceFailed
     case stationNotFound
 }
 
@@ -60,11 +61,29 @@ final class Store: ObservableObject {
         saveStations()
     }
 
-    private func saveStations() {
+    private func persist(_ next: [Station]) throws {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? enc.encode(stations) {
-            try? data.write(to: stationsURL, options: .atomic)
+        do {
+            try enc.encode(next).write(to: stationsURL, options: .atomic)
+        } catch {
+            throw StationSaveError.persistenceFailed
+        }
+    }
+
+    private func saveStations() { try? persist(stations) }
+
+    private func commitStations(_ next: [Station]) throws {
+        try persist(next)
+        stations = next
+    }
+
+    private func withExclusiveFavorite(_ next: [Station], station: Station) -> [Station] {
+        guard station.favorite else { return next }
+        return next.map { item in
+            var item = item
+            item.favorite = item.id == station.id
+            return item
         }
     }
 
@@ -109,8 +128,7 @@ final class Store: ObservableObject {
 
     func add(_ station: Station) throws {
         let validated = try validatedStation(station)
-        stations.append(validated)
-        saveStations()
+        try commitStations(withExclusiveFavorite(stations + [validated], station: validated))
     }
 
     func update(_ station: Station) throws {
@@ -118,8 +136,9 @@ final class Store: ObservableObject {
         guard let i = stations.firstIndex(where: { $0.id == station.id }) else {
             throw StationSaveError.stationNotFound
         }
-        stations[i] = validated
-        saveStations()
+        var next = stations
+        next[i] = validated
+        try commitStations(withExclusiveFavorite(next, station: validated))
     }
 
     func delete(_ station: Station) {

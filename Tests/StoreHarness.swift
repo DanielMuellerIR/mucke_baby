@@ -76,6 +76,29 @@ enum StoreHarness {
         try old.update(renamed)
         check(old.stations.first == renamed, "Korrigierter Alt-Sender muss speicherbar sein")
 
+        let snapshot = store.stations
+        let beforeFailure = try Data(contentsOf: store.stationsURL)
+        let held = root.appendingPathComponent("held-stations")
+        try FileManager.default.moveItem(at: store.dir, to: held)
+        try Data("blocked".utf8).write(to: store.dir)
+        defer {
+            try? FileManager.default.removeItem(at: store.dir)
+            try? FileManager.default.moveItem(at: held, to: store.dir)
+        }
+        do {
+            try store.add(Station(name: "Unsaved", url: "https://example.com/failure", favorite: true))
+            fatalError("Speicherfehler wurde verschluckt")
+        } catch StationSaveError.persistenceFailed {}
+        var failedEdit = snapshot[0]
+        failedEdit.name = "Unsaved edit"
+        do {
+            try store.update(failedEdit)
+            fatalError("Speicherfehler der Bearbeitung wurde verschluckt")
+        } catch StationSaveError.persistenceFailed {}
+        check(store.stations == snapshot, "Fehlgeschlagene Speicherung verändert Sender/Favoriten")
+        check(try Data(contentsOf: held.appendingPathComponent("stations.json")) == beforeFailure,
+              "Fehlgeschlagene Speicherung verändert den Dateibestand")
+
         let emptyRoot = root.appendingPathComponent("empty")
         try FileManager.default.createDirectory(at: emptyRoot, withIntermediateDirectories: true)
         try Data("[]".utf8).write(to: emptyRoot.appendingPathComponent("stations.json"))

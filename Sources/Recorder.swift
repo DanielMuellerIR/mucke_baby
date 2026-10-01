@@ -152,7 +152,7 @@ final class Recorder: @unchecked Sendable {
 
     // Clip, der einen Zeitpunkt abdeckt (fuer Song-Export).
     func clip(covering date: Date) -> Clip? {
-        q.sync { clips.first { $0.start <= date && (($0.end ?? Date.distantFuture) >= date) } }
+        q.sync { clips.first { $0.start <= date && (($0.end ?? Date.distantFuture) > date) } }
     }
 
     // MARK: - intern (immer auf q)

@@ -279,8 +279,9 @@ final class RadioPlayer: ObservableObject {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, t != nowPlayingTitle else { return }
         nowPlayingTitle = t
-        if let st = currentStation { history.note(station: st.name, raw: t) }
-        recorder.songBoundary()      // ggf. 24h-Rollover an Songgrenze
+        let boundary = Date()
+        if let st = currentStation { history.note(station: st.name, raw: t, at: boundary) }
+        recorder.songBoundary(at: boundary)      // ggf. 24h-Rollover an Songgrenze
         log.notice("nowplaying \(t, privacy: .public)")
     }
 }

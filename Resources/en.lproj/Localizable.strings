@@ -146,3 +146,5 @@
 "Aufnahme nicht lesbar." = "Recording not readable.";
 
 "Exportziel darf nicht die Aufnahme sein." = "Export destination must not be the recording.";
+
+"Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen." = "The station list could not be saved. Check storage access and try again.";
