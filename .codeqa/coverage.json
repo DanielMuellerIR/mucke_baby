@@ -1,0 +1,409 @@
+{
+  "format": "time-limited-review-v1",
+  "format_note": "Eigenständiger dateibasierter Nachweis für einen zeitbegrenzten Review; kein Tokenbudget-Kampagnenformat von codeqa_state.py.",
+  "started_at": "2026-10-02T14:55:14Z",
+  "recorded_at": "2026-10-02T15:43:31+00:00",
+  "time_limit_seconds": 3600,
+  "baseline_commit": "3c96646ac4dff34b96c8b1e3448377656d64e757",
+  "observed_head": "cfd064eebc1d9c38f67ea98a5f0474c87aa358ed",
+  "product_version": "1.8.9",
+  "report": "docs/reviews/2026-10-02.md",
+  "architecture": {
+    "paradigm": "Gemeinsame SwiftUI-Views und beobachtbare Modelle; Main-Actor-Zustand mit serialisierten Netzwerk-/Recorder-Queues und verriegelter Audioanalyse",
+    "fit": "passend",
+    "recommendation": "Zeit- und Generationsgrenzen gezielt absichern; kein Architekturwechsel"
+  },
+  "areas": [
+    {
+      "id": "models-and-stations",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "f50655c6c9ee2667952abac9e68599adeb5b4f7bd28153e09085a16d282c9ef1",
+      "files": [
+        {
+          "path": "Sources/Models.swift",
+          "sha256": "0e94b16844dfdd90c0b747f7c835b87ac166ae38d09a5dae1b9ed144d937aa58"
+        },
+        {
+          "path": "Sources/Store.swift",
+          "sha256": "d9c9221c125b30705a6f5b7926a76446e685c9aff7f8b843608a9849894dcde0"
+        }
+      ]
+    },
+    {
+      "id": "recording-history-export",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "25b63d7f4738646e7f20dd469b1846672bc76812beaa37f72995ae9171260c41",
+      "files": [
+        {
+          "path": "Sources/Recorder.swift",
+          "sha256": "22258e3da83387f4925f9ac01d5c9c2475df844159a9bfd0352c5ddbdadc6169"
+        },
+        {
+          "path": "Sources/SongExporter.swift",
+          "sha256": "e195ca787e75b0a0688d4320a40452ff25be94f0a0fe2f19e53c81242bbedcc6"
+        },
+        {
+          "path": "Sources/SongHistory.swift",
+          "sha256": "a19891af3a18122c4d062932d58e507596c7093fec8b319234b85d59f181bd66"
+        }
+      ]
+    },
+    {
+      "id": "playback-audio-playlists",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "e8a586cbf0cef19cb38153614e7c0f2abc9b49da3124d93d561bb186b3869a0d",
+      "files": [
+        {
+          "path": "Sources/AudioTap.swift",
+          "sha256": "fc1eb9aaddee6252477082f4cfc82c7ba40b06df10d74e6d64bb8223e1315631"
+        },
+        {
+          "path": "Sources/ICYMetadataReader.swift",
+          "sha256": "3e253a4a2fa85872440b811241686a64bfa9eb7e25e79ce1e4bf4274ea04519d"
+        },
+        {
+          "path": "Sources/PlaylistResolver.swift",
+          "sha256": "2ad6e8c7b3ecfac2800def2ae29d9ef94dfa14b3421482ed2787508adcb814ad"
+        },
+        {
+          "path": "Sources/RadioPlayer.swift",
+          "sha256": "d28b55c44500a516b517da9e972dc8d7b57ef1f76c070fb03e57f301dbcbde71"
+        }
+      ]
+    },
+    {
+      "id": "interface-and-themes",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "98fb8459a3e7392b397607bf89fb2345fd74530a79e2b0c82e2a272f22f5432b",
+      "files": [
+        {
+          "path": "Sources/GenreListsView.swift",
+          "sha256": "417e865118dd2780ae6c5552074e0b72221303c668ee9894443889e4021be731"
+        },
+        {
+          "path": "Sources/HistoryPanel.swift",
+          "sha256": "b83da8b867dc760afb87cd35553cf503b9f2a427552d5be6c6d6e0047feae9e6"
+        },
+        {
+          "path": "Sources/MacRadioApp.swift",
+          "sha256": "b66fb16258e2507d21d17d5e25e847b71421da19ee1d235ee26976218fe27d99"
+        },
+        {
+          "path": "Sources/ScreenshotDebug.swift",
+          "sha256": "0f87ef0136036918a0ca9467a395a3e14a07365007dceb4363a5eb00836ecae3"
+        },
+        {
+          "path": "Sources/Theme.swift",
+          "sha256": "181c32604404e21e869e66f854b6b704a7b439e68e6d34d609a771fee859ecbb"
+        },
+        {
+          "path": "Sources/ThemedComponents.swift",
+          "sha256": "6bfcdc31d52564473d4a15fa882716d1c8125da3063c4981b3108afbcffe0784"
+        },
+        {
+          "path": "Sources/Views.swift",
+          "sha256": "7bb5b289a858f41db2b11a9de148c816fd598354bb65c3a88a40a307315cd858"
+        }
+      ]
+    },
+    {
+      "id": "catalog-and-health",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "708341c2f7315af6cc4cb4fb64259f8efc45a34231c3c6448bee17571fd9d14c",
+      "files": [
+        {
+          "path": "Sources/StationBrowser.swift",
+          "sha256": "4067f6aff25eae4720718f670579fb6e5ec381de5b0b222a7cf12a89596f6394"
+        },
+        {
+          "path": "Sources/StationHealth.swift",
+          "sha256": "2c4a9706e67030dff763dd5ffbbda586e9dd8ab1c6a56f51581b282c743dc351"
+        }
+      ]
+    },
+    {
+      "id": "external-boundaries",
+      "review": "full-source-and-boundaries",
+      "outcome": "reviewed-clean",
+      "fingerprint_sha256": "bb3f4ec430514edecb33b0b7cb6c9cd1a3559669c7afb2bbaa0728ccee86ad42",
+      "files": [
+        {
+          "path": "Sources/LyricsView.swift",
+          "sha256": "613ce9bbd52c2106af5038ff1fae03f24fa591862a9325725e8da2d229ae3474"
+        },
+        {
+          "path": "Sources/Safety.swift",
+          "sha256": "e51cea2f89b93f9495f32cc4ddc6b07b9cde03fa003c36443549581a75a603f6"
+        },
+        {
+          "path": "Sources/SongLink.swift",
+          "sha256": "6979ae952aca79c488f8206e910f1a97045365b577241d01fc9aea27a192ea19"
+        },
+        {
+          "path": "Sources/UpdaterController.swift",
+          "sha256": "bb4144b99c78dd5fc935ebab447168bec532eba4007a231bc8f1c0170cff21eb"
+        }
+      ]
+    },
+    {
+      "id": "build-release-ci",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "149e540d1ad6c70711f504a28e966376e2a77b642d7ce1d356da1653a562207b",
+      "files": [
+        {
+          "path": ".github/workflows/publish-appcast.yml",
+          "sha256": "34f37a642ce86b69e29b0f5880d341e9e051134d31b4205f68cec6a71830b559"
+        },
+        {
+          "path": ".github/workflows/tests.yml",
+          "sha256": "8677044e6e235b529a0b557f151801f1355cbf95c1dee6da460eb0c9739cea30"
+        },
+        {
+          "path": "assets/generate-dmg-background.swift",
+          "sha256": "3bc6110073eca8b181af296389696bfb4abe5087896a5a0ee0f42f568245ba99"
+        },
+        {
+          "path": "build.sh",
+          "sha256": "9010d33210e1a261535b4dd4742cc690f6bea75c36eef877c758820b69a13e40"
+        },
+        {
+          "path": "icons/generate-icons.sh",
+          "sha256": "0ef9f25092d8ca3d9220b3e85e3719bfaf4617d5eb255cf0820583e31552fe79"
+        },
+        {
+          "path": "icons/make-banner.swift",
+          "sha256": "cf60839030ada4e872cfa90849add122d471613cdc96a0809d199d60472f6ffe"
+        },
+        {
+          "path": "icons/make-icns.sh",
+          "sha256": "daf0f473dcd65e9e45ab3c4502dc310a7e15e2a1eded24848ae953d2bec683a4"
+        },
+        {
+          "path": "install.sh",
+          "sha256": "baefba01d04020fdee076f9942eb2160d8f0ea146d09b072e8798069dfd195a9"
+        },
+        {
+          "path": "notarize-lib.sh",
+          "sha256": "87fb1c2a50e0bb1dfd8be919b155c5a8338b11da59b6e958ec3f6f98677b0f2e"
+        },
+        {
+          "path": "release.sh",
+          "sha256": "bafdfb7ac13b0badce1a312dd2dac70bb54ea311016f1e440376f73002fb57e0"
+        },
+        {
+          "path": "run.sh",
+          "sha256": "a79f715ac521e1a119e238de354e0754b3d880766f6d0b997e4094a44d66eaf6"
+        },
+        {
+          "path": "wrappers/sign-and-release.sh",
+          "sha256": "1cda43b7d4b3fbcc0649fb4f45333faf7930479711c323a180741aadc16f8b7b"
+        }
+      ]
+    },
+    {
+      "id": "tests",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "5fc2dee8daa425e4a27c7e7da5d292de0aab39e8aaaa45e07ed91e66c3c085a5",
+      "files": [
+        {
+          "path": "Tests/AudioTapHarness.swift",
+          "sha256": "8116a57b0654b3544ba903c3fc65b37fb2a730b75d0aca474d7511f14c621163"
+        },
+        {
+          "path": "Tests/ExportHarness.swift",
+          "sha256": "1278b000dfd3adec4637c6f89b0cdf00a328e245d2eceb0ca12f7b6d72ef5639"
+        },
+        {
+          "path": "Tests/ICYHarness.swift",
+          "sha256": "ffafc3c7aca2e12f48161a3ad7b00000fec60cc66b22271440ebc0df9dbfd710"
+        },
+        {
+          "path": "Tests/PlayerFixture.swift",
+          "sha256": "4b26e787c920b56d223fca317d84f2cec1fcb49a93f5532604d705ac14342959"
+        },
+        {
+          "path": "Tests/README.md",
+          "sha256": "3b5e58d8e3b3e3068d1f62e71a6f908b2bb9b33cee42ba8f3f32103eaa6648fd"
+        },
+        {
+          "path": "Tests/ReviewHarness.swift",
+          "sha256": "c88d83cbab9918cae2278dfbfeda48243e8c2cdc6610b52b734d48d25414377e"
+        },
+        {
+          "path": "Tests/StoreHarness.swift",
+          "sha256": "ba519b76e7a79376d111deb8ed071e9cf5ea10efa6a9b1ce041f60936cd9dbea"
+        },
+        {
+          "path": "Tests/export-codecs.py",
+          "sha256": "acd5d950b1b76df38570f6acd75ccc40245e028d492d2a9bcb7dcc2640fd7e9c"
+        },
+        {
+          "path": "Tests/fleet-rules.sh",
+          "sha256": "a54f6fb9a6893685976cee200d7669aa1a2c81afe87d9ca834c33afafdaaa10a"
+        },
+        {
+          "path": "Tests/player-events.py",
+          "sha256": "d8f6c3213c9bd486a9ec0f351f1da370011beb4f7148499f4bf3bc2e3921c121"
+        },
+        {
+          "path": "Tests/release-mount.py",
+          "sha256": "122e5c09860cb7cd5079590014522ee8493ac457b321d63c15c1de8fa866aaa7"
+        },
+        {
+          "path": "Tests/run-tests.sh",
+          "sha256": "2f405da7c4a66bafeebc745f78473cdd48fb00f576ae4590896f6dcbb03e4586"
+        }
+      ]
+    },
+    {
+      "id": "resources-and-contracts",
+      "review": "full-source-and-boundaries",
+      "outcome": "improved",
+      "fingerprint_sha256": "7b61f4e5c110fae1d38e1c01c20052e7f33a63295bcd9c55dfc84350da90827d",
+      "files": [
+        {
+          "path": "BACKLOG.md",
+          "sha256": "77683a195b237604d223d7939e03ba682e0b25d6e1cf87edfed95e9c1ece0bd9"
+        },
+        {
+          "path": "CHANGELOG.md",
+          "sha256": "82a7a10db97981aabf94482a278f2263c809b5427aca2e299f0b553ef2f00393"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "55186841f027f299ed90beb36be308b878c8c4196a0531f405739d361a277aa5"
+        },
+        {
+          "path": "README.de.md",
+          "sha256": "50ec52afed077cb149831233ce709bc3cb4ec78176b98cd624c05d1e248f2a8a"
+        },
+        {
+          "path": "README.md",
+          "sha256": "034774da525a6612cb77ccb85f119b06054ce5478c14fba174202ecd359aa88b"
+        },
+        {
+          "path": "Resources/Info.plist",
+          "sha256": "3fc06ce2b58b1ef6c1afc14a613aea31a4b61d26d1a1d142800fc97e29482ab2"
+        },
+        {
+          "path": "Resources/de.lproj/InfoPlist.strings",
+          "sha256": "e3bc02fa7dbbf155fcad55fcfaa9fad91f82d8f9a906cfcc7e2361f6e109b406"
+        },
+        {
+          "path": "Resources/de.lproj/Localizable.strings",
+          "sha256": "7afb25a32ec4b1290e789a8cdfa48f14eca6f15a7f5d07e9a8d69e2e89f8e361"
+        },
+        {
+          "path": "Resources/en.lproj/InfoPlist.strings",
+          "sha256": "ddf2e4de0ff3f4354c0fbff4402f4ae3565a1ce5201b578096814bc66f438b3c"
+        },
+        {
+          "path": "Resources/en.lproj/Localizable.strings",
+          "sha256": "ea3cfbb57e4766d3d3c911db9208ef99d8483851f382e6ba424de686899301d8"
+        },
+        {
+          "path": "Resources/genre-lists/chill.json",
+          "sha256": "1ee931b22e241d3ba5b6d1af90bf4c04901760bfcdc612189678c4d3f13ebb8a"
+        },
+        {
+          "path": "Resources/genre-lists/hardstyle.json",
+          "sha256": "16de63a22032f204d05f0f35c1125716d8f7fce7e239d1e1c29fe1e3c428114a"
+        },
+        {
+          "path": "Resources/genre-lists/manifest.json",
+          "sha256": "9987afada08e7826451b7386347ea6f4937689275960272570a4cb73fbf89e7a"
+        },
+        {
+          "path": "Resources/genre-lists/oeffentlich-rechtlich.json",
+          "sha256": "1bd12b38077ea0394a137e20d517c37eecb5411dbce702584fbbef0a64cdbd12"
+        },
+        {
+          "path": "Resources/genre-lists/techno.json",
+          "sha256": "09070e75ecd441dfed46449d323d2a855aed22dd50a290f2c269501ec4a3ab53"
+        },
+        {
+          "path": "Resources/genre-lists/trance.json",
+          "sha256": "cb11ddae774c3180386ca7f5843e30897fdd5ebf7852518bed4e4541473c4820"
+        },
+        {
+          "path": "Resources/seed-stations.example.json",
+          "sha256": "f215c8e738c777c2d8ad27cf38f373a67f672e0fb34b2fb49c98d240d6e6ce0f"
+        },
+        {
+          "path": "THIRD-PARTY.md",
+          "sha256": "402e7c810e21a9c8c3fef3ac36af7d4bd969305db1200ba166b6003db8f9b8b4"
+        },
+        {
+          "path": "docs/sparkle-release.md",
+          "sha256": "f13c2ed5af3b80d0d5f655cacecb105862ce2cb682e81af9a54c9f3bf9036be9"
+        },
+        {
+          "path": "icons/motifs.md",
+          "sha256": "76eeb683367c26f463148f07f9d4fc18f7651f79d3b6bf39aa8edce3f05904d8"
+        }
+      ]
+    }
+  ],
+  "verification": [
+    "Tests/run-tests.sh: passed",
+    "Tests/export-codecs.py: passed; 8 independently decoded M4A outputs, 4 unchanged sources",
+    "build.sh: passed; macOS 26.6.2 arm64",
+    "FLEET_RULES_REQUIRE_ARTIFACT=1 bash Tests/fleet-rules.sh: passed",
+    "SwiftUI offscreen runtime: de/en, seven themes at 940/660 points, standard light/dark, affected views",
+    "Counterchecks: original store recovery, initial audio state and truncated-export fade fail new regressions; corrected code passes",
+    "git diff --check and shell/plist syntax: passed"
+  ],
+  "limitations": [
+    "No interactive live VLC/CoreAudio or permission test in this review",
+    "No notarization, installation, live DMG mount, Finder layout or Sparkle end-to-end run",
+    "No runtime test on macOS 14.2",
+    "No complete empty-vendor-cache run",
+    "No hosted CI run"
+  ],
+  "excluded": [
+    {
+      "paths": [
+        ".vendor",
+        "build",
+        "assets/screenshots",
+        "Resources/themes"
+      ],
+      "reason": "Fremdcode und generierte beziehungsweise binäre Artefakte; Bundlegrenzen und Ressourcenverwendung separat geprüft"
+    },
+    {
+      "paths": [
+        "Resources/seed-stations.json"
+      ],
+      "reason": "Private Nutzerdaten; nicht Teil des öffentlichen Quellcodereviews"
+    },
+    {
+      "paths": [
+        "docs/archive"
+      ],
+      "reason": "Historische Dokumentation ohne aktive Produktverträge"
+    },
+    {
+      "paths": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "GEMINI.md"
+      ],
+      "reason": "Arbeitsanweisungen, keine Produktimplementierung"
+    },
+    {
+      "paths": [
+        "Resources/AppIcon.icns",
+        "icons/*.png",
+        "icons/*.icns"
+      ],
+      "reason": "Binäre Grafikressourcen; Generatorcode und dokumentierte Herkunft separat gelesen"
+    }
+  ]
+}
