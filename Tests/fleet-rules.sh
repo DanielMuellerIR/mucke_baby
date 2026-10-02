@@ -119,6 +119,14 @@ fi
 BIN="build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
 artifact_skipped=0
 if [ -f "$BIN" ]; then
+    licenses="build/Mucke, Baby!.app/Contents/Resources/Licenses"
+    if cmp -s "$licenses/VLCKit.txt" .vendor/VLCKit-COPYING.txt \
+       && cmp -s "$licenses/Sparkle.txt" .vendor/Sparkle-2.9.4/LICENSE \
+       && cmp -s "$licenses/THIRD-PARTY.md" THIRD-PARTY.md; then
+        ok "vollständige Lizenztexte im Bundle stimmen mit den Quellen überein"
+    else
+        bad "Lizenztexte fehlen im Bundle oder stimmen nicht mit den Quellen überein"
+    fi
     home_paths="$(strings -a "$BIN" | grep -F "$HOME/")"
     if [ -n "$home_paths" ]; then
         printf '%s\n' "$home_paths" | sed 's/^/    /' >&2

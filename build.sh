@@ -28,7 +28,7 @@ VLCKIT_URL="https://download.videolan.org/pub/cocoapods/prod/VLCKit-3.7.3-319ed2
 # Bei einem bewussten VLCKit-Upgrade URL UND Hash gemeinsam aktualisieren.
 VLCKIT_SHA256="019afdae4e2e2d0f3ac325fac8f7ba0af25dca70b9d157df7d60db88e0be8e5d"
 
-if [ ! -d "$FWDIR/VLCKit.framework" ]; then
+if [ ! -d "$FWDIR/VLCKit.framework" ] || [ ! -f "$VENDOR/VLCKit-COPYING.txt" ]; then
   echo "Lade VLCKit (einmalig, ~84 MB) …"
   mkdir -p "$VENDOR"
   ( cd "$VENDOR"
@@ -36,7 +36,10 @@ if [ ! -d "$FWDIR/VLCKit.framework" ]; then
     echo "$VLCKIT_SHA256  vlckit.tar.xz" | shasum -a 256 -c - \
       || { echo "VLCKit-Pruefsumme falsch — Abbruch!" >&2; rm -f vlckit.tar.xz; exit 1; }
     tar -xJf vlckit.tar.xz
-    mv "VLCKit - binary package/VLCKit.xcframework" ./VLCKit.xcframework
+    cp "VLCKit - binary package/COPYING.txt" VLCKit-COPYING.txt
+    if [ ! -d "VLCKit.xcframework/macos-arm64_x86_64/VLCKit.framework" ]; then
+      mv "VLCKit - binary package/VLCKit.xcframework" ./VLCKit.xcframework
+    fi
     rm -rf "VLCKit - binary package" vlckit.tar.xz )
 fi
 
@@ -51,7 +54,7 @@ SPARKLE_DIR="$VENDOR/Sparkle-$SPARKLE_VERSION"
 SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
 SPARKLE_SHA256="ce89daf967db1e1893ed3ebd67575ed82d3902563e3191ca92aaec9164fbdef9"
 
-if [ ! -d "$SPARKLE_DIR/Sparkle.framework" ]; then
+if [ ! -d "$SPARKLE_DIR/Sparkle.framework" ] || [ ! -f "$SPARKLE_DIR/LICENSE" ]; then
   echo "Lade Sparkle $SPARKLE_VERSION (einmalig, ~7 MB) …"
   mkdir -p "$SPARKLE_DIR"
   ( cd "$VENDOR"
@@ -78,6 +81,10 @@ swiftc -O -parse-as-library \
   -o "$APPDIR/Contents/MacOS/$EXE"
 
 cp Resources/Info.plist "$APPDIR/Contents/Info.plist"
+mkdir -p "$APPDIR/Contents/Resources/Licenses"
+cp "$VENDOR/VLCKit-COPYING.txt" "$APPDIR/Contents/Resources/Licenses/VLCKit.txt"
+cp "$SPARKLE_DIR/LICENSE" "$APPDIR/Contents/Resources/Licenses/Sparkle.txt"
+cp THIRD-PARTY.md "$APPDIR/Contents/Resources/Licenses/THIRD-PARTY.md"
 
 # Versionsnummer aus Models.swift (AppInfo.version = einzige Quelle) in die
 # Bundle-Info.plist spiegeln, damit Finder/„Über"-Dialog dieselbe Version zeigen.

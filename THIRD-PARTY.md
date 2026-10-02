@@ -18,7 +18,8 @@ Linken erfüllt). Marke „Marshall" wurde bereits zu „Stack" entschärft.
   `https://download.videolan.org/pub/cocoapods/prod/VLCKit-3.7.3-319ed2c0-79128878.tar.xz`
   (gitignored unter `.vendor/`).
 - **Lizenz:** **LGPL-2.1-or-later**. Lizenztext liegt bei:
-  `.vendor/VLCKit - binary package/COPYING.txt`.
+  `.vendor/VLCKit-COPYING.txt` (aus `COPYING.txt` im geprüften Archiv erhalten).
+  Der Build liefert ihn unter `Contents/Resources/Licenses/VLCKit.txt` mit.
 - **Pflichten bei Veröffentlichung (erfüllbar):**
   1. LGPL-Hinweis + Lizenztext mitliefern (diese Datei + COPYING im Release).
   2. Relinking ermöglichen → **durch dynamisches Linken erfüllt** (Nutzer kann das
@@ -112,6 +113,8 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
 - **Lizenz:** **MIT** (Copyright Andy Matuschak u. a.; einzelne Bestandteile mit
   eigenen permissiven Hinweisen). Lizenztext liegt bei:
   `.vendor/Sparkle-2.9.4/LICENSE`.
+  Der Build liefert ihn unter `Contents/Resources/Licenses/Sparkle.txt` mit,
+  zusammen mit dieser Übersicht als `Licenses/THIRD-PARTY.md`.
 - **Pflichten bei Veröffentlichung:** Copyright-/Lizenzhinweis mitführen (diese
   Datei verweist darauf; der volle Text liegt in der Distribution unter
   `.vendor/Sparkle-2.9.4/LICENSE` und gehört wie der VLCKit-Text ins Release).

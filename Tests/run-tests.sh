@@ -49,3 +49,10 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 bash Tests/fleet-rules.sh
 
 python3 Tests/player-events.py
+
+cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" "$BUILD/AudioTapCombined.swift" \
+  -o "$BUILD/audio-tap-harness"
+"$BUILD/audio-tap-harness"
+python3 Tests/release-mount.py

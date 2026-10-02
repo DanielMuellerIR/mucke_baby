@@ -29,7 +29,7 @@ set -euo pipefail
 # unterschiedlichen Identitaeten signiert wuerden.
 
 APP_NAME="Mucke, Baby!"            # Bundle-/Anzeigename (mit Komma + Leerzeichen!)
-VOLNAME="Mucke, Baby!"            # DMG-Volume-Name (= /Volumes/<name>)
+VOLNAME="Mucke, Baby!"            # sichtbarer DMG-Volume-Name
 
 # ---------- Optionen ----------
 # Früh auswerten und unbekannte Flags sofort ablehnen: Ein Tippfehler soll nicht
@@ -138,13 +138,21 @@ notarize_app "$APP_BUNDLE"
 # ---------- 4. DMG mit Installations-Layout ----------
 echo "==> Erzeuge DMG-Layout"
 rm -f "$DMG_PATH" "$RW_DMG_PATH"
-[ -d "/Volumes/$VOLNAME" ] && hdiutil detach "/Volumes/$VOLNAME" -force >/dev/null 2>&1 || true
+# Ein bereits geöffnetes gleichnamiges DMG gehört nicht zu diesem Lauf.
+# Nur den eigenen Mount bei Erfolg und bei jedem Abbruch wieder aushängen.
+MOUNT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/mucke-release.XXXXXX")"
+MOUNT_DIR="$MOUNT_ROOT/volume"
+mkdir "$MOUNT_DIR"
+cleanup_mount() {
+  hdiutil detach "$MOUNT_DIR" -force >/dev/null 2>&1 || true
+  rmdir "$MOUNT_DIR" "$MOUNT_ROOT" 2>/dev/null || true
+}
+trap cleanup_mount EXIT
 
 SIZE=$(( $(du -sm "$APP_BUNDLE" | cut -f1) + 40 ))
 hdiutil create -srcfolder "$APP_BUNDLE" -volname "$VOLNAME" -fs HFS+ \
   -fsargs "-c c=64,a=16,e=16" -format UDRW -size "${SIZE}m" "$RW_DMG_PATH"
 
-MOUNT_DIR="/Volumes/$VOLNAME"
 hdiutil attach "$RW_DMG_PATH" -mountpoint "$MOUNT_DIR" -nobrowse -noverify -noautoopen
 
 ln -s /Applications "$MOUNT_DIR/Applications"
@@ -186,6 +194,8 @@ fi
 
 sync; sleep 2                       # Race: DS_Store-Schreibpuffer vs. detach
 hdiutil detach "$MOUNT_DIR" -force
+rmdir "$MOUNT_DIR" "$MOUNT_ROOT"
+trap - EXIT
 
 echo "==> Konvertiere zu komprimiertem read-only DMG"
 hdiutil convert "$RW_DMG_PATH" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH"
