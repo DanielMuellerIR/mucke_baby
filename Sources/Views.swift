@@ -41,8 +41,11 @@ struct StationEditView: View {
             HStack {
                 if station != nil {
                     Button(role: .destructive) {
-                        if let s = station { store.delete(s) }
-                        dismiss()
+                        if let s = station, store.delete(s) { dismiss() }
+                        else {
+                            store.persistenceFailed = false
+                            saveError = .persistenceFailed
+                        }
                     } label: { Text("Löschen") }
                 }
                 Spacer()
@@ -180,7 +183,10 @@ struct PreferencesView: View {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url, let data = try? Data(contentsOf: url) else { return }
         let n = store.importData(data)
-        ioMessage = n >= 0
+        if n == -2 { store.persistenceFailed = false }
+        ioMessage = n == -2
+            ? String(localized: "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.")
+            : n >= 0
             ? String(localized: "\(n) neue Sender importiert.")
             : String(localized: "Datei nicht lesbar (erwartet: JSON-Array mit {name,url}).")
     }
@@ -192,7 +198,7 @@ struct PreferencesView: View {
 // Erklaert die zwei Dinge, die beim ersten Start sonst ueberraschen:
 //  1) macOS fragt evtl. nach der Berechtigung „Audio aufnehmen" — die App tappt dafuer
 //     NUR die eigene Tonausgabe, damit die Visualizer reagieren (kein Mikrofon).
-//  2) Der Mitschnitt der laufenden Streams ist ab Werk AN. Hier sofort abschaltbar.
+//  2) Der Mitschnitt ist ab Werk AUS und kann hier bewusst aktiviert werden.
 struct WelcomeView: View {
     @Environment(\.dismiss) private var dismiss
     // Selber Key wie in den Einstellungen — Aenderung hier wirkt sofort dort und umgekehrt.

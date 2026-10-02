@@ -300,6 +300,7 @@ struct StationBrowserView: View {
     @State private var results: [RBStation] = []
     @State private var loading = false
     @State private var error = ""
+    @State private var addError = ""
     @State private var stationRequestTask: Task<Void, Never>?
     @State private var stationRequests = LatestRequestGeneration()
     /// Merkt in dieser Sitzung hinzugefügte Sender (sofortiges ✓ in der Zeile).
@@ -310,6 +311,9 @@ struct StationBrowserView: View {
             Text("Sender-Katalog").font(.headline)
             Text("Über 50.000 Sender aus der freien Community-Datenbank radio-browser.info — nach Genre stöbern oder per Name suchen, probehören und übernehmen.")
                 .font(.caption).foregroundStyle(.secondary)
+            if !addError.isEmpty {
+                Text(addError).font(.caption).foregroundStyle(.red)
+            }
 
             // Freitextsuche (durchsucht alle Genres).
             HStack {
@@ -409,9 +413,13 @@ struct StationBrowserView: View {
     }
 
     private func add(_ st: RBStation) {
+        addError = ""
         guard let url = StreamURLPolicy.validatedURL(st.streamURL) else { return }
         if store.addIfNew(name: st.name, url: url.absoluteString) {
             addedIDs.insert(st.stationuuid)
+        } else if store.persistenceFailed {
+            store.persistenceFailed = false
+            addError = String(localized: "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.")
         }
     }
 

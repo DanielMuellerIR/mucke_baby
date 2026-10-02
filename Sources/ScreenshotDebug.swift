@@ -14,12 +14,26 @@ final class MuckeAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         ScreenshotDebug.runIfRequested()
     }
+    func applicationWillTerminate(_ notification: Notification) {
+        ScreenshotDebug.restorePreferences()
+    }
 }
 
 enum ScreenshotDebug {
+    private static var restoreTheme: (() -> Void)?
+
+    static func restorePreferences() {
+        restoreTheme?()
+        restoreTheme = nil
+    }
+
     /// Plant — falls `MUCKE_SHOTS` gesetzt — den Durchlauf durch alle Themes.
     static func runIfRequested() {
         guard let dir = ProcessInfo.processInfo.environment["MUCKE_SHOTS"], !dir.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        let domain = Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName
+        let previousTheme = defaults.persistentDomain(forName: domain)?["selectedTheme"]
+        restoreTheme = { defaults.set(previousTheme, forKey: "selectedTheme") }
         let outDir = URL(fileURLWithPath: dir, isDirectory: true)
         try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
 
@@ -53,6 +67,7 @@ enum ScreenshotDebug {
         }
         // 3) am Ende die App schliessen.
         DispatchQueue.main.asyncAfter(deadline: .now() + startDelay + Double(ids.count) * step + 0.8) {
+            restorePreferences()
             NSApp.terminate(nil)
         }
     }

@@ -234,11 +234,7 @@ struct HistoryPanel: View {
 
     // Quelldatei + Offset/Dauer fuer einen Verlauf-Eintrag bestimmen.
     private func sourceInfo(_ e: SongEntry) -> (url: URL, offset: Double, duration: Double)? {
-        guard let clip = player.recorder.clip(covering: e.start) else { return nil }
-        let url = player.recorder.dir.appendingPathComponent(clip.file)
-        let offset = e.start.timeIntervalSince(clip.start)
-        let duration = (e.end ?? Date()).timeIntervalSince(e.start)
-        return (url, offset, duration)
+        player.recorder.exportSource(for: e)
     }
 
     private func exportName(_ e: SongEntry) -> String {
@@ -495,14 +491,11 @@ struct DraggableSong: Transferable {
 
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .mpeg4Audio) { song in
-            guard let clip = song.recorder.clip(covering: song.entry.start) else {
+            guard let info = song.recorder.exportSource(for: song.entry) else {
                 throw SongExporter.ExportError.noSession
             }
-            let url = song.recorder.dir.appendingPathComponent(clip.file)
-            let offset = song.entry.start.timeIntervalSince(clip.start)
-            let duration = (song.entry.end ?? Date()).timeIntervalSince(song.entry.start)
-            let tmp = try await SongExporter.exportTemporary(source: url, offset: offset,
-                                                            duration: duration, name: song.fileBase)
+            let tmp = try await SongExporter.exportTemporary(source: info.url, offset: info.offset,
+                                                            duration: info.duration, name: song.fileBase)
             return SentTransferredFile(tmp)
         }
         .suggestedFileName { $0.fileName }

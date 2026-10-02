@@ -28,7 +28,6 @@
 "Optional — Standard ist nur das normale Fenster." = "Optional — Standard ist nur das normale Fenster.";
 "Aufnahme" = "Aufnahme";
 "Laufende Streams mitschneiden" = "Laufende Streams mitschneiden";
-"⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart." = "⚠️ Standardmäßig AN: zeichnet durchgehend auf (Roh-Audio). Stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart.";
 "Aufnahmen im Finder zeigen" = "Aufnahmen im Finder zeigen";
 "Sender Im-/Export (JSON)" = "Sender Im-/Export (JSON)";
 "Exportieren …" = "Exportieren …";
@@ -44,7 +43,6 @@
 "Visualizer & Audio-Berechtigung" = "Visualizer & Audio-Berechtigung";
 "Die Visualizer tanzen zur Musik. Dafür „hört“ die App ihre eigene Tonausgabe ab (System-Audio-Tap). Beim ersten Mal fragt macOS deshalb einmalig nach der Berechtigung, Audio aufzunehmen. Es wird kein Mikrofon verwendet und nichts mitgehört außer der eigenen Wiedergabe." = "Die Visualizer tanzen zur Musik. Dafür „hört“ die App ihre eigene Tonausgabe ab (System-Audio-Tap). Beim ersten Mal fragt macOS deshalb einmalig nach der Berechtigung, Audio aufzunehmen. Es wird kein Mikrofon verwendet und nichts mitgehört außer der eigenen Wiedergabe.";
 "Mitschnitt der Streams" = "Mitschnitt der Streams";
-"Ab Werk AN: Während des Hörens wird der Stream als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit abschaltbar — hier oder unter Einstellungen → Aufnahme." = "Ab Werk AN: Während des Hörens wird der Stream als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit abschaltbar — hier oder unter Einstellungen → Aufnahme.";
 "Aufnahme-Ordner zeigen" = "Aufnahme-Ordner zeigen";
 "Los geht's" = "Los geht's";
 
@@ -148,3 +146,7 @@
 "Exportziel darf nicht die Aufnahme sein." = "Exportziel darf nicht die Aufnahme sein.";
 
 "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen." = "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.";
+"Standardmäßig AUS. Wenn aktiviert: zeichnet durchgehend auf (Roh-Audio), stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart." = "Standardmäßig AUS. Wenn aktiviert: zeichnet durchgehend auf (Roh-Audio), stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart.";
+"Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar." = "Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar.";
+"%lld neue Sender aus „%@“ hinzugefügt." = "%lld neue Sender aus „%@“ hinzugefügt.";
+"„%@“: alle Sender bereits vorhanden." = "„%@“: alle Sender bereits vorhanden.";

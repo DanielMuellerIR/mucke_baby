@@ -151,7 +151,7 @@
   },
   {
     "enabled": true,
-    "favorite": true,
+    "favorite": false,
     "name": "Q-Dance Radio",
     "url": "https://playerservices.streamtheworld.com/api/livestream-redirect/Q_DANCE.mp3"
   },

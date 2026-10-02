@@ -50,6 +50,10 @@ struct MacRadioApp: App {
                 // Theme und ColorScheme ins Environment injizieren
                 .environment(\.theme, theme)
                 .preferredColorScheme(effectiveScheme)
+                .alert("Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.",
+                       isPresented: $store.persistenceFailed) {
+                    Button("OK", role: .cancel) {}
+                }
         }
         // Eigener Kopfbereich statt nativer Toolbar/Titel: hiddenTitleBar entfernt die
         // macOS-Titelleiste (und damit die erzwungenen Glas-Kapseln um Toolbar-Inhalte,
@@ -277,7 +281,7 @@ struct ContentView: View {
     // Startwert der Lautstaerke beim Beginn eines Knopf-Drags (knob-Themes). nil = kein Drag aktiv.
     @State private var knobDragStart: Double? = nil
     // Einmaliger Willkommens-Hinweis beim allerersten Start (Audio-Berechtigung +
-    // Default-AN-Mitschnitt erklaeren). Flag persistiert, damit er nur einmal kommt.
+    // optionalen Mitschnitt erklären). Flag persistiert, damit er nur einmal kommt.
     @AppStorage("didShowWelcome") private var didShowWelcome = false
     @State private var showingWelcome = false
     // Aktives Theme aus dem Environment (von MacRadioApp injiziert).

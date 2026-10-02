@@ -24,9 +24,12 @@ struct GenreListsView: View {
                     Spacer()
                     Button("Importieren") {
                         let n = store.importGenreList(list)
-                        message = n > 0
-                            ? "\(n) neue Sender aus „\(list.name)“ hinzugefügt."
-                            : "„\(list.name)“: alle Sender bereits vorhanden."
+                        if n < 0 { store.persistenceFailed = false }
+                        message = n < 0
+                            ? String(localized: "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.")
+                            : n > 0
+                            ? String(localized: "\(n) neue Sender aus „\(list.name)“ hinzugefügt.")
+                            : String(localized: "„\(list.name)“: alle Sender bereits vorhanden.")
                     }
                 }
             }
