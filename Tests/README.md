@@ -6,6 +6,12 @@ Nutzerdaten. Der Export-Harness erzeugt seine eigene PCM-Tonfixture; AVFoundatio
 muss auf die macOS-Mediendienste zugreifen können. Eine Sandbox kann diese Dienste
 oder den lokalen HTTP-Fixtureserver blockieren.
 
+Der AudioTap-Harness speist synthetische Samples direkt in die unveränderte
+Analyse ein; er öffnet kein CoreAudio-Gerät. `release-mount.py` führt den
+Mount-Abschnitt des Release-Skripts mit einem gemockten `hdiutil` nur in einem
+Temp-Verzeichnis aus. Er prüft Erfolg und Abbruch, ohne Volumes einzuhängen,
+zu signieren, zu notarisieren oder etwas zu installieren.
+
 `python3 Tests/export-codecs.py` benötigt `ffmpeg` und `ffprobe` im PATH. Der Lauf
 erzeugt zwölf Sekunden lange synthetische MP3-/AAC-/Ogg-/Opus-Töne in einem eigenen
 Temp-Verzeichnis. Der produktive Recorder schreibt die Bytes, SongExporter

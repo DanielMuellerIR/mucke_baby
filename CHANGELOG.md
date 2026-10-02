@@ -3,6 +3,20 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.9] - 2026-10-02
+### Fixed
+- Corrupt station, history and recording index files are preserved under unique backup names before replacement. Read or backup failures prevent subsequent overwrites.
+- Station deletion, reordering, visibility, favorites and imports publish changes only after successful storage. Failed actions report a storage error; catalogue results remain available.
+- Recording starts with the first audio bytes, excludes HTTP error responses and closes when its ICY connection ends. Failed initial index writes no longer leave unindexed recordings.
+- File and drag exports share recording boundaries and stop at the available media end, including faded exports after interrupted recordings.
+- ASX and XSPF playlists decode XML entities, accept UTF-8 BOMs and reject document type declarations and unrelated links.
+- Audio analysis clears previous samples and levels on stop and waits for real signal after restarting.
+- Initial station lists keep one favorite. English recording explanations and genre import feedback are localized. Screenshot runs restore the previous theme preference.
+- App bundles include the full VLCKit and Sparkle license texts. DMG creation uses a private temporary mountpoint and cleans up its mount after failure.
+
+### Tests
+- Regression coverage for persistence failures and recovery, ICY connection boundaries and error responses, export truncation, XML playlists, audio analysis reset and release mount cleanup.
+
 ## [1.8.8] - 2026-10-01
 ### Fixed
 - Station edits report storage failures and keep the editor open. Station data and exclusive favorites are published only after successful persistence.
