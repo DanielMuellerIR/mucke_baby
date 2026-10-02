@@ -39,6 +39,7 @@ final class Recorder: @unchecked Sendable {
     private var fileStart: Date?
     private var bytesSinceCheck = 0
     private var clips: [Clip] = []
+    private var indexWritable = true
 
     init(directory: URL? = nil, minimumFreeBytes: Int64 = Recorder.minFreeBytes,
          availableCapacity: (@Sendable () -> Int64?)? = nil) {
@@ -155,9 +156,20 @@ final class Recorder: @unchecked Sendable {
         q.sync { clips.first { $0.start <= date && (($0.end ?? Date.distantFuture) > date) } }
     }
 
+    // Verlauf kann nach Aufnahmeabbruch oder Crash länger als die Datei laufen.
+    // Dateiexport und Drag verwenden deshalb dieselbe begrenzte Zeitspanne.
+    func exportSource(for entry: SongEntry, now: Date = Date()) -> (url: URL, offset: Double, duration: Double)? {
+        guard let clip = clip(covering: entry.start) else { return nil }
+        let end = min(entry.end ?? now, clip.end ?? now)
+        let duration = end.timeIntervalSince(entry.start)
+        guard duration > 0.5 else { return nil }
+        return (dir.appendingPathComponent(clip.file), entry.start.timeIntervalSince(clip.start), duration)
+    }
+
     // MARK: - intern (immer auf q)
 
     private func _begin(station: String, ext: String, at date: Date) {
+        guard indexWritable else { return }
         _close(at: date)
         guard hasSpace() else { DispatchQueue.main.async { self.onLowDisk?() }; return }
         let name = fileName(station: station, date: date, ext: ext)
@@ -173,7 +185,15 @@ final class Recorder: @unchecked Sendable {
         }
         fileStart = date
         clips.append(Clip(file: name, station: station, start: date, end: nil, ext: ext))
-        saveIndex()
+        guard saveIndex() else {
+            // Ohne gespeicherten Index wäre diese neue Datei nach Neustart verwaist.
+            // Noch sind keine Audiobytes geschrieben; nur die eigene leere Datei entfernen.
+            try? handle?.close()
+            handle = nil; fileStart = nil
+            clips.removeLast()
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
     }
 
     private func _close(at date: Date) {
@@ -240,19 +260,24 @@ final class Recorder: @unchecked Sendable {
     }
 
     private func loadIndex() {
-        guard FileManager.default.fileExists(atPath: indexURL.path) else { return }
         do {
-            let data = try Data(contentsOf: indexURL)
-            let list = try JSONDecoder.iso.decode([Clip].self, from: data)
+            let list = try JSONFileRecovery.load([Clip].self, from: indexURL, decoder: .iso) ?? []
             // Unsichere Dateinamen sofort verwerfen (siehe isSafeClipFileName).
             clips = list.filter { Self.isSafeClipFileName($0.file) }
         } catch {
+            indexWritable = false
             log.error("loadIndex: Indexdatei \(self.indexURL.path, privacy: .public) unlesbar oder beschädigt: \(error.localizedDescription, privacy: .public)")
         }
     }
-    private func saveIndex() {
-        if let data = try? JSONEncoder.isoPretty.encode(clips) {
-            try? data.write(to: indexURL, options: .atomic)
+    @discardableResult
+    private func saveIndex() -> Bool {
+        guard indexWritable else { return false }
+        do {
+            try JSONEncoder.isoPretty.encode(clips).write(to: indexURL, options: .atomic)
+            return true
+        } catch {
+            log.error("saveIndex: Aufnahmeindex konnte nicht gespeichert werden: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 

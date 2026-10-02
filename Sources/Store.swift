@@ -13,10 +13,12 @@ enum StationSaveError: Error {
 @MainActor
 final class Store: ObservableObject {
     @Published private(set) var stations: [Station] = []
+    @Published var persistenceFailed = false
 
     let dir: URL
     let stationsURL: URL
     private let seedURL: URL?
+    private var canPersist = false
 
     init(directory: URL? = nil,
          seedURL: URL? = Bundle.main.url(forResource: "seed-stations", withExtension: "json")) {
@@ -42,26 +44,17 @@ final class Store: ObservableObject {
     // MARK: - Laden / Speichern
 
     func loadStations() {
-        if let data = try? Data(contentsOf: stationsURL) {
-            // Datei vorhanden: Dekodierung versuchen.
-            if let list = try? JSONDecoder().decode([Station].self, from: data) {
-                stations = list
-                return
-            }
-            // Datei vorhanden, aber nicht dekodierbar -> sichern statt ueberschreiben.
-            // Format: stations.json.broken-YYYY-MM-DD (ISO 8601, alphabetisch sortierbar).
-            let dateStr = ISO8601DateFormatter().string(from: Date()).prefix(10) // nur Datum
-            let backup = stationsURL.deletingLastPathComponent()
-                .appendingPathComponent("stations.json.broken-\(dateStr)")
-            // Eventuelle aeltere Sicherung desselben Tages einfach ueberschreiben (try? = ok).
-            try? FileManager.default.moveItem(at: stationsURL, to: backup)
-        }
-        // Keine Datei (oder kaputte Datei gesichert) -> aus Seed neu aufbauen.
-        stations = seededStations()
-        saveStations()
+        canPersist = false
+        let list: [Station]?
+        do { list = try JSONFileRecovery.load([Station].self, from: stationsURL) }
+        catch { persistenceFailed = true; return }
+        canPersist = true
+        if let list { stations = list; persistenceFailed = false }
+        else { _ = attemptCommit(seededStations()) }
     }
 
     private func persist(_ next: [Station]) throws {
+        guard canPersist else { throw StationSaveError.persistenceFailed }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
@@ -71,11 +64,20 @@ final class Store: ObservableObject {
         }
     }
 
-    private func saveStations() { try? persist(stations) }
-
     private func commitStations(_ next: [Station]) throws {
         try persist(next)
         stations = next
+    }
+
+    private func attemptCommit(_ next: [Station]) -> Bool {
+        do {
+            try commitStations(next)
+            persistenceFailed = false
+            return true
+        } catch {
+            persistenceFailed = true
+            return false
+        }
     }
 
     private func withExclusiveFavorite(_ next: [Station], station: Station) -> [Station] {
@@ -93,13 +95,22 @@ final class Store: ObservableObject {
     // generische Default-Liste zurueck (relevant fuer eine spaetere
     // GitHub-Veroeffentlichung ohne persoenliche Sender).
     private func seededStations() -> [Station] {
+        let seeds: [SeedStation]
         if let url = seedURL,
            let data = try? Data(contentsOf: url),
-           let seeds = try? JSONDecoder().decode([SeedStation].self, from: data),
-           !seeds.isEmpty {
-            return seeds.compactMap { try? validatedStation($0.toStation()) }
+           let decoded = try? JSONDecoder().decode([SeedStation].self, from: data),
+           !decoded.isEmpty {
+            seeds = decoded
+        } else {
+            seeds = Self.builtinDefaults
         }
-        return Self.builtinDefaults.compactMap { try? validatedStation($0.toStation()) }
+        var hasFavorite = false
+        return seeds.compactMap { seed in
+            guard var station = try? validatedStation(seed.toStation()) else { return nil }
+            station.favorite = station.favorite && !hasFavorite
+            hasFavorite = hasFavorite || station.favorite
+            return station
+        }
     }
 
     // Fallback, falls keine Seed-Datei gebuendelt ist.
@@ -141,33 +152,35 @@ final class Store: ObservableObject {
         try commitStations(withExclusiveFavorite(next, station: validated))
     }
 
-    func delete(_ station: Station) {
-        stations.removeAll { $0.id == station.id }
-        saveStations()
+    @discardableResult
+    func delete(_ station: Station) -> Bool {
+        attemptCommit(stations.filter { $0.id != station.id })
     }
 
     func delete(at offsets: IndexSet, in subset: [Station]) {
         // offsets beziehen sich auf die uebergebene Teilliste -> auf ids mappen.
         let ids = offsets.map { subset[$0].id }
-        stations.removeAll { ids.contains($0.id) }
-        saveStations()
+        _ = attemptCommit(stations.filter { !ids.contains($0.id) })
     }
 
     func move(from source: IndexSet, to destination: Int) {
-        stations.move(fromOffsets: source, toOffset: destination)
-        saveStations()
+        var next = stations
+        next.move(fromOffsets: source, toOffset: destination)
+        _ = attemptCommit(next)
     }
 
     func toggleEnabled(_ station: Station) {
         guard let i = stations.firstIndex(where: { $0.id == station.id }) else { return }
-        stations[i].enabled.toggle()
-        saveStations()
+        var next = stations
+        next[i].enabled.toggle()
+        _ = attemptCommit(next)
     }
 
     // Genau einen Favoriten setzen (alle anderen verlieren das Flag).
     func setFavorite(_ station: Station) {
-        for i in stations.indices { stations[i].favorite = (stations[i].id == station.id) }
-        saveStations()
+        var next = stations
+        for i in next.indices { next[i].favorite = (next[i].id == station.id) }
+        _ = attemptCommit(next)
     }
 
     // MARK: - Import (kuratierte Genre-Listen, Punkt 1)
@@ -186,23 +199,22 @@ final class Store: ObservableObject {
     }
 
     // Einzelnen Sender uebernehmen, falls seine URL noch nicht in der Liste ist.
-    // Rueckgabe: true = neu hinzugefuegt, false = Dublette (nichts passiert).
+    // true erst nach Speicherung; false bei Dublette, ungültiger URL oder Speicherfehler.
     @discardableResult
     func addIfNew(name: String, url: String) -> Bool {
         guard let validated = StreamURLPolicy.validatedURL(url),
               !containsURL(validated.absoluteString)
         else { return false }
-        stations.append(Station(name: name, url: validated.absoluteString,
-                                enabled: true, favorite: false))
-        saveStations()
-        return true
+        return attemptCommit(stations + [Station(name: name, url: validated.absoluteString,
+                                                 enabled: true, favorite: false)])
     }
 
     // Fuegt nur Sender hinzu, die per (normalisierter) URL noch nicht da sind.
-    // Gibt die Zahl der neu hinzugefuegten zurueck.
+    // Gibt die Zahl der neu hinzugefuegten zurück; -2 bei Speicherfehler.
     @discardableResult
     func importStations(_ seeds: [SeedStation]) -> Int {
         var seen = Set(stations.compactMap { normURL($0.url) })
+        var next = stations
         var added = 0
         for s in seeds {
             guard let validated = StreamURLPolicy.validatedURL(s.url),
@@ -211,11 +223,11 @@ final class Store: ObservableObject {
             if seen.contains(key) { continue }
             seen.insert(key)
             // Importierte Sender nie als Favorit uebernehmen.
-            stations.append(Station(name: s.name, url: validated.absoluteString,
+            next.append(Station(name: s.name, url: validated.absoluteString,
                                     enabled: true, favorite: false))
             added += 1
         }
-        if added > 0 { saveStations() }
+        if added > 0, !attemptCommit(next) { return -2 }
         return added
     }
 
@@ -260,7 +272,7 @@ final class Store: ObservableObject {
     }
 
     // JSON importieren (tolerant: SeedStation-Format). Fuegt neue Sender hinzu
-    // (Dubletten per URL uebersprungen). -1 = Datei nicht lesbar.
+    // (Dubletten per URL übersprungen). -1 = Datei nicht lesbar, -2 = Speicherfehler.
     func importData(_ data: Data) -> Int {
         guard let seeds = try? JSONDecoder().decode([SeedStation].self, from: data) else { return -1 }
         return importStations(seeds)

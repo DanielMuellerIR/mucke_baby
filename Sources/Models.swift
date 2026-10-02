@@ -58,6 +58,28 @@ enum AppInfo {
     static let version = "1.8.8"
 }
 
+enum JSONFileRecovery {
+    // Nur eine fehlende Datei gilt als leer. Beschädigte Inhalte müssen vor
+    // jeder Neubefüllung gesichert sein; Lese-/Sicherungsfehler sperren Schreiben.
+    static func load<Value: Decodable>(_ type: Value.Type, from url: URL,
+                                       decoder: JSONDecoder = JSONDecoder()) throws -> Value? {
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return nil
+        }
+        do {
+            return try decoder.decode(type, from: data)
+        } catch {
+            let date = ISO8601DateFormatter().string(from: Date()).prefix(10)
+            let backup = url.appendingPathExtension("broken-\(date)-\(UUID().uuidString)")
+            try FileManager.default.moveItem(at: url, to: backup)
+            return nil
+        }
+    }
+}
+
 /// Verschiebt einmalig den alten Daten-Ordner „MacRadio" auf den neuen Namen „MuckeBaby"
 /// (im jeweiligen Basis-Verzeichnis: Application Support bzw. Music), damit beim Umbenennen
 /// keine Sender/Verlauf/Aufnahmen verloren gehen. Idempotent: läuft nur, wenn der alte Ordner

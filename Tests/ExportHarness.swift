@@ -77,6 +77,12 @@ enum ExportHarness {
         check(try Data(contentsOf: target) == sentinel, "Abbruch hat vorhandenes Ziel verändert")
 
         for mode in [SongExporter.Mode.hardCut, .faded] {
+            try await SongExporter.export(source: source, offset: 2, duration: 60, mode: mode, to: target)
+            let truncated = try decode(target, duration: 10)
+            if mode == .faded {
+                check(rms(truncated.suffix(2400)) < rms(truncated[120_000..<122_400]) * 0.3,
+                      "Ausblendung liegt hinter dem tatsächlichen Audioende")
+            }
             try await SongExporter.export(source: source, offset: 2, duration: 5, mode: mode, to: target)
             let values = try decode(target, duration: 5)
             if mode == .faded {

@@ -36,17 +36,21 @@ final class SongHistory: ObservableObject {
     @Published private(set) var entries: [SongEntry] = []
 
     private let fileURL: URL
+    private var canPersist = true
     private let maxEntries = 2000
     // Aufraeum-Schwellen fuer kurze Eintraege (ICY-Glitches, Jingles, kurz
     // angespielte Sender / Mitschnitte). Stand 2026-06-07.
     private let shortImmediate: TimeInterval = 5    // < 5 s: sofort beim Schliessen weg
     private let shortLaunchQuit: TimeInterval = 20  // < 20 s: bei Start und Beenden weg
 
-    init() {
-        migrateLegacyAppDir(in: .applicationSupportDirectory)   // alten „MacRadio"-Ordner übernehmen
-        let dir = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MuckeBaby", isDirectory: true)
+    init(directory: URL? = nil) {
+        let dir: URL
+        if let directory { dir = directory }
+        else {
+            migrateLegacyAppDir(in: .applicationSupportDirectory)
+            dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("MuckeBaby", isDirectory: true)
+        }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("verlauf.json")
         load()
@@ -131,10 +135,12 @@ final class SongHistory: ObservableObject {
     // MARK: - Persistenz
 
     private func load() {
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder.iso.decode([SongEntry].self, from: data)
-        else { return }
-        entries = decoded
+        do {
+            entries = try JSONFileRecovery.load([SongEntry].self, from: fileURL, decoder: .iso) ?? []
+        } catch {
+            canPersist = false
+            return
+        }
         // Beim Start war evtl. ein Eintrag noch offen -> schliessen, damit kein
         // ueber Tage "laufender" Song stehen bleibt.
         closeCurrent()
@@ -143,6 +149,7 @@ final class SongHistory: ObservableObject {
     }
 
     private func save() {
+        guard canPersist else { return }
         guard let data = try? JSONEncoder.isoPretty.encode(entries) else { return }
         try? data.write(to: fileURL, options: .atomic)
     }

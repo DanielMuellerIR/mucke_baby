@@ -28,6 +28,13 @@ enum SongExporter {
         let tracks = (try? await asset.loadTracks(withMediaType: .audio)) ?? []
         try Task.checkCancellation()
         guard !tracks.isEmpty else { throw ExportError.notReadable }
+        // Wall-Clock-Zeit im Index kann durch Pufferung von der Medienlänge
+        // abweichen. Auch der gefadete Schnitt darf nie hinter das Audioende greifen.
+        let trackRange = try await tracks[0].load(.timeRange)
+        let available = CMTimeGetSeconds(CMTimeRangeGetEnd(trackRange)) - max(0, offset)
+        guard available.isFinite else { throw ExportError.notReadable }
+        let duration = min(duration, available)
+        guard duration > 0.5 else { throw ExportError.tooShort }
         let start = CMTime(seconds: max(0, offset), preferredTimescale: 600)
         let dur = CMTime(seconds: duration, preferredTimescale: 600)
         var exportAsset: AVAsset = asset

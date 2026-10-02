@@ -20,6 +20,44 @@ enum StoreHarness {
         check(store.stations[0].url == "https://example.com/Live?Token=AbC"
               && store.stations[0].favorite, "Seed muss gültige URLs und Flags erhalten")
 
+        let corruptRoot = root.appendingPathComponent("corrupt")
+        try FileManager.default.createDirectory(at: corruptRoot, withIntermediateDirectories: true)
+        let corruptURL = corruptRoot.appendingPathComponent("stations.json")
+        let damaged = Data("recoverable station fragment".utf8)
+        let date = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        let oldBackup = corruptRoot.appendingPathComponent("stations.json.broken-\(date)")
+        try Data("previous backup".utf8).write(to: oldBackup)
+        try damaged.write(to: corruptURL)
+        _ = Store(directory: corruptRoot, seedURL: seedURL)
+        let backups = try FileManager.default.contentsOfDirectory(at: corruptRoot, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("stations.json.broken-") }
+        check(try backups.contains { try Data(contentsOf: $0) == damaged },
+              "Defekte Senderdatei wurde bei vorhandener Tagessicherung überschrieben")
+        check(try Data(contentsOf: oldBackup) == Data("previous backup".utf8), "Vorherige Sicherung verändert")
+
+        let lockedRoot = root.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: lockedRoot, withIntermediateDirectories: true)
+        let lockedURL = lockedRoot.appendingPathComponent("stations.json")
+        try damaged.write(to: lockedURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: lockedRoot.path)
+        let locked = Store(directory: lockedRoot, seedURL: seedURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: lockedRoot.path)
+        check(try Data(contentsOf: lockedURL) == damaged, "Fehlgeschlagene Sicherung verlor Original")
+        do {
+            try locked.add(Station(name: "Unsaved", url: "https://example.com/live"))
+            fatalError("Fehlgeschlagene Sicherung erlaubte späteres Überschreiben")
+        } catch StationSaveError.persistenceFailed {}
+
+        let unreadableRoot = root.appendingPathComponent("unreadable")
+        let unreadableURL = unreadableRoot.appendingPathComponent("stations.json")
+        try FileManager.default.createDirectory(at: unreadableURL, withIntermediateDirectories: true)
+        let unreadable = Store(directory: unreadableRoot, seedURL: seedURL)
+        check(unreadable.stations.isEmpty, "Lesefehler darf keine Ersatzsender veröffentlichen")
+        do {
+            try unreadable.add(Station(name: "Unsaved", url: "https://example.com/live"))
+            fatalError("Ungeklärter Lesefehler erlaubte späteres Überschreiben")
+        } catch StationSaveError.persistenceFailed {}
+
         let invalidURLs = ["file:///tmp/audio.mp3", "ftp://example.com/stream", "https:///", "", "/stream"]
         for raw in invalidURLs {
             let before = try Data(contentsOf: store.stationsURL)
@@ -96,6 +134,17 @@ enum StoreHarness {
             fatalError("Speicherfehler der Bearbeitung wurde verschluckt")
         } catch StationSaveError.persistenceFailed {}
         check(store.stations == snapshot, "Fehlgeschlagene Speicherung verändert Sender/Favoriten")
+        check(!store.delete(snapshot[0]), "Löschen meldet trotz Speicherfehler Erfolg")
+        store.delete(at: IndexSet(integer: 0), in: snapshot)
+        store.move(from: IndexSet(integer: 0), to: snapshot.count)
+        store.toggleEnabled(snapshot[0])
+        store.setFavorite(snapshot.last!)
+        check(!store.addIfNew(name: "Catalog", url: "https://example.com/catalog"),
+              "Katalog meldet ungespeicherten Sender als hinzugefügt")
+        check(store.importData(Data("[{\"name\":\"Import\",\"url\":\"https://example.com/import\"}]".utf8)) == -2,
+              "Import meldet trotz Speicherfehler Erfolg")
+        check(store.stations == snapshot && store.persistenceFailed,
+              "Fehlgeschlagene Senderaktion verändert Zustand oder meldet keinen Speicherfehler")
         check(try Data(contentsOf: held.appendingPathComponent("stations.json")) == beforeFailure,
               "Fehlgeschlagene Speicherung verändert den Dateibestand")
 
@@ -108,6 +157,14 @@ enum StoreHarness {
         check(!fallback.stations.isEmpty && fallback.stations.allSatisfy {
             StreamURLPolicy.validatedURL($0.url) != nil
         }, "Fallback muss gültige Sender enthalten")
+        let favoritesURL = root.appendingPathComponent("favorites.json")
+        try Data("""
+        [{"name":"A","url":"https://example.com/a","favorite":true},
+         {"name":"B","url":"https://example.com/b","favorite":true}]
+        """.utf8).write(to: favoritesURL)
+        let favorites = Store(directory: root.appendingPathComponent("favorites"), seedURL: favoritesURL)
+        check(favorites.stations.filter(\.favorite).count == 1 && favorites.favorite?.name == "A",
+              "Erstbefüllung muss genau den ersten gültigen Favoriten behalten")
         print("StoreHarness: OK")
     }
 
