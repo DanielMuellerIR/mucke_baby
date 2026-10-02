@@ -12,6 +12,10 @@ Mount-Abschnitt des Release-Skripts mit einem gemockten `hdiutil` nur in einem
 Temp-Verzeichnis aus. Er prüft Erfolg und Abbruch, ohne Volumes einzuhängen,
 zu signieren, zu notarisieren oder etwas zu installieren.
 
+`release-publish.py` prüft die Zielauswahl und den Tag-Push mit temporären lokalen
+Git-Repositories. Mehrere Ziele werden abgewiesen; automatische zusätzliche Tags
+und ein gleichnamiger Branch dürfen nicht veröffentlicht werden.
+
 `python3 Tests/export-codecs.py` benötigt `ffmpeg` und `ffprobe` im PATH. Der Lauf
 erzeugt zwölf Sekunden lange synthetische MP3-/AAC-/Ogg-/Opus-Töne in einem eigenen
 Temp-Verzeichnis. Der produktive Recorder schreibt die Bytes, SongExporter

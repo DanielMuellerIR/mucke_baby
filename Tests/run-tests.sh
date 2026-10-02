@@ -56,3 +56,4 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -o "$BUILD/audio-tap-harness"
 "$BUILD/audio-tap-harness"
 python3 Tests/release-mount.py
+python3 Tests/release-publish.py

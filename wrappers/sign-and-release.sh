@@ -79,6 +79,20 @@ if [ ! -f "$BACKGROUND_SRC" ]; then
   exit 1
 fi
 if [ "$PUBLISH" = "1" ]; then
+  # Git kann mehrere Push-Ziele und automatische weitere Tags konfigurieren.
+  # Vor dem Build genau ein GitHub-Ziel binden; keine Zugangsdaten in argv.
+  PUSH_URLS=$(git -C "$PROJECT_ROOT" remote get-url --push --all github)
+  [ "$(printf '%s\n' "$PUSH_URLS" | awk 'NF { n++ } END { print n + 0 }')" -eq 1 ] \
+    || { echo "FEHLER: Genau ein GitHub-Push-Ziel erforderlich." >&2; exit 1; }
+  PUSH_URL=$(printf '%s\n' "$PUSH_URLS" | awk 'NF { print; exit }')
+  case "$PUSH_URL" in
+    https://github.com/*) REPO=${PUSH_URL#https://github.com/} ;;
+    git@github.com:*) REPO=${PUSH_URL#git@github.com:} ;;
+    *) echo "FEHLER: Unzulässiges GitHub-Push-Ziel." >&2; exit 1 ;;
+  esac
+  REPO=${REPO%.git}
+  [ "$REPO" = "DanielMuellerIR/mucke_baby" ] \
+    || { echo "FEHLER: Unerwartetes Release-Repository." >&2; exit 1; }
   # Ein veröffentlichtes DMG muss exakt dem getaggten Quellstand entsprechen.
   # Ein schmutziger Arbeitsbaum baut Quellen, die es in keinem Commit gibt —
   # deshalb VOR dem Bauen hart abbrechen, nicht erst beim Upload.
@@ -242,7 +256,6 @@ spctl --assess --type open --context context:primary-signature -v "$DMG_PATH"
 # opt-in, nicht Default.
 if [ "$PUBLISH" = "1" ]; then
   TAG="v${APP_VERSION}"
-  REPO="DanielMuellerIR/mucke_baby"
   echo "==> Veröffentliche GitHub-Release $TAG"
   command -v gh >/dev/null || { echo "FEHLER: gh CLI fehlt (brew install gh)" >&2; exit 1; }
 
@@ -293,7 +306,11 @@ if [ "$PUBLISH" = "1" ]; then
     echo "  Alten Tag pruefen/loeschen oder auf dem getaggten Stand neu bauen." >&2
     exit 1
   fi
-  git -C "$PROJECT_ROOT" push github "refs/tags/$TAG"
+  git -C "$PROJECT_ROOT" push --no-follow-tags "$PUSH_URL" "refs/tags/${TAG}:refs/tags/${TAG}"
+  LOCAL_TAG=$(git -C "$PROJECT_ROOT" rev-parse --verify "refs/tags/$TAG")
+  REMOTE_TAG=$(git -C "$PROJECT_ROOT" ls-remote --exit-code --tags "$PUSH_URL" "refs/tags/$TAG")
+  [ "$REMOTE_TAG" = "$(printf '%s\trefs/tags/%s' "$LOCAL_TAG" "$TAG")" ] \
+    || { echo "FEHLER: Veröffentlichtes Tag stimmt nicht mit dem lokalen Tag überein." >&2; exit 1; }
 
   # Veroeffentlichte Release-Dateien sind unveraenderlich. Frueher tauschte hier
   # ein `gh release upload --clobber` das DMG eines bestehenden Releases aus —

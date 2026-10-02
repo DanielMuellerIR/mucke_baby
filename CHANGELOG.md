@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Audio analysis clears previous samples and levels on stop and waits for real signal after restarting.
 - Initial station lists keep one favorite. English recording explanations and genre import feedback are localized. Screenshot runs restore the previous theme preference.
 - App bundles include the full VLCKit and Sparkle license texts. DMG creation uses a private temporary mountpoint and cleans up its mount after failure.
+- Publishing binds one GitHub destination, pushes only the requested release tag and verifies its remote object before uploading.
 
 ### Tests
 - Regression coverage for persistence failures and recovery, ICY connection boundaries and error responses, export truncation, XML playlists, audio analysis reset and release mount cleanup.
