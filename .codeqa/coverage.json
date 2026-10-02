@@ -2,10 +2,10 @@
   "format": "time-limited-review-v1",
   "format_note": "Eigenständiger dateibasierter Nachweis für einen zeitbegrenzten Review; kein Tokenbudget-Kampagnenformat von codeqa_state.py.",
   "started_at": "2026-10-02T14:55:14Z",
-  "recorded_at": "2026-10-02T15:43:31+00:00",
+  "recorded_at": "2026-10-02T15:54:26+00:00",
   "time_limit_seconds": 3600,
   "baseline_commit": "3c96646ac4dff34b96c8b1e3448377656d64e757",
-  "observed_head": "cfd064eebc1d9c38f67ea98a5f0474c87aa358ed",
+  "observed_head": "f111e92c36b5f9760bf3c6496fffeb9b558ea400",
   "product_version": "1.8.9",
   "report": "docs/reviews/2026-10-02.md",
   "architecture": {
@@ -154,7 +154,7 @@
       "id": "build-release-ci",
       "review": "full-source-and-boundaries",
       "outcome": "improved",
-      "fingerprint_sha256": "149e540d1ad6c70711f504a28e966376e2a77b642d7ce1d356da1653a562207b",
+      "fingerprint_sha256": "1e3abd7e847140ed78f0dab16d3bfd9c5e84bd798a0c5637c564603756003ab6",
       "files": [
         {
           "path": ".github/workflows/publish-appcast.yml",
@@ -202,15 +202,20 @@
         },
         {
           "path": "wrappers/sign-and-release.sh",
-          "sha256": "1cda43b7d4b3fbcc0649fb4f45333faf7930479711c323a180741aadc16f8b7b"
+          "sha256": "24f9bf8d39a6295f0cef82bd1f30f8259b1c0eeb2e79d19c7e3a299551a31c53"
         }
-      ]
+      ],
+      "follow_up": {
+        "observed_head": "f111e92c36b5f9760bf3c6496fffeb9b558ea400",
+        "date": "2026-10-02",
+        "summary": "Release-Push auf ein geprüftes Ziel und Tag begrenzt; lokale Repositories prüfen Zielablehnung, Follow-Tags und gleichnamige Branches."
+      }
     },
     {
       "id": "tests",
       "review": "full-source-and-boundaries",
       "outcome": "improved",
-      "fingerprint_sha256": "5fc2dee8daa425e4a27c7e7da5d292de0aab39e8aaaa45e07ed91e66c3c085a5",
+      "fingerprint_sha256": "5698e411ebcae584e4611c2bc40251f7e6883471e81f112efb4fb8d2603887b2",
       "files": [
         {
           "path": "Tests/AudioTapHarness.swift",
@@ -230,7 +235,7 @@
         },
         {
           "path": "Tests/README.md",
-          "sha256": "3b5e58d8e3b3e3068d1f62e71a6f908b2bb9b33cee42ba8f3f32103eaa6648fd"
+          "sha256": "36d140961b42c3be1f0d08ef1e18df450c2e3545f8b4433f58b21934fb915ba2"
         },
         {
           "path": "Tests/ReviewHarness.swift",
@@ -257,16 +262,25 @@
           "sha256": "122e5c09860cb7cd5079590014522ee8493ac457b321d63c15c1de8fa866aaa7"
         },
         {
+          "path": "Tests/release-publish.py",
+          "sha256": "3b4a91969f8f0a2acd2737cbcc1cc2d3d2a47656b760e719c67050b812c4f08a"
+        },
+        {
           "path": "Tests/run-tests.sh",
-          "sha256": "2f405da7c4a66bafeebc745f78473cdd48fb00f576ae4590896f6dcbb03e4586"
+          "sha256": "43d90f8700118fa207d3666e62324a0e01f440902229dfe430d5a40a7c632839"
         }
-      ]
+      ],
+      "follow_up": {
+        "observed_head": "f111e92c36b5f9760bf3c6496fffeb9b558ea400",
+        "date": "2026-10-02",
+        "summary": "Release-Push auf ein geprüftes Ziel und Tag begrenzt; lokale Repositories prüfen Zielablehnung, Follow-Tags und gleichnamige Branches."
+      }
     },
     {
       "id": "resources-and-contracts",
       "review": "full-source-and-boundaries",
       "outcome": "improved",
-      "fingerprint_sha256": "7b61f4e5c110fae1d38e1c01c20052e7f33a63295bcd9c55dfc84350da90827d",
+      "fingerprint_sha256": "84a4d3b643e474e60fc91a18a96fb10d4b2be55711c9dd9510a3ac711780c6b4",
       "files": [
         {
           "path": "BACKLOG.md",
@@ -274,7 +288,7 @@
         },
         {
           "path": "CHANGELOG.md",
-          "sha256": "82a7a10db97981aabf94482a278f2263c809b5427aca2e299f0b553ef2f00393"
+          "sha256": "acae8dcb4140a63eddae9bbe80a54566b3080481c1f02085275cc39c7213e174"
         },
         {
           "path": "LICENSE",
@@ -348,7 +362,12 @@
           "path": "icons/motifs.md",
           "sha256": "76eeb683367c26f463148f07f9d4fc18f7651f79d3b6bf39aa8edce3f05904d8"
         }
-      ]
+      ],
+      "follow_up": {
+        "observed_head": "f111e92c36b5f9760bf3c6496fffeb9b558ea400",
+        "date": "2026-10-02",
+        "summary": "Release-Push auf ein geprüftes Ziel und Tag begrenzt; lokale Repositories prüfen Zielablehnung, Follow-Tags und gleichnamige Branches."
+      }
     }
   ],
   "verification": [
@@ -358,7 +377,8 @@
     "FLEET_RULES_REQUIRE_ARTIFACT=1 bash Tests/fleet-rules.sh: passed",
     "SwiftUI offscreen runtime: de/en, seven themes at 940/660 points, standard light/dark, affected views",
     "Counterchecks: original store recovery, initial audio state and truncated-export fade fail new regressions; corrected code passes",
-    "git diff --check and shell/plist syntax: passed"
+    "git diff --check and shell/plist syntax: passed",
+    "ReleasePublishHarness: passed; local repositories, no network"
   ],
   "limitations": [
     "No interactive live VLC/CoreAudio or permission test in this review",
