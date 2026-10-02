@@ -9,12 +9,14 @@ enum ReviewHarness {
         try testRecordingIndexSafety()
         try testRecordingDeletionSkipsDirectories()
         try testRecordingLifecycle()
+        try testPersistenceRecovery()
         testURLPolicyAndIdentity()
         testLatestRequestWins()
         testPreviewSwitchDoesNotStopReplacement()
         testTerminalTransitionAllowsRestart()
         testPlayerEventsBelongToInstalledMedium()
         testNeedsResolutionClassifiesByPath()
+        testXMLPlaylists()
         await testResolveAgainstLocalFixtures()
         print("ReviewHarness: OK")
     }
@@ -27,6 +29,57 @@ enum ReviewHarness {
             FileHandle.standardError.write(Data("FEHLER: \(message)\n".utf8))
             exit(1)
         }
+    }
+
+    @MainActor
+    private static func testPersistenceRecovery() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("MuckeBaby-Recovery-\(UUID().uuidString)")
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+        let damaged = Data("recoverable partial JSON".utf8)
+        for name in ["recordings-index.json", "verlauf.json"] {
+            try damaged.write(to: root.appendingPathComponent(name))
+        }
+        let audio = root.appendingPathComponent("previous.mp3")
+        try Data([9, 8, 7]).write(to: audio)
+        let recorder = Recorder(directory: root, minimumFreeBytes: -1)
+        recorder.begin(station: "Fixture", contentType: "audio/mpeg")
+        recorder.write(Data([1, 2, 3])); recorder.end(); recorder.flush()
+        let history = SongHistory(directory: root)
+        history.note(station: "Fixture", raw: "New song")
+        let backups = try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.contains(".broken-") }
+        check(backups.count == 2, "Index und Verlauf wurden ohne Sicherung ersetzt")
+        for backup in backups {
+            let saved = try Data(contentsOf: backup)
+            check(saved == damaged, "Sicherung hat beschädigte Originaldaten verändert")
+        }
+        let originalAudio = try Data(contentsOf: audio)
+        check(originalAudio == Data([9, 8, 7]), "Index-Recovery hat alte Aufnahme verändert")
+
+        let blocked = root.appendingPathComponent("blocked")
+        try fm.createDirectory(at: blocked, withIntermediateDirectories: true)
+        let index = blocked.appendingPathComponent("recordings-index.json")
+        try damaged.write(to: index)
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: blocked.path)
+        let locked = Recorder(directory: blocked, minimumFreeBytes: -1)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: blocked.path)
+        locked.begin(station: "Must not start", contentType: "audio/mpeg")
+        locked.write(Data([4])); locked.end(); locked.flush()
+        check(locked.snapshot().isEmpty, "Sicherungsfehler muss neue Aufnahme verhindern")
+        let retained = try Data(contentsOf: index)
+        check(retained == damaged, "Sicherungsfehler hat alten Index überschrieben")
+
+        let failedIndexRoot = root.appendingPathComponent("index-write-failure")
+        let failedIndex = Recorder(directory: failedIndexRoot, minimumFreeBytes: -1)
+        try fm.createDirectory(at: failedIndexRoot.appendingPathComponent("recordings-index.json"),
+                               withIntermediateDirectories: true)
+        failedIndex.begin(station: "Fixture", contentType: "audio/mpeg")
+        failedIndex.write(Data([1, 2, 3])); failedIndex.end(); failedIndex.flush()
+        check(failedIndex.snapshot().isEmpty, "Index-Schreibfehler ließ neue Aufnahme im Speicher")
+        let files = try fm.contentsOfDirectory(atPath: failedIndexRoot.path)
+        check(files == ["recordings-index.json"], "Index-Schreibfehler hinterließ verwaiste Aufnahme")
     }
 
     private static func testRecordingLifecycle() throws {
@@ -92,6 +145,15 @@ enum ReviewHarness {
         let recovered = Recorder(directory: recoveryDirectory)
         check(recovered.snapshot().last?.end == start.addingTimeInterval(30), "Recovery kollabierte Zeitspanne")
         check(recovered.clip(covering: start.addingTimeInterval(20)) != nil, "Recovery verlor Song-Zuordnung")
+        var entry = SongEntry(station: "Recovery", raw: "Song", start: start.addingTimeInterval(10),
+                              end: start.addingTimeInterval(300))
+        let export = recovered.exportSource(for: entry)
+        check(export?.offset == 10 && export?.duration == 20, "Export überschreitet Ende des geborgenen Clips")
+        entry.end = nil
+        check(recovered.exportSource(for: entry, now: start.addingTimeInterval(600))?.duration == 20,
+              "Laufender Verlauf überschreitet Ende des aufgenommenen Clips")
+        entry.start = start.addingTimeInterval(29.75)
+        check(recovered.exportSource(for: entry) == nil, "Zu kurzer Rest wird exportiert")
         let recoveredBytes = try Data(contentsOf: url)
         check(recoveredBytes == Data([9, 8, 7]), "Recovery veränderte Aufnahmebytes")
         interrupted.end(at: start.addingTimeInterval(30))
@@ -356,6 +418,25 @@ enum ReviewHarness {
         check(needs("https://host/radio.xspf"), ".xspf-Endung wurde nicht aufgeloest")
     }
 
+    private static func testXMLPlaylists() {
+        let expected = "https://example.com/stream?user=x&token=y"
+        for xml in [
+            "<playlist xmlns=\"http://xspf.org/ns/0/\"><trackList><track><location>https://example.com/stream?user=x&amp;token=y</location></track></trackList></playlist>",
+            "<ASX><ENTRY><REF HREF='https://example.com/stream?user=x&#38;token=y'/></ENTRY></ASX>",
+            "\u{FEFF}<asx><entry><ref href='https://example.com/stream?user=x&amp;token=y'/></entry></asx>",
+            "<playlist><location><![CDATA[https://example.com/stream?user=x&token=y]]></location></playlist>"
+        ] {
+            check(PlaylistResolver.firstMediaURL(in: xml)?.absoluteString == expected,
+                  "XML-Playlist verändert Stream-Query")
+        }
+        check(PlaylistResolver.firstMediaURL(in: "<asx><ref href='file:///tmp/secret'/></asx>") == nil,
+              "XML umgeht URL-Policy")
+        check(PlaylistResolver.firstMediaURL(in: "<html><a href='https://example.com/'>Link</a></html>") == nil,
+              "Beliebiger XML-Link wird als Stream verwendet")
+        check(PlaylistResolver.firstMediaURL(in: "<!DOCTYPE playlist [<!ENTITY x SYSTEM 'file:///tmp/secret'>]><playlist><location>&x;</location></playlist>") == nil,
+              "XML-Playlist erlaubt fremde Entity-Inhalte")
+    }
+
     // Der asynchrone Produktionspfad resolve() gegen lokale HTTP-Fixtures:
     // Klassifikation, Rekursion, Redirect, fail-closed bei unsicheren Zielen,
     // Binaerinhalt, Schleifen und Fetch-Fehlern. Kein Kontakt nach aussen.
@@ -383,6 +464,7 @@ enum ReviewHarness {
             "/c.m3u": .init(body: "\(base)/d.m3u\n"),
             "/d.m3u": .init(body: "\(base)/e.m3u\n"),
             "/e.m3u": .init(body: "\(direct)\n"),
+            "/live.pls": .init(body: String(repeating: "x", count: 65536), continuesUntilCancelled: true),
         ]
 
         // check() nimmt eine synchrone Autoclosure -> Ergebnisse zuerst awaiten.
@@ -410,6 +492,11 @@ enum ReviewHarness {
         // Fetch-Fehler (Port 1 lehnt Verbindungen ab) => fail closed.
         let unreachable = await PlaylistResolver.resolve("http://127.0.0.1:1/x.pls")
         check(unreachable == nil, "Fetch-Fehler lieferte trotzdem eine URL")
+        let limited = await PlaylistResolver.fetchHead(URL(string: "\(base)/live.pls")!)
+        check(limited?.utf8.count == 65536, "Playlist-Limit überschritten")
+        let streamClosed = await Task.detached { server.streamClosed.wait(timeout: .now() + 3) == .success }.value
+        check(streamClosed,
+              "Playlist-Verbindung läuft nach Erreichen des Limits weiter")
     }
 
     private static func testPreviewSwitchDoesNotStopReplacement() {
@@ -506,10 +593,12 @@ final class FixtureServer: @unchecked Sendable {
         var status = "200 OK"
         var headers: [String] = []
         var body = ""
+        var continuesUntilCancelled = false
     }
 
     var responses: [String: Response] = [:]
     let port: UInt16
+    let streamClosed = DispatchSemaphore(value: 0)
 
     private let fd: Int32
     private let queue = DispatchQueue(label: "review-harness.fixture-server")
@@ -556,6 +645,8 @@ final class FixtureServer: @unchecked Sendable {
 
     private func handle(_ client: Int32) {
         defer { close(client) }
+        var noSignal: Int32 = 1
+        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
         // Timeout, damit eine Verbindung ohne (vollstaendige) Anfrage die serielle
         // accept-Schleife nicht dauerhaft blockiert.
         var timeout = timeval(tv_sec: 5, tv_usec: 0)
@@ -582,7 +673,7 @@ final class FixtureServer: @unchecked Sendable {
         let resp = responses[target]
             ?? Response(status: "404 Not Found", headers: [], body: "not found")
         var out = "HTTP/1.1 \(resp.status)\r\n"
-        out += "Content-Length: \(resp.body.utf8.count)\r\n"
+        if !resp.continuesUntilCancelled { out += "Content-Length: \(resp.body.utf8.count)\r\n" }
         out += "Connection: close\r\n"
         for header in resp.headers { out += header + "\r\n" }
         out += "\r\n" + resp.body
@@ -597,6 +688,17 @@ final class FixtureServer: @unchecked Sendable {
             }
             if written <= 0 { break }
             sent += written
+        }
+        if resp.continuesUntilCancelled {
+            let more = [UInt8](repeating: 120, count: 4096)
+            let deadline = Date(timeIntervalSinceNow: 4)
+            while Date() < deadline {
+                if more.withUnsafeBytes({ write(client, $0.baseAddress!, $0.count) }) <= 0 {
+                    streamClosed.signal()
+                    return
+                }
+                Thread.sleep(forTimeInterval: 0.01)
+            }
         }
     }
 }

@@ -5,6 +5,24 @@ final class ICYFixtureProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
+        if ["404", "503", "delayed", "metadata-tail"].contains(request.url!.lastPathComponent) {
+            let status = Int(request.url!.lastPathComponent) ?? 200
+            var headers = ["Content-Type": status == 200 ? "audio/mpeg" : "text/html"]
+            if request.url!.lastPathComponent == "metadata-tail" { headers["icy-metaint"] = "3" }
+            let response = HTTPURLResponse(url: request.url!, statusCode: status,
+                httpVersion: "HTTP/1.1", headerFields: headers)!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            Thread.sleep(forTimeInterval: 0.1)
+            client?.urlProtocol(self, didLoad: Data([1, 2, 3]))
+            Thread.sleep(forTimeInterval: 0.1)
+            if request.url!.lastPathComponent == "metadata-tail" {
+                var metadata = Array("StreamTitle='Last title';".utf8)
+                while metadata.count % 16 != 0 { metadata.append(0) }
+                client?.urlProtocol(self, didLoad: Data([UInt8(metadata.count / 16)] + metadata))
+            }
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         if request.url!.lastPathComponent == "fragmented" || request.url!.lastPathComponent == "audio-only" {
             let audioOnly = request.url!.lastPathComponent == "audio-only"
             var headers = ["Content-Type": "audio/mpeg"]
@@ -110,7 +128,7 @@ enum ICYHarness {
         check(titles == ["current"], "fremde Daten wurden als aktueller Titel geliefert")
         reader.stop()
         foreign.invalidateAndCancel()
-        // Response-Senke haelt unmittelbar vor recorder.begin an. stop muss
+        // Audio-Start-Senke haelt unmittelbar vor recorder.begin an. stop muss
         // diesen Aufruf abwarten, bevor der abschliessende end-Auftrag folgt.
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let recorder = Recorder(directory: directory, minimumFreeBytes: -1)
@@ -120,10 +138,10 @@ enum ICYHarness {
         let resume = DispatchSemaphore(value: 0)
         let finished = DispatchSemaphore(value: 0)
         racing.start(url: URL(string: "https://fixture.invalid/recording")!, allowAudioOnly: true,
-            onContentType: { contentType in
+            onStart: { contentType, startedAt in
                 entered.signal()
                 check(resume.wait(timeout: .now() + 5) == .success, "Callback-Freigabe fehlt")
-                recorder.begin(station: "Fixture", contentType: contentType)
+                recorder.begin(station: "Fixture", contentType: contentType, at: startedAt)
             }, onAudio: { recorder.write($0) })
         check(entered.wait(timeout: .now() + 5) == .success, "Response-Senke fehlt")
         DispatchQueue.global().async {
@@ -144,21 +162,50 @@ enum ICYHarness {
             let pipelineRecorder = Recorder(directory: pipelineDirectory, minimumFreeBytes: -1)
             let pipeline = ICYMetadataReader(configuration: configuration)
             let received = DispatchSemaphore(value: 0)
+            let completed = DispatchSemaphore(value: 0)
             var audioCount = 0
             pipeline.start(url: URL(string: "https://fixture.invalid/\(path)")!, allowAudioOnly: true,
-                onContentType: { pipelineRecorder.begin(station: "Fixture", contentType: $0) },
+                onStart: { pipelineRecorder.begin(station: "Fixture", contentType: $0, at: $1) },
                 onAudio: { data in
                     pipelineRecorder.write(data)
                     audioCount += data.count
                     if audioCount == 256 { received.signal() }
+                }, onCompletion: { endedAt in
+                    pipelineRecorder.end(at: endedAt)
+                    completed.signal()
                 })
             check(received.wait(timeout: .now() + 5) == .success, "fragmentierte Audio-Fixture unvollständig")
+            check(completed.wait(timeout: .now() + 5) == .success, "ICY-Ende wurde nicht gemeldet")
+            pipelineRecorder.flush()
+            check(pipelineRecorder.snapshot().first?.end != nil, "ICY-EOF ließ Recorder offen")
             pipeline.stop()
             pipelineRecorder.end(); pipelineRecorder.flush()
             let clip = pipelineRecorder.snapshot().first!
             let bytes = try! Data(contentsOf: pipelineDirectory.appendingPathComponent(clip.file))
             check(bytes == Data(UInt8.min...UInt8.max), "ICY-Metadaten gelangten in Aufnahme oder Audio ging verloren")
             check(clip.end != nil && clip.ext == "mp3", "ICY/Recorder-Codec oder Abschluss falsch")
+        }
+        for path in ["404", "503", "delayed", "metadata-tail"] {
+            let isolated = Recorder(directory: directory.appendingPathComponent(path), minimumFreeBytes: -1)
+            let pipeline = ICYMetadataReader(configuration: configuration)
+            let completed = DispatchSemaphore(value: 0)
+            let requestedAt = Date()
+            pipeline.start(url: URL(string: "https://fixture.invalid/\(path)")!, allowAudioOnly: true,
+                onStart: { isolated.begin(station: "Fixture", contentType: $0, at: $1) },
+                onAudio: { isolated.write($0) },
+                onCompletion: { date in isolated.end(at: date); completed.signal() })
+            check(completed.wait(timeout: .now() + 5) == .success, "Fehler/EOF-Senke fehlt")
+            isolated.flush()
+            if path == "delayed" || path == "metadata-tail" {
+                let clip = isolated.snapshot().first!
+                check(clip.start.timeIntervalSince(requestedAt) >= 0.08,
+                      "HTTP-Wartezeit gelangte in Aufnahmezeitachse")
+                check(clip.end!.timeIntervalSince(clip.start) < 0.08,
+                      "Wartezeit nach letztem Audio wurde als Aufnahme gespeichert")
+            } else {
+                check(isolated.snapshot().isEmpty, "HTTP-Fehlerseite wurde aufgenommen")
+            }
+            pipeline.stop()
         }
         print("ICYHarness: OK")
     }

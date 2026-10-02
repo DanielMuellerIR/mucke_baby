@@ -162,18 +162,22 @@ final class RadioPlayer: ObservableObject {
         let recorder = self.recorder
         let stationName = currentStation?.name ?? "Sender"
         let rec = Self.recordingEnabled
-        // B1: Bei aktivierter Aufnahme sofort einen Platzhalter-Verlaufseintrag anlegen,
-        // damit der Mitschnitt auch bei Sendern OHNE ICY-Titel ueber den Verlauf
-        // exportierbar ist. `sessionStart` wird unten an `begin()` durchgereicht, sodass
-        // Clip-Start == Platzhalter-Start gilt (Export-Offset 0, Clip deckt den Eintrag).
-        let sessionStart = Date()
-        if rec { history.beginSession(station: stationName, at: sessionStart) }
+        // Aufnahme und Platzhalter beginnen mit den ersten Audiobytes. Wartezeit
+        // für HTTP-Header gehört nicht in die Zeitachse der gespeicherten Datei.
         // Die Pro-Session-Senken werden an start() uebergeben (nicht als Property gesetzt),
         // damit der ICY-Reader sie intern queue-serialisiert halten kann (Race-frei beim
         // Senderwechsel).
         icy.start(url: url, allowAudioOnly: rec,
-                  onContentType: { ct in if rec { recorder.begin(station: stationName, contentType: ct, at: sessionStart) } },
-                  onAudio: { data in if rec { recorder.write(data) } })
+                  onStart: { [weak self] ct, startedAt in
+                      guard rec else { return }
+                      recorder.begin(station: stationName, contentType: ct, at: startedAt)
+                      DispatchQueue.main.async {
+                          guard let self, self.requests.accepts(generation), self.currentStreamURL != nil else { return }
+                          self.history.beginSession(station: stationName, at: startedAt)
+                      }
+                  },
+                  onAudio: { data in if rec { recorder.write(data) } },
+                  onCompletion: { endedAt in if rec { recorder.end(at: endedAt) } })
         // Nur Schema/Host/Pfad loggen: Query und Benutzerinfo koennen Tokens oder
         // Passwoerter enthalten und landeten frueher unmaskiert im Unified Log.
         log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(StreamURLPolicy.redactedForLog(url), privacy: .public)")

@@ -35,7 +35,7 @@ final class SongHistory {
 }
 final class Recorder {
     var onLowDisk: (() -> Void)?
-    func end() {}
+    func end(at: Date = Date()) {}
     func begin(station: String, contentType: String?, at: Date) {}
     func write(_ data: Data) {}
     func prune(olderThan: Date) {}
@@ -44,10 +44,15 @@ final class Recorder {
 final class ICYMetadataReader {
     var onTitle: ((String) -> Void)?
     func stop() {}
-    func start(url: URL, allowAudioOnly: Bool, onContentType: @escaping (String?) -> Void,
-               onAudio: @escaping (Data) -> Void) {}
+    func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
+               onAudio: @escaping (Data) -> Void, onCompletion: @escaping (Date) -> Void) {}
 }
-enum TestEvents { static let queue = DispatchQueue(label: "fixture.events", target: .main) }
+enum TestEvents {
+    static let queue = DispatchQueue(label: "fixture.events", target: .main)
+    static func enqueue(_ action: @escaping @MainActor @Sendable () -> Void) {
+        queue.async { MainActor.assumeIsolated(action) }
+    }
+}
 
 @main
 struct PlayerHarness {

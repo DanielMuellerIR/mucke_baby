@@ -10,12 +10,15 @@ import Foundation
 final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     var onTitle: ((String) -> Void)?          // einmal bei init gesetzt; Aufruf hopst auf Main
 
-    // Pro-Session-Senken (Content-Type / Audio-Bytes). Werden ueber start() gesetzt und
+    // Pro-Session-Senken (Audiobeginn / Audio-Bytes / Ende). Werden ueber start() gesetzt und
     // NUR auf `q` gelesen/geschrieben — frueher waren es offene `var`, die der Main-Thread
     // (RadioPlayer.start) beim Senderwechsel neu zuwies, waehrend eine noch auslaufende
     // Delegate-Callback der ALTEN Session sie las (Race auf der Closure-Referenz).
-    private var onContentType: ((String?) -> Void)?
+    private var onStart: ((String?, Date) -> Void)?
     private var onAudio: ((Data) -> Void)?
+    private var onCompletion: ((Date) -> Void)?
+    private var contentType: String?
+    private var lastAudioAt: Date?
 
     private var session: URLSession?          // nur Main-Thread (start/stop)
     private var task: URLSessionDataTask?     // nur Main-Thread (start/stop)
@@ -51,8 +54,9 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     }
 
     func start(url: URL, allowAudioOnly: Bool = false,
-               onContentType: ((String?) -> Void)? = nil,
-               onAudio: ((Data) -> Void)? = nil) {
+               onStart: ((String?, Date) -> Void)? = nil,
+               onAudio: ((Data) -> Void)? = nil,
+               onCompletion: ((Date) -> Void)? = nil) {
         stop()
         let cfg = configuration
         cfg.timeoutIntervalForRequest = 20
@@ -71,8 +75,10 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.parserTask = t
             self.parserGeneration = streamGeneration
             self.allowAudioOnly = allowAudioOnly
-            self.onContentType = onContentType
+            self.onStart = onStart
             self.onAudio = onAudio
+            self.onCompletion = onCompletion
+            self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
             self.inMeta = false; self.metaLeft = 0
             // codereview-ok: removeAll-keepingCapacity-Nuance ist harmlos, kein Verhaltensunterschied im Fehlerfall (2026-07-01)
@@ -92,8 +98,10 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         session?.invalidateAndCancel(); session = nil
         q.sync {
             self.parserTask = nil
-            self.onContentType = nil
+            self.onStart = nil
             self.onAudio = nil
+            self.onCompletion = nil
+            self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
             self.inMeta = false; self.metaLeft = 0
             self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
@@ -112,7 +120,11 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                 completionHandler(.cancel)
                 return
             }
-            self.onContentType?(contentType)
+            guard let http, (200..<300).contains(http.statusCode) else {
+                completionHandler(.cancel)
+                return
+            }
+            self.contentType = contentType
             if let v = metaintHeader, let n = Int(v), n > 0 {
                 self.metaint = n; self.skip = n; self.inMeta = false; self.audioOnly = false
                 completionHandler(.allow)
@@ -126,10 +138,11 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        let receivedAt = Date()
         q.async {
             guard self.parserTask === dataTask else { return }
-            if self.audioOnly { self.onAudio?(data); return }
-            guard self.metaint > 0 else { return }
+            guard !data.isEmpty, self.audioOnly || self.metaint > 0 else { return }
+            if self.audioOnly { self.emitAudio(data, at: receivedAt); return }
             // Chunk in Audio-Laufstuecke + Metadatenbloecke zerlegen.
             var audio = Data(); audio.reserveCapacity(data.count)
             for b in data {
@@ -140,14 +153,34 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                     else { self.inMeta = true; self.buf.removeAll(keepingCapacity: true) }
                 } else {
                     self.buf.append(b); self.metaLeft -= 1
-                    if self.metaLeft == 0 { self.parse(self.buf); self.inMeta = false; self.skip = self.metaint }
+                    if self.metaLeft == 0 {
+                        // Audiobeginn vor dem zugehörigen Titel auf Main melden.
+                        self.emitAudio(audio, at: receivedAt)
+                        audio.removeAll(keepingCapacity: true)
+                        self.parse(self.buf); self.inMeta = false; self.skip = self.metaint
+                    }
                 }
             }
-            if !audio.isEmpty { self.onAudio?(audio) }
+            self.emitAudio(audio, at: receivedAt)
         }
     }
 
+    private func emitAudio(_ data: Data, at date: Date) {
+        guard !data.isEmpty else { return }
+        if lastAudioAt == nil { onStart?(contentType, date) }
+        lastAudioAt = date
+        onAudio?(data)
+    }
+
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        q.async {
+            guard self.parserTask === task else { return }
+            // Hinter den letzten Audio-Bytes einreihen. Ein Timeout nach dem
+            // letzten Byte darf keine zusätzliche aufgenommene Zeit erfinden.
+            self.onCompletion?(self.lastAudioAt ?? Date())
+            self.parserTask = nil
+            self.onStart = nil; self.onAudio = nil; self.onCompletion = nil
+        }
         // Stream zu Ende / Fehler / Timeout -> die GERADE beendete Session freigeben
         // (sonst bliebe sie mit ihrer starken Referenz auf self samt Socket offen, bis
         // zufaellig ein externes stop()/start() kommt). Nur die lokale `session` anfassen,

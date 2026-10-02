@@ -38,7 +38,7 @@ final class AudioTap: ObservableObject {
     private var _level: Float = 0          // geglätteter RMS-Pegel 0…1
     private var _bands = [Float](repeating: 0, count: AudioTap.bandCount)
     private var _wave = [Float](repeating: 0, count: AudioTap.waveCount)   // Oszilloskop-Kurve −1…1
-    private var _silentRuns = 0            // aufeinanderfolgende stille Callback-Aufrufe
+    private var _silentRuns = 120          // vor dem ersten Signal als still behandeln
     private var _outputVolume: Float = 1   // App-Lautstaerke 0…1; wird aus dem Tap herausgerechnet
     private var loggedSignal = false       // einmaliges Log, sobald echtes Audio ankommt
 
@@ -201,10 +201,9 @@ final class AudioTap: ObservableObject {
             teardownTap(); return
         }
 
-        // isActive/loggedSignal/_silentRuns gemeinsam unter dem Lock setzen: isActive
-        // wird vom Main-Thread (reactive) gelesen, loggedSignal vom Audio-IO-Thread
-        // (feedMono) — beide brauchen denselben Lock wie _silentRuns.
-        os_unfair_lock_lock(&lock); isActive = true; loggedSignal = false; _silentRuns = 0; os_unfair_lock_unlock(&lock)
+        // Der IO-Proc kann bereits Samples geliefert haben. Seine Analysewerte
+        // hier nicht zurücksetzen; ohne Samples bleibt der Tap zunächst still.
+        os_unfair_lock_lock(&lock); isActive = true; os_unfair_lock_unlock(&lock)
         tapLog.notice("AudioTap: CoreAudio-Process-Tap gestartet (\(self.tapChannels) Kanäle). Wartet auf Signal …")
     }
 
@@ -215,6 +214,17 @@ final class AudioTap: ObservableObject {
             AudioDeviceDestroyIOProcID(aggregateID, p)
         }
         ioProcID = nil
+        // Erst nach dem letzten IO-Callback zurücksetzen: keine alten Samples
+        // oder geglätteten Pegel in den nächsten Sender übernehmen.
+        sampleRing = [Float](repeating: 0, count: fftSize)
+        ringFill = 0
+        os_unfair_lock_lock(&lock)
+        _level = 0
+        _bands = [Float](repeating: 0, count: Self.bandCount)
+        _wave = [Float](repeating: 0, count: Self.waveCount)
+        _silentRuns = 120
+        loggedSignal = false
+        os_unfair_lock_unlock(&lock)
         if aggregateID != AudioObjectID(kAudioObjectUnknown) {
             AudioHardwareDestroyAggregateDevice(aggregateID)
             aggregateID = AudioObjectID(kAudioObjectUnknown)

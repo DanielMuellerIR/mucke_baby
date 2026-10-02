@@ -69,6 +69,18 @@ enum PlaylistResolver {
 
     // Findet die erste Media-URL in PLS/M3U/ASX/XSPF-Inhalten.
     static func firstMediaURL(in text: String) -> URL? {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
+        if text.hasPrefix("<") {
+            // XML-Entities gehören zur Syntax, nicht zu den Query-Parametern.
+            // DTDs sind für Playlists unnötig; keine fremden Entity-Inhalte laden.
+            guard text.range(of: "<!DOCTYPE", options: .caseInsensitive) == nil else { return nil }
+            let parser = XMLParser(data: Data(text.utf8))
+            let delegate = PlaylistXMLReader()
+            parser.shouldProcessNamespaces = true
+            parser.shouldResolveExternalEntities = false
+            parser.delegate = delegate
+            return parser.parse() ? delegate.url : nil
+        }
         // PLS: Zeilen "FileN=http://..."
         for line in text.split(whereSeparator: \.isNewline) {
             let l = line.trimmingCharacters(in: .whitespaces)
@@ -88,18 +100,36 @@ enum PlaylistResolver {
             if l.isEmpty || l.hasPrefix("#") || l.hasPrefix("[") { continue }
             if let url = StreamURLPolicy.validatedURL(l) { return url }
         }
-        // ASX/XSPF: <location>URL</location> oder href="URL"
-        if let m = firstMatch(text, pattern: "(?:<location>|href=\")\\s*(https?://[^<\"\\s]+)") {
-            return StreamURLPolicy.validatedURL(m)
-        }
         return nil
     }
+}
 
-    static func firstMatch(_ text: String, pattern: String) -> String? {
-        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
-        let range = NSRange(text.startIndex..., in: text)
-        guard let m = re.firstMatch(in: text, range: range), m.numberOfRanges > 1,
-              let r = Range(m.range(at: 1), in: text) else { return nil }
-        return String(text[r])
+private final class PlaylistXMLReader: NSObject, XMLParserDelegate {
+    private(set) var url: URL?
+    private var location: String?
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?, attributes attributeDict: [String: String]) {
+        if elementName.lowercased() == "location" { location = "" }
+        if elementName.lowercased() == "ref", url == nil,
+           let href = attributeDict.first(where: { $0.key.lowercased() == "href" })?.value {
+            url = StreamURLPolicy.validatedURL(href)
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        location?.append(string)
+    }
+
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+        if let text = String(data: CDATABlock, encoding: .utf8) { location?.append(text) }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?) {
+        if elementName.lowercased() == "location" {
+            if url == nil, let location { url = StreamURLPolicy.validatedURL(location) }
+            location = nil
+        }
     }
 }

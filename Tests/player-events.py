@@ -8,7 +8,7 @@ build = root / 'build/tests'
 build.mkdir(parents=True, exist_ok=True)
 radio = (root / 'Sources/RadioPlayer.swift').read_text().replace('import VLCKit\n', '')
 # Steuerbare Ereigniszustellung ist die einzige Ersetzung innerhalb der Klasse.
-radio = radio.replace('DispatchQueue.main.async', 'TestEvents.queue.async')
+radio = radio.replace('DispatchQueue.main.async', 'TestEvents.enqueue')
 browser = (root / 'Sources/StationBrowser.swift').read_text()
 preview = browser[browser.index('@MainActor\nfinal class PreviewPlayer'):browser.index('// MARK: - Katalog-Sheet')]
 fixture = (root / 'Tests/PlayerFixture.swift').read_text()
