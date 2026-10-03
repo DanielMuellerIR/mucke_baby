@@ -75,7 +75,7 @@ final class RadioPlayer: ObservableObject {
 
     init() {
         // codereview-ok: icy/recorder sind app-lebenslange Member mit [weak self]-Closures — kein Retain-Cycle/Leak (2026-07-01)
-        icy.onTitle  = { [weak self] title in self?.setNowPlaying(title) }
+        icy.onTitle  = { [weak self] title, boundary in self?.setNowPlaying(title, at: boundary) }
         recorder.onLowDisk = { [weak self] in self?.lowDiskWarning = true }
     }
 
@@ -176,6 +176,7 @@ final class RadioPlayer: ObservableObject {
                           self.history.beginSession(station: stationName, at: startedAt)
                       }
                   },
+                  onBoundary: { _, boundary in if rec { recorder.songBoundary(at: boundary) } },
                   onAudio: { data in if rec { recorder.write(data) } },
                   onCompletion: { endedAt in if rec { recorder.end(at: endedAt) } })
         // Nur Schema/Host/Pfad loggen: Query und Benutzerinfo koennen Tokens oder
@@ -279,13 +280,11 @@ final class RadioPlayer: ObservableObject {
     }
 
     // Neuer ICY-Live-Titel -> Anzeige + Verlauf.
-    private func setNowPlaying(_ title: String) {
+    private func setNowPlaying(_ title: String, at boundary: Date) {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, t != nowPlayingTitle else { return }
         nowPlayingTitle = t
-        let boundary = Date()
         if let st = currentStation { history.note(station: st.name, raw: t, at: boundary) }
-        recorder.songBoundary(at: boundary)      // ggf. 24h-Rollover an Songgrenze
         log.notice("nowplaying \(t, privacy: .public)")
     }
 }

@@ -42,10 +42,10 @@ final class Recorder {
     func songBoundary(at: Date) {}
 }
 final class ICYMetadataReader {
-    var onTitle: ((String) -> Void)?
+    var onTitle: ((String, Date) -> Void)?
     func stop() {}
     func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
-               onAudio: @escaping (Data) -> Void, onCompletion: @escaping (Date) -> Void) {}
+               onBoundary: @escaping (String, Date) -> Void, onAudio: @escaping (Data) -> Void, onCompletion: @escaping (Date) -> Void) {}
 }
 enum TestEvents {
     static let queue = DispatchQueue(label: "fixture.events", target: .main)

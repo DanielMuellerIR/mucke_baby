@@ -10,6 +10,10 @@ enum ExportHarness {
         }
     }
 
+    private static func waitForRecording(_ semaphore: DispatchSemaphore) -> Bool {
+        semaphore.wait(timeout: .now() + 5) == .success
+    }
+
     static func rejects(_ operation: () async throws -> Void) async {
         do { try await operation(); check(false, "ungültiger Export wurde akzeptiert") }
         catch {}
@@ -134,6 +138,28 @@ enum ExportHarness {
 
         if let fixturePath = ProcessInfo.processInfo.environment["MUCKE_AUDIO_FIXTURES"] {
             let fixtures = URL(fileURLWithPath: fixturePath)
+            let config = URLSessionConfiguration.ephemeral
+            config.protocolClasses = [CompleteMP3Protocol.self]
+            let reader = ICYMetadataReader(configuration: config)
+            let full = Recorder(directory: root.appendingPathComponent("fast-mp3"), minimumFreeBytes: -1)
+            let finished = DispatchSemaphore(value: 0)
+            reader.start(url: fixtures.appendingPathComponent("tone.mp3"), allowAudioOnly: true,
+                onStart: { full.begin(station: "Fixture", contentType: $0, at: $1) },
+                onAudio: { full.write($0) },
+                onCompletion: { full.end(at: $0); finished.signal() })
+            let didFinish = await Task.detached { waitForRecording(finished) }.value
+            check(didFinish, "Gebündelte MP3-Fixture endet nicht")
+            full.flush()
+            let fullClip = full.snapshot()[0]
+            check(abs(fullClip.end!.timeIntervalSince(fullClip.start) - 12) < 0.15, "Aufnahmeende folgt Empfang statt zwölf Sekunden Audio")
+            let entry = SongEntry(station: "Fixture", raw: "Complete song", start: fullClip.start,
+                                  end: fullClip.start.addingTimeInterval(12))
+            guard let export = full.exportSource(for: entry) else { check(false, "Gebündelte Aufnahme nicht exportierbar"); return }
+            check(try Data(contentsOf: export.url) == Data(contentsOf: fixtures.appendingPathComponent("tone.mp3")), "Gebündelte Aufnahme verändert")
+            try await SongExporter.export(source: export.url, offset: export.offset, duration: export.duration, mode: .hardCut, to: target)
+            _ = try decode(target, duration: 12)
+            reader.stop()
+            print("ExportHarness: ICY-MP3 in einem Callback, zwölf Sekunden exportiert")
             for ext in ["mp3", "aac", "ogg", "opus"] {
                 let input = fixtures.appendingPathComponent("tone." + ext)
                 let bytes = try Data(contentsOf: input)
@@ -164,4 +190,17 @@ enum ExportHarness {
         }
         print("ExportHarness: OK")
     }
+}
+
+private final class CompleteMP3Protocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                      headerFields: ["Content-Type": "audio/mpeg"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: try! Data(contentsOf: request.url!))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }

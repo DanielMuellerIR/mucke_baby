@@ -5,6 +5,16 @@ final class ICYFixtureProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
+        if request.url!.lastPathComponent == "rollover" {
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                           headerFields: ["Content-Type": "audio/mpeg", "icy-metaint": "8"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            var metadata = Array("StreamTitle='New song';".utf8)
+            while metadata.count % 16 != 0 { metadata.append(0) }
+            client?.urlProtocol(self, didLoad: Data(Array(1...8).map(UInt8.init) + [UInt8(metadata.count / 16)] + metadata + Array(9...16).map(UInt8.init)))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         if ["404", "503", "delayed", "metadata-tail"].contains(request.url!.lastPathComponent) {
             let status = Int(request.url!.lastPathComponent) ?? 200
             var headers = ["Content-Type": status == 200 ? "audio/mpeg" : "text/html"]
@@ -85,7 +95,7 @@ enum ICYHarness {
         titleQueue.suspend()
         let reader = ICYMetadataReader(configuration: configuration, titleQueue: titleQueue)
         var titles: [String] = []
-        reader.onTitle = { titles.append($0) }
+        reader.onTitle = { title, _ in titles.append(title) }
         func start(_ title: String) {
             let parsed = DispatchSemaphore(value: 0)
             reader.start(url: URL(string: "https://fixture.invalid/\(title)")!,
@@ -207,6 +217,31 @@ enum ICYHarness {
             }
             pipeline.stop()
         }
+        let rollover = Recorder(directory: directory.appendingPathComponent("rollover"), minimumFreeBytes: -1)
+        let delayedTitles = DispatchQueue(label: "icy.test.rollover", target: .main)
+        delayedTitles.suspend()
+        let integrated = ICYMetadataReader(configuration: configuration, titleQueue: delayedTitles)
+        let done = DispatchSemaphore(value: 0)
+        var boundary: Date?
+        var shownBoundary: Date?
+        integrated.onTitle = { _, date in shownBoundary = date }
+        integrated.start(url: URL(string: "https://fixture.invalid/rollover")!, allowAudioOnly: true,
+            onStart: { rollover.begin(station: "Fixture", contentType: $0, at: $1.addingTimeInterval(-25 * 3600)) },
+            onBoundary: { _, date in boundary = date; rollover.songBoundary(at: date) },
+            onAudio: { rollover.write($0) },
+            onCompletion: { rollover.end(at: $0); done.signal() })
+        check(done.wait(timeout: .now() + 5) == .success, "Integrierter Rollover endet nicht")
+        rollover.flush()
+        let rolled = rollover.snapshot()
+        check(rolled.count == 2, "Rollover wartete auf Main-Titelzustellung")
+        check(shownBoundary == nil, "Titelqueue war nicht verzögert")
+        check(try! Data(contentsOf: rollover.dir.appendingPathComponent(rolled[0].file)) == Data(1...8), "Audio vor Grenze fehlt")
+        check(try! Data(contentsOf: rollover.dir.appendingPathComponent(rolled[1].file)) == Data(9...16), "Songanfang landete im alten Clip")
+        check(rolled[1].start == boundary, "Recorder benutzt anderen Grenzzeitpunkt")
+        delayedTitles.resume()
+        drainMain()
+        check(shownBoundary == boundary, "Verlaufstitel benutzt Zustell- statt Parserzeit")
+        integrated.stop()
         print("ICYHarness: OK")
     }
 }

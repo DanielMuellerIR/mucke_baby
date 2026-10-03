@@ -54,7 +54,7 @@ enum ThemeID: String, CaseIterable, Identifiable {
 enum ThemeLayout { case classic, console }
 
 /// Visualizer-Spielart in der Stage-Mitte (TimelineView-animiert, gated auf isPlaying).
-enum VisualizerStyle { case none, waveform, vu, fabric, midiNotes, bars }
+enum VisualizerStyle { case none, waveform, vu, midiNotes, bars }
 
 /// Bedien-Optik (Buttons, Slider, Sender-Marker).
 enum ControlStyle { case plain, neon, knob, stamp, hairline, terminal }

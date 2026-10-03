@@ -17,6 +17,7 @@ enum ReviewHarness {
         testPlayerEventsBelongToInstalledMedium()
         testNeedsResolutionClassifiesByPath()
         testXMLPlaylists()
+        await testXMLResponseEncoding()
         await testResolveAgainstLocalFixtures()
         print("ReviewHarness: OK")
     }
@@ -424,17 +425,36 @@ enum ReviewHarness {
             "<playlist xmlns=\"http://xspf.org/ns/0/\"><trackList><track><location>https://example.com/stream?user=x&amp;token=y</location></track></trackList></playlist>",
             "<ASX><ENTRY><REF HREF='https://example.com/stream?user=x&#38;token=y'/></ENTRY></ASX>",
             "\u{FEFF}<asx><entry><ref href='https://example.com/stream?user=x&amp;token=y'/></entry></asx>",
-            "<playlist><location><![CDATA[https://example.com/stream?user=x&token=y]]></location></playlist>"
+            "<playlist><trackList><track><location><![CDATA[https://example.com/stream?user=x&token=y]]></location></track></trackList></playlist>"
         ] {
             check(PlaylistResolver.firstMediaURL(in: xml)?.absoluteString == expected,
                   "XML-Playlist verändert Stream-Query")
         }
+        for xml in [
+            "<playlist xmlns='http://xspf.org/ns/0/' xmlns:v='https://vendor.example/'><extension><v:location>https://example.com/metadata</v:location></extension><trackList><track><location>https://example.com/audio.mp3</location></track></trackList></playlist>",
+            "<playlist xmlns='http://xspf.org/ns/0/'><location>https://example.com/source.xspf</location><trackList><track><location>https://example.com/audio.mp3</location></track></trackList></playlist>"
+        ] {
+            check(PlaylistResolver.firstMediaURL(in: xml)?.absoluteString == "https://example.com/audio.mp3", "XSPF-Metadaten wurden als Track verwendet")
+        }
+        check(PlaylistResolver.firstMediaURL(in: "<playlist xmlns='http://xspf.org/ns/0/'><trackList><track><location xmlns='https://vendor.example/'>https://example.com/not-a-track</location></track></trackList></playlist>") == nil, "Fremder Namespace wurde als XSPF-Media akzeptiert")
+        check(PlaylistResolver.firstMediaURL(in: "<asx><ref href='https://example.com/metadata'/></asx>") == nil, "ASX-REF außerhalb ENTRY wurde als Media akzeptiert")
         check(PlaylistResolver.firstMediaURL(in: "<asx><ref href='file:///tmp/secret'/></asx>") == nil,
               "XML umgeht URL-Policy")
         check(PlaylistResolver.firstMediaURL(in: "<html><a href='https://example.com/'>Link</a></html>") == nil,
               "Beliebiger XML-Link wird als Stream verwendet")
         check(PlaylistResolver.firstMediaURL(in: "<!DOCTYPE playlist [<!ENTITY x SYSTEM 'file:///tmp/secret'>]><playlist><location>&x;</location></playlist>") == nil,
               "XML-Playlist erlaubt fremde Entity-Inhalte")
+    }
+
+    private static func testXMLResponseEncoding() async {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [XMLResponseProtocol.self]
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        for encoding in ["latin1", "utf8"] {
+            let resolved = await PlaylistResolver.resolve("https://fixture.invalid/\(encoding).asx", session: session)
+            check(resolved?.absoluteString == "https://example.com/caf%C3%A9", "XML-Response wurde doppelt dekodiert: \(encoding)")
+        }
     }
 
     // Der asynchrone Produktionspfad resolve() gegen lokale HTTP-Fixtures:
@@ -493,7 +513,7 @@ enum ReviewHarness {
         let unreachable = await PlaylistResolver.resolve("http://127.0.0.1:1/x.pls")
         check(unreachable == nil, "Fetch-Fehler lieferte trotzdem eine URL")
         let limited = await PlaylistResolver.fetchHead(URL(string: "\(base)/live.pls")!)
-        check(limited?.utf8.count == 65536, "Playlist-Limit überschritten")
+        check(limited?.count == 65536, "Playlist-Limit überschritten")
         let streamClosed = await Task.detached { server.streamClosed.wait(timeout: .now() + 3) == .success }.value
         check(streamClosed,
               "Playlist-Verbindung läuft nach Erreichen des Limits weiter")
@@ -714,4 +734,20 @@ private final class FixtureCapacity: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         bytes = value
     }
+}
+
+private final class XMLResponseProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let latin = request.url!.lastPathComponent == "latin1.asx"
+        let encoding = latin ? "ISO-8859-1" : "UTF-8"
+        let xml = "<?xml version='1.0' encoding='\(encoding)'?><asx><entry><ref href='https://example.com/café'/></entry></asx>"
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                                      headerFields: ["Content-Type": "video/x-ms-asf"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: xml.data(using: latin ? .isoLatin1 : .utf8)!)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }

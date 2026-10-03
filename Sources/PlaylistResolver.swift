@@ -1,23 +1,23 @@
 import Foundation
 
 // Loest Playlist-URLs (.pls/.m3u/.asx/.xspf, radiotime Tune.ashx) zur
-// eigentlichen Stream-URL auf. AVPlayer kann diese Container nicht direkt
-// abspielen — er braucht die rohe mp3/aac/HLS-URL.
+// eigentlichen Stream-URL auf. Ziele vor Übergabe an VLC prüfen, damit
+// Playlist-Container keine ungeprüften lokalen Ressourcen öffnen.
 enum PlaylistResolver {
 
     // Liefert ausschliesslich eine von StreamURLPolicy erlaubte Web-URL. Ein
     // erkannter Playlist-Container wird fail-closed behandelt: Kann sein Ziel
     // nicht sicher aufgeloest werden, bekommt VLC nicht den rohen Container und
     // kann dadurch auch kein file:/ oder anderes lokales Ziel selbst verfolgen.
-    static func resolve(_ raw: String, depth: Int = 0) async -> URL? {
+    static func resolve(_ raw: String, depth: Int = 0, session: URLSession = .shared) async -> URL? {
         guard let url = StreamURLPolicy.validatedURL(raw) else { return nil }
         if depth > 3 { return nil }                 // Schutz gegen Endlos-Verschachtelung
         guard needsResolution(url) else { return url }
-        guard let text = await fetchHead(url) else { return nil }
-        guard let inner = firstMediaURL(in: text) else { return nil }
+        guard let data = await fetchHead(url, session: session) else { return nil }
+        guard let inner = firstMediaURL(in: data) else { return nil }
         if inner.absoluteString == url.absoluteString { return nil }
         // Playlist kann auf weitere Playlist zeigen -> rekursiv aufloesen.
-        return await resolve(inner.absoluteString, depth: depth + 1)
+        return await resolve(inner.absoluteString, depth: depth + 1, session: session)
     }
 
     // Heuristik: nur fetchen, wenn die URL nach Playlist aussieht. Entscheidend
@@ -44,7 +44,7 @@ enum PlaylistResolver {
 
     // Nur die ersten ~64 KB laden, damit ein faelschlich als Playlist
     // erkannter Audio-Stream nicht komplett heruntergeladen wird.
-    static func fetchHead(_ url: URL) async -> String? {
+    static func fetchHead(_ url: URL, session: URLSession = .shared) async -> Data? {
         var req = URLRequest(url: url)
         req.setValue("bytes=0-65535", forHTTPHeaderField: "Range")
         req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
@@ -55,13 +55,14 @@ enum PlaylistResolver {
             // fehlerkannten Live-Stream endlosen — Body in den RAM (OOM). Darum die
             // Bytes streamen und nach 64 KB abbrechen; die Verbindung wird dann beim
             // Verwerfen der Sequenz geschlossen.
-            let (bytes, _) = try await URLSession.shared.bytes(for: req)
+            let (bytes, _) = try await session.bytes(for: req)
+            defer { bytes.task.cancel() }
             var data = Data(); data.reserveCapacity(65536)
             for try await b in bytes {
                 data.append(b)
                 if data.count >= 65536 { break }
             }
-            return String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
+            return data
         } catch {
             return nil
         }
@@ -69,12 +70,22 @@ enum PlaylistResolver {
 
     // Findet die erste Media-URL in PLS/M3U/ASX/XSPF-Inhalten.
     static func firstMediaURL(in text: String) -> URL? {
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
+        // Der String wurde bereits dekodiert. Eine alte XML-Encoding-Angabe
+        // darf die erneut erzeugten UTF-8-Bytes nicht ein zweites Mal dekodieren.
+        var text = text
+        if let declaration = text.range(of: "<?xml"),
+           let end = text.range(of: "?>", range: declaration.lowerBound..<text.endIndex) {
+            text.removeSubrange(declaration.lowerBound..<end.upperBound)
+        }
+        return firstMediaURL(in: Data(text.utf8))
+    }
+
+    static func firstMediaURL(in data: Data) -> URL? {
+        guard let decoded = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { return nil }
+        let text = decoded.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
         if text.hasPrefix("<") {
-            // XML-Entities gehören zur Syntax, nicht zu den Query-Parametern.
-            // DTDs sind für Playlists unnötig; keine fremden Entity-Inhalte laden.
             guard text.range(of: "<!DOCTYPE", options: .caseInsensitive) == nil else { return nil }
-            let parser = XMLParser(data: Data(text.utf8))
+            let parser = XMLParser(data: data)
             let delegate = PlaylistXMLReader()
             parser.shouldProcessNamespaces = true
             parser.shouldResolveExternalEntities = false
@@ -107,29 +118,42 @@ enum PlaylistResolver {
 private final class PlaylistXMLReader: NSObject, XMLParserDelegate {
     private(set) var url: URL?
     private var location: String?
+    private var path: [String] = []
+    private var namespaces: [String] = []
+    private let xspfNamespace = "http://xspf.org/ns/0/"
+
+    private var isTrackLocation: Bool {
+        path == ["playlist", "tracklist", "track", "location"]
+            && namespaces.allSatisfy { $0 == xspfNamespace || $0.isEmpty }
+            && Set(namespaces).count == 1
+    }
 
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
                 qualifiedName qName: String?, attributes attributeDict: [String: String]) {
-        if elementName.lowercased() == "location" { location = "" }
-        if elementName.lowercased() == "ref", url == nil,
+        path.append(elementName.lowercased())
+        namespaces.append(namespaceURI ?? "")
+        if isTrackLocation { location = "" }
+        if path == ["asx", "entry", "ref"], namespaces.allSatisfy(\.isEmpty), url == nil,
            let href = attributeDict.first(where: { $0.key.lowercased() == "href" })?.value {
             url = StreamURLPolicy.validatedURL(href)
         }
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
-        location?.append(string)
+        if isTrackLocation { location?.append(string) }
     }
 
     func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
-        if let text = String(data: CDATABlock, encoding: .utf8) { location?.append(text) }
+        if isTrackLocation, let text = String(data: CDATABlock, encoding: .utf8) { location?.append(text) }
     }
 
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?,
                 qualifiedName qName: String?) {
-        if elementName.lowercased() == "location" {
+        if isTrackLocation {
             if url == nil, let location { url = StreamURLPolicy.validatedURL(location) }
             location = nil
         }
+        path.removeLast()
+        namespaces.removeLast()
     }
 }

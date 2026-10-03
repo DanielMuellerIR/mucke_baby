@@ -8,13 +8,14 @@ import Foundation
 //  - kein `icy-metaint` => reiner Audio-Stream; nur weiterlesen, wenn fuer die
 //    Aufnahme gebraucht (allowAudioOnly), sonst abbrechen.
 final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
-    var onTitle: ((String) -> Void)?          // einmal bei init gesetzt; Aufruf hopst auf Main
+    var onTitle: ((String, Date) -> Void)?          // einmal bei init gesetzt; Aufruf hopst auf Main
 
-    // Pro-Session-Senken (Audiobeginn / Audio-Bytes / Ende). Werden ueber start() gesetzt und
+    // Pro-Session-Senken (Audiobeginn / Songgrenze / Audio-Bytes / Ende). Werden ueber start() gesetzt und
     // NUR auf `q` gelesen/geschrieben — frueher waren es offene `var`, die der Main-Thread
     // (RadioPlayer.start) beim Senderwechsel neu zuwies, waehrend eine noch auslaufende
     // Delegate-Callback der ALTEN Session sie las (Race auf der Closure-Referenz).
     private var onStart: ((String?, Date) -> Void)?
+    private var onBoundary: ((String, Date) -> Void)?
     private var onAudio: ((Data) -> Void)?
     private var onCompletion: ((Date) -> Void)?
     private var contentType: String?
@@ -55,6 +56,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
 
     func start(url: URL, allowAudioOnly: Bool = false,
                onStart: ((String?, Date) -> Void)? = nil,
+               onBoundary: ((String, Date) -> Void)? = nil,
                onAudio: ((Data) -> Void)? = nil,
                onCompletion: ((Date) -> Void)? = nil) {
         stop()
@@ -76,6 +78,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.parserGeneration = streamGeneration
             self.allowAudioOnly = allowAudioOnly
             self.onStart = onStart
+            self.onBoundary = onBoundary
             self.onAudio = onAudio
             self.onCompletion = onCompletion
             self.contentType = nil; self.lastAudioAt = nil
@@ -99,7 +102,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         q.sync {
             self.parserTask = nil
             self.onStart = nil
-            self.onAudio = nil
+            self.onAudio = nil; self.onBoundary = nil
             self.onCompletion = nil
             self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
@@ -157,7 +160,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                         // Audiobeginn vor dem zugehörigen Titel auf Main melden.
                         self.emitAudio(audio, at: receivedAt)
                         audio.removeAll(keepingCapacity: true)
-                        self.parse(self.buf); self.inMeta = false; self.skip = self.metaint
+                        self.parse(self.buf, at: receivedAt); self.inMeta = false; self.skip = self.metaint
                     }
                 }
             }
@@ -179,7 +182,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             // letzten Byte darf keine zusätzliche aufgenommene Zeit erfinden.
             self.onCompletion?(self.lastAudioAt ?? Date())
             self.parserTask = nil
-            self.onStart = nil; self.onAudio = nil; self.onCompletion = nil
+            self.onStart = nil; self.onAudio = nil; self.onBoundary = nil; self.onCompletion = nil
         }
         // Stream zu Ende / Fehler / Timeout -> die GERADE beendete Session freigeben
         // (sonst bliebe sie mit ihrer starken Referenz auf self samt Socket offen, bis
@@ -188,7 +191,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         session.finishTasksAndInvalidate()
     }
 
-    private func parse(_ bytes: [UInt8]) {
+    private func parse(_ bytes: [UInt8], at date: Date) {
         // Die Marker `StreamTitle='` und `';` sind reines ASCII => direkt in den
         // Roh-Bytes suchen. So gehen die eigentlichen Titel-Bytes unangetastet
         // an den encoding-toleranten Decoder (wichtig fuer Shift-JIS u.ae.).
@@ -201,10 +204,13 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         let title = decodeICY(titleBytes).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title != lastTitle else { return }
         lastTitle = title
+        // Vor den folgenden Audio-Bytes auf derselben Parser-Queue melden.
+        // Ein verzögerter Main-Titel darf den Recorder-Rollover nicht verschieben.
+        onBoundary?(title, date)
         let streamGeneration = parserGeneration
         titleQueue.async {
             guard self.generation == streamGeneration, self.task != nil else { return }
-            self.onTitle?(title)
+            self.onTitle?(title, date)
         }
     }
 

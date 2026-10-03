@@ -95,13 +95,6 @@ final class AudioTap: ObservableObject {
         return _silentRuns < 120        // ~1–2 s Stille → als „kein Signal" werten
     }
 
-    /// Verstärkungsfaktor für die Visualizer: bei echtem Signal aus dem Pegel (leise→klein,
-    /// laut→voll), sonst 1.0 (reine Zeit-Animation wie bisher).
-    var gain: Float {
-        guard reactive else { return 1.0 }
-        return 0.18 + 0.82 * min(1, level)
-    }
-
     // MARK: Steuerung — Tap läuft, solange ein Sender spielt
 
     /// Aktuelle Hoer-Lautstaerke der App. Der Process-Tap sieht das Signal NACH diesem Regler;

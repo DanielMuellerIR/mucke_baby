@@ -3,6 +3,16 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.10] - 2026-10-03
+### Fixed
+- Completed readable recordings use their audio duration instead of callback arrival times, keeping bundled stream responses exportable.
+- Recording rollover runs at the ICY parser's song boundary before subsequent audio writes. History receives the same boundary timestamp even when title delivery is delayed.
+- XML playlists retain their original bytes and encoding declaration. XSPF track locations and ASX entry references are distinguished from metadata and foreign extensions.
+- Removed an unused visualizer gain accessor and the unreachable fabric visualizer; the Danish theme retains its existing bars and texture.
+
+### Tests
+- Actual Latin-1 and UTF-8 XML responses, XSPF namespaces and element paths, delayed-title ICY rollover, and complete twelve-second MP3 recording/export.
+
 ## [1.8.9] - 2026-10-02
 ### Fixed
 - Corrupt station, history and recording index files are preserved under unique backup names before replacement. Read or backup failures prevent subsequent overwrites.

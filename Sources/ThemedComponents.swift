@@ -683,13 +683,6 @@ public struct VisualizerView: View {
                 audioTap: audioTap
             )
 
-        case .fabric:
-            FabricVisualizer(
-                isPlaying: isPlaying,
-                accentTexture: theme.accentTexture,
-                fallbackColor: theme.palette.accent.opacity(0.6)
-            )
-
         case .midiNotes:
             MidiNotesVisualizer(
                 isPlaying: isPlaying,
@@ -1104,124 +1097,6 @@ private struct NeedleShape: Shape {
         path.move(to: CGPoint(x: cx, y: cy))
         path.addLine(to: CGPoint(x: cx + dx, y: cy + dy))
         return path
-    }
-}
-
-// MARK: - FabricVisualizer
-
-/// Runde, stoffbespannte Lautsprecherscheibe mit dezenter Atem-Animation.
-private struct FabricVisualizer: View {
-
-    let isPlaying: Bool
-    let accentTexture: String?
-    let fallbackColor: Color
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-            // Pulsieren: sehr langsam, subtil
-            let t = context.date.timeIntervalSinceReferenceDate
-            let pulse = isPlaying
-                ? 1.0 + CGFloat(sin(t * 1.2)) * 0.025
-                : 1.0
-
-            GeometryReader { geo in
-                let diameter = min(geo.size.width, geo.size.height) * 0.85
-                ZStack {
-                    // Äußerer Rahmen (Lautsprecherrahmen)
-                    Circle()
-                        .strokeBorder(fallbackColor.opacity(0.4), lineWidth: 3)
-                        .frame(width: diameter, height: diameter)
-
-                    // Stoff-Füllung: Textur oder generiertes Webmuster
-                    FabricDiscContent(
-                        accentTexture: accentTexture,
-                        fallbackColor: fallbackColor,
-                        diameter: diameter * 0.92
-                    )
-                    .scaleEffect(pulse)
-                    .animation(.easeInOut(duration: 0.8), value: pulse)
-
-                    // Zentrale Staubkappe (kleiner Kreis in der Mitte)
-                    Circle()
-                        .fill(fallbackColor.opacity(0.5))
-                        .frame(width: diameter * 0.14, height: diameter * 0.14)
-                    Circle()
-                        .strokeBorder(fallbackColor.opacity(0.3), lineWidth: 1)
-                        .frame(width: diameter * 0.14, height: diameter * 0.14)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-    }
-}
-
-/// Innere Stoff-Füllung der Lautsprecherscheibe.
-private struct FabricDiscContent: View {
-    let accentTexture: String?
-    let fallbackColor: Color
-    let diameter: CGFloat
-
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        if let img = theme.image(accentTexture) {
-            // Echte Stoff-Textur wenn vorhanden
-            img.resizable()
-                .scaledToFill()
-                .frame(width: diameter, height: diameter)
-                .clipShape(Circle())
-        } else {
-            // Generiertes Webmuster als Fallback
-            WovenPattern(color: fallbackColor)
-                .frame(width: diameter, height: diameter)
-                .clipShape(Circle())
-        }
-    }
-}
-
-/// Einfaches radialen Webmuster für den Stoff-Fallback.
-private struct WovenPattern: View {
-    let color: Color
-
-    var body: some View {
-        Canvas { context, size in
-            let spacing: CGFloat = 6
-            let lineW: CGFloat = 1.5
-
-            // Waagrechte Fäden
-            var y: CGFloat = 0
-            while y < size.height {
-                var path = Path()
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-                context.stroke(path, with: .color(color.opacity(0.35)), lineWidth: lineW)
-                y += spacing
-            }
-
-            // Senkrechte Fäden
-            var x: CGFloat = 0
-            while x < size.width {
-                var path = Path()
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: size.height))
-                context.stroke(path, with: .color(color.opacity(0.25)), lineWidth: lineW)
-                x += spacing
-            }
-
-            // Radialer Verlauf darüber (Tiefenwirkung)
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let radius = min(size.width, size.height) / 2
-            context.fill(
-                Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
-                                      width: radius * 2, height: radius * 2)),
-                with: .radialGradient(
-                    Gradient(colors: [color.opacity(0.0), color.opacity(0.3)]),
-                    center: .init(x: 0.5, y: 0.5),
-                    startRadius: 0,
-                    endRadius: radius
-                )
-            )
-        }
     }
 }
 

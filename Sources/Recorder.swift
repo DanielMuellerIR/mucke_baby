@@ -1,4 +1,5 @@
 import Foundation
+import AVFAudio
 import os
 
 private let log = Logger(subsystem: "de.danielmuller.macradio", category: "recorder")
@@ -151,9 +152,10 @@ final class Recorder: @unchecked Sendable {
     // Snapshot des Index (fuer Export-UI), synchron.
     func snapshot() -> [Clip] { q.sync { clips } }
 
-    // Clip, der einen Zeitpunkt abdeckt (fuer Song-Export).
+    // Der neueste passende Clip hat Vorrang, wenn gepuffertes Audio die
+    // Medienzeit des vorherigen Clips über den nächsten Empfangsbeginn verlängert.
     func clip(covering date: Date) -> Clip? {
-        q.sync { clips.first { $0.start <= date && (($0.end ?? Date.distantFuture) > date) } }
+        q.sync { clips.last { $0.start <= date && (($0.end ?? Date.distantFuture) > date) } }
     }
 
     // Verlauf kann nach Aufnahmeabbruch oder Crash länger als die Datei laufen.
@@ -200,13 +202,12 @@ final class Recorder: @unchecked Sendable {
         guard handle != nil else { return }
         try? handle?.close()
         handle = nil; fileStart = nil; bytesSinceCheck = 0
-        if let i = clips.indices.last, clips[i].end == nil { clips[i].end = date; saveIndex() }
+        if let i = clips.indices.last, clips[i].end == nil { clips[i].end = recordingEnd(for: clips[i], receivedEnd: date); saveIndex() }
     }
 
-    // Beim Start: offene Eintraege aus einem Absturz schliessen. Das Ende ist
-    // unbekannt -> aus der Datei-Aenderungszeit (letzter Schreibvorgang vor dem
-    // Absturz) schaetzen, nie vor dem Start (Clock-Skew); nicht lesbar -> auf
-    // Start zurueckfallen. Frueher wurde stur end = start gesetzt -> 0 s-Intervall,
+    // Beim Start: offene Eintraege aus einem Absturz schliessen. Medienlänge
+    // bevorzugen; sonst Datei-Aenderungszeit verwenden, nie vor dem Start
+    // (Clock-Skew); ohne lesbare Datei auf Start zurueckfallen. Frueher wurde stur end = start gesetzt -> 0 s-Intervall,
     // wodurch clip(covering:) fuer alle spaeter notierten Songs der Session
     // fehlschlug und der Mitschnitt nicht mehr exportierbar war.
     private func closeDangling() {
@@ -214,10 +215,22 @@ final class Recorder: @unchecked Sendable {
         for i in clips.indices where clips[i].end == nil {
             let url = dir.appendingPathComponent(clips[i].file)
             let mtime = (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]) as? Date
-            clips[i].end = max(clips[i].start, mtime ?? clips[i].start)
+            clips[i].end = recordingEnd(for: clips[i], receivedEnd: mtime ?? clips[i].start)
             changed = true
         }
         if changed { saveIndex() }
+    }
+
+    // Ein Callback kann Sekunden Audio auf einmal enthalten. Für lesbare
+    // Aufnahmen liefert die Datei ihre Medienlänge; Empfangszeit ist nur der
+    // Fallback für vom System nicht unterstützte oder unvollständige Codecs.
+    private func recordingEnd(for clip: Clip, receivedEnd: Date) -> Date {
+        let url = dir.appendingPathComponent(clip.file)
+        if let audio = try? AVAudioFile(forReading: url), audio.processingFormat.sampleRate > 0 {
+            let duration = Double(audio.length) / audio.processingFormat.sampleRate
+            if duration.isFinite, duration > 0 { return clip.start.addingTimeInterval(duration) }
+        }
+        return max(clip.start, receivedEnd)
     }
 
     private func hasSpace() -> Bool {
