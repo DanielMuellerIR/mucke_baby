@@ -13,6 +13,7 @@ struct SongEntry: Identifiable, Codable, Equatable, Sendable {
     // B1: true => Sammel-Platzhalter fuer den laufenden Mitschnitt (kein echter
     // ICY-Titel). Optional, damit eine alte verlauf.json ohne dieses Feld weiter laedt.
     var placeholder: Bool? = nil
+    var sessionID: UUID? = nil
 
     var isPlaceholder: Bool { placeholder == true }
 
@@ -58,11 +59,11 @@ final class SongHistory: ObservableObject {
 
     // Neue Now-Playing-Info verarbeiten. Gleicher Titel/Sender wie der offene
     // Eintrag -> ignorieren. Sonst alten schliessen + neuen oeffnen.
-    func note(station: String, raw: String, at date: Date = Date()) {
+    func note(station: String, raw: String, at date: Date = Date(), sessionID: UUID? = nil) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         if let last = entries.last, last.end == nil,
-           last.station == station, last.raw == text {
+           last.station == station, last.raw == text, last.sessionID == sessionID {
             return  // selber Song laeuft weiter
         }
         // Offenen Eintrag schliessen. closeCurrent() raeumt dabei alle Fragmente
@@ -72,7 +73,7 @@ final class SongHistory: ObservableObject {
         closeCurrent(at: date)
         let (artist, title) = SongEntry.split(text)
         entries.append(SongEntry(station: station, raw: text,
-                                 artist: artist, title: title, start: date))
+                                 artist: artist, title: title, start: date, sessionID: sessionID))
         if entries.count > maxEntries { entries.removeFirst(entries.count - maxEntries) }
         save()
     }
@@ -83,9 +84,9 @@ final class SongHistory: ObservableObject {
     // Verlauf erreichbar (Export haengt am Verlauf-Eintrag). `at` deckt sich mit dem
     // Recorder-Clip-Start, damit der Export-Offset stimmt. Kommt spaeter ein echter
     // Titel, schliesst `note()` den Platzhalter und legt normale Eintraege zusaetzlich an.
-    func beginSession(station: String, at date: Date = Date()) {
+    func beginSession(station: String, at date: Date = Date(), sessionID: UUID? = nil) {
         closeCurrent(at: date)
-        entries.append(SongEntry(station: station, raw: "Mitschnitt", start: date, placeholder: true))
+        entries.append(SongEntry(station: station, raw: "Mitschnitt", start: date, placeholder: true, sessionID: sessionID))
         if entries.count > maxEntries { entries.removeFirst(entries.count - maxEntries) }
         save()
     }

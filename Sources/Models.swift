@@ -55,7 +55,7 @@ struct SeedStation: Decodable {
 
 // App-Version an einer Stelle. Wird auch in der Info.plist gespiegelt.
 enum AppInfo {
-    static let version = "1.8.10"
+    static let version = "1.8.11"
 }
 
 enum JSONFileRecovery {

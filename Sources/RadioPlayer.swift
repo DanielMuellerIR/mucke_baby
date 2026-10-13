@@ -67,6 +67,7 @@ final class RadioPlayer: ObservableObject {
     private var resolveTask: Task<Void, Never>?
     private var requests = LatestRequestGeneration()
     private var installedGeneration: UInt64 = 0
+    private var recordingSessionID = UUID()
 
     // Mitschnitt standardmaessig AUS; in den Einstellungen aktivierbar.
     static var recordingEnabled: Bool {
@@ -95,6 +96,7 @@ final class RadioPlayer: ObservableObject {
         resolveTask?.cancel()
         resolveTask = nil
         let generation = requests.begin()
+        recordingSessionID = UUID()
 
         currentStation = station
         currentStreamURL = nil      // Wechselfenster: alte Stream-URL sofort nullen
@@ -162,6 +164,7 @@ final class RadioPlayer: ObservableObject {
         let recorder = self.recorder
         let stationName = currentStation?.name ?? "Sender"
         let rec = Self.recordingEnabled
+        let sessionID = recordingSessionID
         // Aufnahme und Platzhalter beginnen mit den ersten Audiobytes. Wartezeit
         // für HTTP-Header gehört nicht in die Zeitachse der gespeicherten Datei.
         // Die Pro-Session-Senken werden an start() uebergeben (nicht als Property gesetzt),
@@ -170,10 +173,10 @@ final class RadioPlayer: ObservableObject {
         icy.start(url: url, allowAudioOnly: rec,
                   onStart: { [weak self] ct, startedAt in
                       guard rec else { return }
-                      recorder.begin(station: stationName, contentType: ct, at: startedAt)
+                      recorder.begin(station: stationName, contentType: ct, at: startedAt, sessionID: sessionID)
                       DispatchQueue.main.async {
                           guard let self, self.requests.accepts(generation), self.currentStreamURL != nil else { return }
-                          self.history.beginSession(station: stationName, at: startedAt)
+                          self.history.beginSession(station: stationName, at: startedAt, sessionID: sessionID)
                       }
                   },
                   onBoundary: { _, boundary in if rec { recorder.songBoundary(at: boundary) } },
@@ -284,7 +287,7 @@ final class RadioPlayer: ObservableObject {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, t != nowPlayingTitle else { return }
         nowPlayingTitle = t
-        if let st = currentStation { history.note(station: st.name, raw: t, at: boundary) }
+        if let st = currentStation { history.note(station: st.name, raw: t, at: boundary, sessionID: recordingSessionID) }
         log.notice("nowplaying \(t, privacy: .public)")
     }
 }

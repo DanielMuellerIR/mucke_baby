@@ -23,8 +23,11 @@ final class Recorder: @unchecked Sendable {
         var file: String
         var station: String
         var start: Date
+        // Medienende für den Export; receivedEnd begrenzt die Empfangs-Session.
         var end: Date?
         var ext: String
+        var sessionID: UUID? = nil
+        var receivedEnd: Date? = nil
     }
 
     static let minFreeBytes: Int64 = 10 * 1024 * 1024 * 1024   // 10 GB
@@ -61,8 +64,8 @@ final class Recorder: @unchecked Sendable {
     }
 
     // Aufnahme fuer einen Sender starten (Codec-Endung aus Content-Type).
-    func begin(station: String, contentType: String?, at date: Date = Date()) {
-        q.async { self._begin(station: station, ext: Self.ext(for: contentType), at: date) }
+    func begin(station: String, contentType: String?, at date: Date = Date(), sessionID: UUID = UUID()) {
+        q.async { self._begin(station: station, ext: Self.ext(for: contentType), at: date, sessionID: sessionID) }
     }
 
     func write(_ data: Data) {
@@ -87,7 +90,7 @@ final class Recorder: @unchecked Sendable {
             if date.timeIntervalSince(start) > 24 * 3600 {
                 let station = last.station, ext = last.ext
                 self._close(at: date)
-                self._begin(station: station, ext: ext, at: date)
+                self._begin(station: station, ext: ext, at: date, sessionID: last.sessionID)
             }
         }
     }
@@ -152,16 +155,23 @@ final class Recorder: @unchecked Sendable {
     // Snapshot des Index (fuer Export-UI), synchron.
     func snapshot() -> [Clip] { q.sync { clips } }
 
-    // Der neueste passende Clip hat Vorrang, wenn gepuffertes Audio die
-    // Medienzeit des vorherigen Clips über den nächsten Empfangsbeginn verlängert.
+    // Die Medienlänge darf keinen späteren Empfangszeitpunkt einer anderen
+    // Wiedergabe abdecken. Alte Indexeinträge haben nur die bisherige Endzeit.
     func clip(covering date: Date) -> Clip? {
-        q.sync { clips.last { $0.start <= date && (($0.end ?? Date.distantFuture) > date) } }
+        q.sync { clips.last { $0.start <= date && (($0.receivedEnd ?? $0.end ?? Date.distantFuture) > date) } }
     }
 
     // Verlauf kann nach Aufnahmeabbruch oder Crash länger als die Datei laufen.
     // Dateiexport und Drag verwenden deshalb dieselbe begrenzte Zeitspanne.
     func exportSource(for entry: SongEntry, now: Date = Date()) -> (url: URL, offset: Double, duration: Double)? {
-        guard let clip = clip(covering: entry.start) else { return nil }
+        let clip = q.sync {
+            clips.last {
+                guard $0.station == entry.station, $0.start <= entry.start else { return false }
+                if let sessionID = entry.sessionID { return $0.sessionID == sessionID }
+                return ($0.receivedEnd ?? $0.end ?? Date.distantFuture) > entry.start
+            }
+        }
+        guard let clip else { return nil }
         let end = min(entry.end ?? now, clip.end ?? now)
         let duration = end.timeIntervalSince(entry.start)
         guard duration > 0.5 else { return nil }
@@ -170,7 +180,7 @@ final class Recorder: @unchecked Sendable {
 
     // MARK: - intern (immer auf q)
 
-    private func _begin(station: String, ext: String, at date: Date) {
+    private func _begin(station: String, ext: String, at date: Date, sessionID: UUID?) {
         guard indexWritable else { return }
         _close(at: date)
         guard hasSpace() else { DispatchQueue.main.async { self.onLowDisk?() }; return }
@@ -186,7 +196,7 @@ final class Recorder: @unchecked Sendable {
             return
         }
         fileStart = date
-        clips.append(Clip(file: name, station: station, start: date, end: nil, ext: ext))
+        clips.append(Clip(file: name, station: station, start: date, end: nil, ext: ext, sessionID: sessionID))
         guard saveIndex() else {
             // Ohne gespeicherten Index wäre diese neue Datei nach Neustart verwaist.
             // Noch sind keine Audiobytes geschrieben; nur die eigene leere Datei entfernen.
@@ -202,7 +212,11 @@ final class Recorder: @unchecked Sendable {
         guard handle != nil else { return }
         try? handle?.close()
         handle = nil; fileStart = nil; bytesSinceCheck = 0
-        if let i = clips.indices.last, clips[i].end == nil { clips[i].end = recordingEnd(for: clips[i], receivedEnd: date); saveIndex() }
+        if let i = clips.indices.last, clips[i].end == nil {
+            clips[i].receivedEnd = max(clips[i].start, date)
+            clips[i].end = recordingEnd(for: clips[i], receivedEnd: date)
+            saveIndex()
+        }
     }
 
     // Beim Start: offene Eintraege aus einem Absturz schliessen. Medienlänge
@@ -215,6 +229,7 @@ final class Recorder: @unchecked Sendable {
         for i in clips.indices where clips[i].end == nil {
             let url = dir.appendingPathComponent(clips[i].file)
             let mtime = (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]) as? Date
+            clips[i].receivedEnd = max(clips[i].start, mtime ?? clips[i].start)
             clips[i].end = recordingEnd(for: clips[i], receivedEnd: mtime ?? clips[i].start)
             changed = true
         }

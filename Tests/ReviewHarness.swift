@@ -10,6 +10,7 @@ enum ReviewHarness {
         try testRecordingDeletionSkipsDirectories()
         try testRecordingLifecycle()
         try testPersistenceRecovery()
+        try await testHistorySessionIdentity()
         testURLPolicyAndIdentity()
         testLatestRequestWins()
         testPreviewSwitchDoesNotStopReplacement()
@@ -30,6 +31,22 @@ enum ReviewHarness {
             FileHandle.standardError.write(Data("FEHLER: \(message)\n".utf8))
             exit(1)
         }
+    }
+
+    @MainActor
+    private static func testHistorySessionIdentity() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let history = SongHistory(directory: root)
+        let sessionID = UUID()
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        history.beginSession(station: "Fixture", at: start, sessionID: sessionID)
+        history.note(station: "Fixture", raw: "Song", at: start.addingTimeInterval(30), sessionID: sessionID)
+        history.closeCurrent(at: start.addingTimeInterval(60))
+        check(history.entries.count == 2 && history.entries.allSatisfy { $0.sessionID == sessionID },
+              "Verlauf übernimmt Sessionbindung nicht")
+        let restored = SongHistory(directory: root)
+        check(restored.entries == history.entries, "Verlauf verliert persistierte Sessionbindung")
     }
 
     @MainActor
@@ -424,6 +441,7 @@ enum ReviewHarness {
         for xml in [
             "<playlist xmlns=\"http://xspf.org/ns/0/\"><trackList><track><location>https://example.com/stream?user=x&amp;token=y</location></track></trackList></playlist>",
             "<ASX><ENTRY><REF HREF='https://example.com/stream?user=x&#38;token=y'/></ENTRY></ASX>",
+            "<ASX VERSION='3.0'><REPEAT COUNT='2'><ENTRY><REF HREF='https://example.com/stream?user=x&#38;token=y'/></ENTRY></REPEAT></ASX>",
             "\u{FEFF}<asx><entry><ref href='https://example.com/stream?user=x&amp;token=y'/></entry></asx>",
             "<playlist><trackList><track><location><![CDATA[https://example.com/stream?user=x&token=y]]></location></track></trackList></playlist>"
         ] {
@@ -438,6 +456,15 @@ enum ReviewHarness {
         }
         check(PlaylistResolver.firstMediaURL(in: "<playlist xmlns='http://xspf.org/ns/0/'><trackList><track><location xmlns='https://vendor.example/'>https://example.com/not-a-track</location></track></trackList></playlist>") == nil, "Fremder Namespace wurde als XSPF-Media akzeptiert")
         check(PlaylistResolver.firstMediaURL(in: "<asx><ref href='https://example.com/metadata'/></asx>") == nil, "ASX-REF außerhalb ENTRY wurde als Media akzeptiert")
+        for xml in ["<asx><repeat><ref href='https://example.com/metadata'/></repeat></asx>",
+                    "<asx><repeat><entry xmlns='https://vendor.example/'><ref href='https://example.com/metadata'/></entry></repeat></asx>"] {
+            check(PlaylistResolver.firstMediaURL(in: xml) == nil, "Ungültiger ASX-REPEAT-Pfad akzeptiert")
+        }
+        for encoding in [String.Encoding.utf16, .utf16BigEndian, .utf16LittleEndian, .utf32] {
+            let unsafe = "<!DOCTYPE asx [<!ENTITY x 'https://example.com/stream'>]><asx><entry><ref href='&x;'/></entry></asx>"
+            check(PlaylistResolver.firstMediaURL(in: unsafe.data(using: encoding)!) == nil,
+                  "DTD-Sperre greift bei UTF-16/32 nicht")
+        }
         check(PlaylistResolver.firstMediaURL(in: "<asx><ref href='file:///tmp/secret'/></asx>") == nil,
               "XML umgeht URL-Policy")
         check(PlaylistResolver.firstMediaURL(in: "<html><a href='https://example.com/'>Link</a></html>") == nil,
@@ -451,7 +478,7 @@ enum ReviewHarness {
         config.protocolClasses = [XMLResponseProtocol.self]
         let session = URLSession(configuration: config)
         defer { session.invalidateAndCancel() }
-        for encoding in ["latin1", "utf8"] {
+        for encoding in ["latin1", "utf8", "utf16", "utf16be", "utf16le"] {
             let resolved = await PlaylistResolver.resolve("https://fixture.invalid/\(encoding).asx", session: session)
             check(resolved?.absoluteString == "https://example.com/caf%C3%A9", "XML-Response wurde doppelt dekodiert: \(encoding)")
         }
@@ -740,13 +767,20 @@ private final class XMLResponseProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        let latin = request.url!.lastPathComponent == "latin1.asx"
-        let encoding = latin ? "ISO-8859-1" : "UTF-8"
+        let name = request.url!.deletingPathExtension().lastPathComponent
+        let (encoding, byteEncoding): (String, String.Encoding)
+        switch name {
+        case "latin1": (encoding, byteEncoding) = ("ISO-8859-1", .isoLatin1)
+        case "utf16": (encoding, byteEncoding) = ("UTF-16", .utf16)
+        case "utf16be": (encoding, byteEncoding) = ("UTF-16BE", .utf16BigEndian)
+        case "utf16le": (encoding, byteEncoding) = ("UTF-16LE", .utf16LittleEndian)
+        default: (encoding, byteEncoding) = ("UTF-8", .utf8)
+        }
         let xml = "<?xml version='1.0' encoding='\(encoding)'?><asx><entry><ref href='https://example.com/café'/></entry></asx>"
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
                                       headerFields: ["Content-Type": "video/x-ms-asf"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: xml.data(using: latin ? .isoLatin1 : .utf8)!)
+        client?.urlProtocol(self, didLoad: xml.data(using: byteEncoding)!)
         client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}

@@ -29,14 +29,14 @@ enum RadioBrowserAPI { static func countClick(stationUUID: String) {} }
 enum PlaylistResolver { static func resolve(_ raw: String) async -> URL? { URL(string: raw) } }
 final class SongHistory {
     func closeCurrent() {}
-    func beginSession(station: String, at: Date) {}
-    func note(station: String, raw: String, at: Date) {}
+    func beginSession(station: String, at: Date, sessionID: UUID?) {}
+    func note(station: String, raw: String, at: Date, sessionID: UUID?) {}
     func remove(olderThan: Date) {}
 }
 final class Recorder {
     var onLowDisk: (() -> Void)?
     func end(at: Date = Date()) {}
-    func begin(station: String, contentType: String?, at: Date) {}
+    func begin(station: String, contentType: String?, at: Date, sessionID: UUID) {}
     func write(_ data: Data) {}
     func prune(olderThan: Date) {}
     func songBoundary(at: Date) {}

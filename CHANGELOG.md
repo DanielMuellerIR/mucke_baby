@@ -3,6 +3,15 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.11] - 2026-10-13
+### Fixed
+- Bind recordings and song history to their playback session, preventing later unrecorded stations from exporting earlier audio. Keep received intervals separate from media duration so bundled recordings remain fully exportable.
+- Resolve ASX entries inside REPEAT elements and UTF-16 XML playlists, while retaining namespace, path and document-type checks.
+- Remove the unused Danish accent-texture setting.
+
+### Tests
+- Persisted playback identities, unrecorded station switches, complete twelve-second MP3 recording/export, UTF-16 HTTP responses and rejected document-type declarations.
+
 ## [1.8.10] - 2026-10-03
 ### Fixed
 - Completed readable recordings use their audio duration instead of callback arrival times, keeping bundled stream responses exportable.

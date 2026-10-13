@@ -81,7 +81,19 @@ enum PlaylistResolver {
     }
 
     static func firstMediaURL(in data: Data) -> URL? {
-        guard let decoded = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { return nil }
+        let signature = Array(data.prefix(4))
+        let xmlEncoding: String.Encoding?
+        switch signature {
+        case [0x00, 0x00, 0xFE, 0xFF], [0xFF, 0xFE, 0x00, 0x00],
+             [0x00, 0x00, 0x00, 0x3C], [0x3C, 0x00, 0x00, 0x00]: return nil
+        case let bytes where bytes.starts(with: [0xFE, 0xFF]) || bytes.starts(with: [0x00, 0x3C]): xmlEncoding = .utf16BigEndian
+        case let bytes where bytes.starts(with: [0xFF, 0xFE]) || bytes.starts(with: [0x3C, 0x00]): xmlEncoding = .utf16LittleEndian
+        default: xmlEncoding = nil
+        }
+        let decoded: String?
+        if let xmlEncoding { decoded = String(data: data, encoding: xmlEncoding) }
+        else { decoded = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) }
+        guard let decoded else { return nil }
         let text = decoded.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
         if text.hasPrefix("<") {
             guard text.range(of: "<!DOCTYPE", options: .caseInsensitive) == nil else { return nil }
@@ -133,7 +145,8 @@ private final class PlaylistXMLReader: NSObject, XMLParserDelegate {
         path.append(elementName.lowercased())
         namespaces.append(namespaceURI ?? "")
         if isTrackLocation { location = "" }
-        if path == ["asx", "entry", "ref"], namespaces.allSatisfy(\.isEmpty), url == nil,
+        if (path == ["asx", "entry", "ref"] || path == ["asx", "repeat", "entry", "ref"]),
+           namespaces.allSatisfy(\.isEmpty), url == nil,
            let href = attributeDict.first(where: { $0.key.lowercased() == "href" })?.value {
             url = StreamURLPolicy.validatedURL(href)
         }

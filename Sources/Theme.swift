@@ -113,7 +113,7 @@ struct Theme: Identifiable {
     var backgroundTexture: String? = nil
     var panelTexture: String? = nil
     var stageTexture: String? = nil
-    var accentTexture: String? = nil   // z.B. Goldplatte (marshall), Stoffscheibe (danish)
+    var accentTexture: String? = nil   // Goldplatte des Stack-Themes
 
     var isConsole: Bool { layout == .console }
 
@@ -301,8 +301,7 @@ struct Theme: Identifiable {
         fonts: ThemeFonts(title: .thin, body: .thin, label: .thin,
                           tracking: 1.0, uppercaseHeaders: true),
         control: .hairline, visualizer: .bars,
-        backgroundTexture: "bg-aluminum.png", panelTexture: "oak.png",
-        accentTexture: "fabric-wool.png")
+        backgroundTexture: "bg-aluminum.png", panelTexture: "oak.png")
 
     // 6 — midi: pechschwarz + Cyber-Grid, Neon Magenta/Cyan/Violett, Terminal, fallende Noten.
     static let midi = Theme(

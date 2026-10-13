@@ -55,6 +55,26 @@ enum ExportHarness {
         let source = root.appendingPathComponent("tone.wav")
         try makeTone(source, seconds: 12)
         let original = try Data(contentsOf: source)
+        let sessionID = UUID()
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let recorder = Recorder(directory: root.appendingPathComponent("burst"), minimumFreeBytes: -1)
+        recorder.begin(station: "A", contentType: "audio/mpeg", at: start, sessionID: sessionID)
+        recorder.write(original)
+        recorder.end(at: start.addingTimeInterval(1))
+        recorder.flush()
+        check(recorder.clip(covering: start.addingTimeInterval(2)) == nil, "Medienlänge erweitert Empfangsintervall")
+        let recorded = SongEntry(station: "A", raw: "Recorded", start: start, end: start.addingTimeInterval(12), sessionID: sessionID)
+        check(recorder.exportSource(for: recorded)?.duration == 1, "Sessionbindung verliert Aufnahmezeit-Fallback")
+        for station in ["A", "B"] {
+            for identity in [UUID?.none, UUID()] {
+                let later = SongEntry(station: station, raw: "Unrecorded", start: start.addingTimeInterval(2),
+                                      end: start.addingTimeInterval(10), sessionID: identity)
+                check(recorder.exportSource(for: later) == nil, "Spätere Wiedergabe exportiert vorherige Aufnahme")
+            }
+        }
+        let reloaded = Recorder(directory: root.appendingPathComponent("burst"), minimumFreeBytes: -1)
+        check(reloaded.exportSource(for: recorded)?.duration == 1, "Sessionbindung geht beim Neuladen verloren")
+        check(reloaded.clip(covering: start.addingTimeInterval(2)) == nil, "Empfangsintervall geht beim Neuladen verloren")
         let target = root.appendingPathComponent("song.m4a")
         let sentinel = Data("vorhandenes Exportziel".utf8)
         try sentinel.write(to: target)
@@ -152,8 +172,14 @@ enum ExportHarness {
             full.flush()
             let fullClip = full.snapshot()[0]
             check(abs(fullClip.end!.timeIntervalSince(fullClip.start) - 12) < 0.15, "Aufnahmeende folgt Empfang statt zwölf Sekunden Audio")
+            check(full.clip(covering: fullClip.start.addingTimeInterval(2)) == nil, "MP3-Medienlänge deckt spätere Session ab")
+            for station in ["Fixture", "Other station"] {
+                let later = SongEntry(station: station, raw: "Unrecorded", start: fullClip.start.addingTimeInterval(2),
+                                      end: fullClip.start.addingTimeInterval(10), sessionID: UUID())
+                check(full.exportSource(for: later) == nil, "MP3-Export verwechselt Wiedergabe-Sessions")
+            }
             let entry = SongEntry(station: "Fixture", raw: "Complete song", start: fullClip.start,
-                                  end: fullClip.start.addingTimeInterval(12))
+                                  end: fullClip.start.addingTimeInterval(12), sessionID: fullClip.sessionID)
             guard let export = full.exportSource(for: entry) else { check(false, "Gebündelte Aufnahme nicht exportierbar"); return }
             check(try Data(contentsOf: export.url) == Data(contentsOf: fixtures.appendingPathComponent("tone.mp3")), "Gebündelte Aufnahme verändert")
             try await SongExporter.export(source: export.url, offset: export.offset, duration: export.duration, mode: .hardCut, to: target)
