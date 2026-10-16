@@ -5,6 +5,7 @@ enum StationSaveError: Error {
     case invalidURL
     case persistenceFailed
     case stationNotFound
+    case invalidGroupName
 }
 
 // Haelt die Senderliste und kuemmert sich um Laden/Speichern.
@@ -13,7 +14,14 @@ enum StationSaveError: Error {
 @MainActor
 final class Store: ObservableObject {
     @Published private(set) var stations: [Station] = []
+    @Published private(set) var groups: [StationGroup] = []
+    @Published private(set) var quickSlots: [UUID?] = Array(repeating: nil, count: 5)
     @Published var persistenceFailed = false
+    @Published private(set) var loadNotice: String?
+
+    var persistenceMessage: String {
+        loadNotice ?? String(localized: "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.")
+    }
 
     let dir: URL
     let stationsURL: URL
@@ -44,15 +52,28 @@ final class Store: ObservableObject {
 
     func loadStations() {
         canPersist = false
-        let list: [Station]?
-        do { list = try JSONFileRecovery.load([Station].self, from: stationsURL) }
+        loadNotice = nil
+        let collection: StationCollection?
+        struct Header: Decodable { let formatVersion: Int }
+        do {
+            if let data = try? Data(contentsOf: stationsURL),
+               let header = try? JSONDecoder().decode(Header.self, from: data), header.formatVersion != 2 {
+                loadNotice = String(localized: "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden.")
+                persistenceFailed = true
+                return
+            }
+            collection = try JSONFileRecovery.load(StationCollection.self, from: stationsURL)
+        }
         catch { persistenceFailed = true; return }
         canPersist = true
-        if let list { stations = list; persistenceFailed = false }
+        if let collection {
+            stations = collection.stations; groups = collection.groups; quickSlots = collection.quickSlots
+            persistenceFailed = false
+        }
         else { _ = attemptCommit(seededStations()) }
     }
 
-    private func persist(_ next: [Station]) throws {
+    private func commitCollection(_ next: StationCollection) throws {
         guard canPersist else { throw StationSaveError.persistenceFailed }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -61,11 +82,19 @@ final class Store: ObservableObject {
         } catch {
             throw StationSaveError.persistenceFailed
         }
+        stations = next.stations
+        groups = next.groups
+        quickSlots = next.quickSlots
     }
 
     private func commitStations(_ next: [Station]) throws {
-        try persist(next)
-        stations = next
+        let ids = Set(next.map(\.id))
+        let keptGroups = groups.map { group in
+            var group = group
+            group.stationIDs = group.stationIDs.filter { ids.contains($0) }
+            return group
+        }
+        try commitCollection(StationCollection(stations: next, groups: keptGroups, quickSlots: quickSlots))
     }
 
     private func attemptCommit(_ next: [Station]) -> Bool {
@@ -123,19 +152,22 @@ final class Store: ObservableObject {
         return validated
     }
 
-    func add(_ station: Station) throws {
+    func add(_ station: Station, groupIDs: Set<UUID> = []) throws {
         let validated = try validatedStation(station)
-        try commitStations(stations + [validated])
+        try commitCollection(StationCollection(stations: stations + [validated],
+                                               groups: assigning(validated.id, to: groupIDs), quickSlots: quickSlots))
     }
 
-    func update(_ station: Station) throws {
+    func update(_ station: Station, groupIDs: Set<UUID>? = nil) throws {
         let validated = try validatedStation(station)
         guard let i = stations.firstIndex(where: { $0.id == station.id }) else {
             throw StationSaveError.stationNotFound
         }
         var next = stations
         next[i] = validated
-        try commitStations(next)
+        try commitCollection(StationCollection(stations: next,
+                                               groups: groupIDs.map { assigning(station.id, to: $0) } ?? groups,
+                                               quickSlots: quickSlots))
     }
 
     @discardableResult
@@ -167,6 +199,50 @@ final class Store: ObservableObject {
         var next = stations
         next[index].favorite.toggle()
         _ = attemptCommit(next)
+    }
+
+    private func assigning(_ stationID: UUID, to groupIDs: Set<UUID>) -> [StationGroup] {
+        groups.map { group in
+            var group = group
+            group.stationIDs.removeAll { $0 == stationID }
+            if groupIDs.contains(group.id) { group.stationIDs.append(stationID) }
+            return group
+        }
+    }
+
+    func saveGroup(id: UUID? = nil, name: String) throws {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !groups.contains(where: {
+            $0.id != id && $0.name.compare(name, options: [.caseInsensitive, .widthInsensitive]) == .orderedSame
+        }) else { throw StationSaveError.invalidGroupName }
+        var next = groups
+        if let id {
+            guard let index = next.firstIndex(where: { $0.id == id }) else { throw StationSaveError.stationNotFound }
+            next[index].name = name
+        } else { next.append(StationGroup(name: name)) }
+        try commitCollection(StationCollection(stations: stations, groups: next, quickSlots: quickSlots))
+    }
+
+    func deleteGroup(_ id: UUID) throws {
+        try commitCollection(StationCollection(stations: stations, groups: groups.filter { $0.id != id }, quickSlots: quickSlots))
+    }
+
+    func moveGroups(from offsets: IndexSet, to destination: Int) throws {
+        var next = groups
+        next.move(fromOffsets: offsets, toOffset: destination)
+        try commitCollection(StationCollection(stations: stations, groups: next, quickSlots: quickSlots))
+    }
+
+    func setQuickSlot(_ index: Int, stationID: UUID?) throws {
+        guard quickSlots.indices.contains(index) else { return }
+        var next = quickSlots
+        next[index] = stationID
+        try commitCollection(StationCollection(stations: stations, groups: groups, quickSlots: next))
+    }
+
+    func quickStation(at index: Int) -> Station? {
+        guard quickSlots.indices.contains(index), let id = quickSlots[index] else { return nil }
+        return enabledStations.first { $0.id == id && StreamURLPolicy.validatedURL($0.url) != nil }
     }
 
     // MARK: - Import (kuratierte Genre-Listen, Punkt 1)

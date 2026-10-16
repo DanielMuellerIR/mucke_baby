@@ -12,6 +12,7 @@ struct StationEditView: View {
     @State private var url = ""
     @State private var enabled = true
     @State private var favorite = false
+    @State private var selectedGroupIDs: Set<UUID> = []
     @State private var saveError: StationSaveError?
 
     var body: some View {
@@ -26,6 +27,20 @@ struct StationEditView: View {
                 Toggle("In Liste anzeigen", isOn: $enabled)
                 Toggle("Favorit", isOn: $favorite)
                     .accessibilityIdentifier("station-favorite")
+                if !store.groups.isEmpty {
+                    Section("Gruppen") {
+                        ForEach(store.groups) { group in
+                            Toggle(isOn: Binding(
+                                get: { selectedGroupIDs.contains(group.id) },
+                                set: { selected in
+                                    if selected { selectedGroupIDs.insert(group.id) }
+                                    else { selectedGroupIDs.remove(group.id) }
+                                }
+                            )) { Text(group.name).lineLimit(1).help(group.name) }
+                            .accessibilityIdentifier("station-membership-" + group.id.uuidString)
+                        }
+                    }
+                }
             }
             .formStyle(.grouped)
 
@@ -63,6 +78,7 @@ struct StationEditView: View {
         .onAppear {
             if let s = station {
                 name = s.name; url = s.url; enabled = s.enabled; favorite = s.favorite
+                selectedGroupIDs = Set(store.groups.filter { $0.stationIDs.contains(s.id) }.map(\.id))
             }
         }
     }
@@ -74,9 +90,9 @@ struct StationEditView: View {
             var s = station ?? Station(name: trimmedName, url: trimmedURL)
             s.name = trimmedName; s.url = trimmedURL; s.enabled = enabled; s.favorite = favorite
             if station != nil {
-                try store.update(s)
+                try store.update(s, groupIDs: selectedGroupIDs)
             } else {
-                try store.add(s)
+                try store.add(s, groupIDs: selectedGroupIDs)
             }
             dismiss()
         } catch let error as StationSaveError {
@@ -144,6 +160,7 @@ struct PreferencesView: View {
                         Text(notice).font(.caption).foregroundStyle(.red)
                     }
                 }
+                StationQuickSlots()
                 Section("Menüleiste") {
                     Toggle("Zusätzlich Symbol in der Menüleiste anzeigen", isOn: $menuBarMode)
                     Text("Optional — Standard ist nur das normale Fenster.")
@@ -163,7 +180,7 @@ struct PreferencesView: View {
                         Button("Exportieren …") { exportStations() }
                         Button("Importieren …") { importStations() }
                     }
-                    Text("Export schreibt die ganze Liste; Import fügt neue Sender hinzu (Dubletten per URL übersprungen).")
+                    Text("JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal.")
                         .font(.caption).foregroundStyle(.secondary)
                     if !ioMessage.isEmpty {
                         Text(ioMessage).font(.caption).foregroundStyle(Color.accentColor)
@@ -278,6 +295,11 @@ struct WelcomeView: View {
 struct MenuBarView: View {
     @EnvironmentObject var store: Store
     @EnvironmentObject var player: RadioPlayer
+    @State private var query = ""
+    @State private var scope = StationListScope.all
+    private var matches: [Station] {
+        StationSelection.filtered(store.stations, groups: store.groups, query: query, scope: scope)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -291,12 +313,13 @@ struct MenuBarView: View {
 
             Divider()
 
-            if store.enabledStations.isEmpty {
-                Text("Keine sichtbaren Sender.").font(.caption).foregroundStyle(.secondary)
+            StationFilterControls(query: $query, scope: $scope, identifier: "menu-stations")
+            if matches.isEmpty {
+                Text("Keine passenden Sender.").font(.caption).foregroundStyle(.secondary)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(store.enabledStations) { st in
+                        ForEach(matches) { st in
                             HStack(spacing: 8) {
                                 Button {
                                     player.toggle(st)
@@ -316,7 +339,7 @@ struct MenuBarView: View {
                         }
                     }
                 }
-                .frame(height: min(280, CGFloat(store.enabledStations.count) * 32))
+                .frame(height: min(280, CGFloat(matches.count) * 32))
             }
 
             Divider()

@@ -65,7 +65,7 @@ struct MacRadioApp: App {
                 } message: {
                     Text(startup.notice ?? "")
                 }
-                .alert("Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.",
+                .alert(store.persistenceMessage,
                        isPresented: $store.persistenceFailed) {
                     Button("OK", role: .cancel) {}
                 }
@@ -79,6 +79,7 @@ struct MacRadioApp: App {
         .windowResizability(.contentMinSize)         // frei groesser ziehbar
         .defaultSize(width: 940, height: 620)        // Startgroesse: Platz fuer 3-Spalten-Themes
         .commands {
+            StationCommands(store: store, player: player)
             // „Nach Updates suchen …" im App-Menue (direkt unter „Über …").
             // Deaktiviert, solange Sparkle nicht suchen kann (laufende Suche/Installation).
             CommandGroup(after: .appInfo) {
@@ -288,6 +289,10 @@ struct ContentView: View {
     @State private var editing = false
     @State private var showingAdd = false
     @State private var showingPrefs = false
+    @State private var showingGroups = false
+    @State private var showingQuickSelection = false
+    @State private var stationQuery = ""
+    @State private var stationScope = StationListScope.all
     @State private var showingSearch = false
     @State private var showingGenres = false
     @State private var showingBookmarks = false
@@ -386,6 +391,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingAdd) { StationEditView(station: nil) }
         .sheet(item: $editStation) { st in StationEditView(station: st) }
         .sheet(isPresented: $showingPrefs) { PreferencesView() }
+        .sheet(isPresented: $showingGroups) { StationGroupsView() }
+        .sheet(isPresented: $showingQuickSelection) { StationQuickSelectionView() }
+        .focusedSceneValue(\.openStationQuickSelection, quickSelectionAction)
         .sheet(isPresented: $showingSearch) { StationBrowserView() }
         .sheet(isPresented: $showingGenres) { GenreListsView() }
         .sheet(isPresented: $showingBookmarks) { BookmarkLibrary(onClose: { showingBookmarks = false }) }
@@ -721,6 +729,16 @@ struct ContentView: View {
     /// GeometryReader-Wrapper zwingt den Inhalt auf die KONKRETE Spaltenbreite — sonst
     /// schrumpft der VStack/die List auf ihre Inhaltsbreite (Sender-Sliver), obwohl der
     /// aeussere Frame breit ist.
+    private var quickSelectionAction: (() -> Void)? {
+        guard !showingAdd, editStation == nil, !showingPrefs, !showingGroups,
+              !showingQuickSelection, !showingSearch, !showingGenres, !showingBookmarks, !showingWelcome else { return nil }
+        return { showingQuickSelection = true }
+    }
+
+    private var visibleStations: [Station] {
+        StationSelection.filtered(store.stations, groups: store.groups, query: stationQuery, scope: stationScope)
+    }
+
     private func consoleStationsColumn(width: CGFloat) -> some View {
         VStack(spacing: 0) {
             // Spalten-Kopf: nur Titel (Suche/Hinzufügen/Bearbeiten sitzen in der Kopfleiste).
@@ -729,6 +747,16 @@ struct ContentView: View {
                 // Windows-Endung bewusst entfernt, 2026-06-09).
                 SectionHeader("STATIONS")
                 Spacer()
+                Button { showingQuickSelection = true } label: {
+                    Image(systemName: "list.bullet.rectangle").frame(width: 28, height: 28).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).help("Sender schnell auswählen …").accessibilityLabel("Sender schnell auswählen …")
+                .accessibilityIdentifier("station-quick-open")
+                Button { showingGroups = true } label: {
+                    Image(systemName: "folder").frame(width: 28, height: 28).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).help("Sendergruppen").accessibilityLabel("Sendergruppen")
+                .accessibilityIdentifier("station-groups-open")
                 if editing {
                     Text(theme.fonts.uppercaseHeaders ? "BEARBEITEN" : "Bearbeiten")
                         .font(theme.font(.label, size: 9 * uiFontScale, weight: .semibold))
@@ -742,6 +770,16 @@ struct ContentView: View {
                 .fill(theme.palette.divider)
                 .frame(height: 1)
 
+            if !editing {
+                StationFilterControls(query: $stationQuery, scope: $stationScope, identifier: "main-stations")
+                    .padding(.horizontal, 12).padding(.top, 8)
+                Text("\(visibleStations.count) von \(store.enabledStations.count) Sendern")
+                    .font(theme.font(.label, size: 10 * uiFontScale))
+                    .foregroundStyle(theme.palette.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .accessibilityIdentifier("station-result-count")
+            }
             if editing {
                 // Bearbeiten-Modus: native List (Reihenfolge/Löschen/An-Aus/Favorit/Edit).
                 // Bewusst nativ — Funktion vor Theming; der Theme-Hintergrund scheint durch.
@@ -759,7 +797,12 @@ struct ContentView: View {
                 // damit die Theme-Optik exakt steuerbar ist; Breite kommt vom GeometryReader.
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(store.enabledStations) { st in
+                        if visibleStations.isEmpty {
+                            Text("Keine passenden Sender.")
+                                .font(theme.font(.body, size: 12 * uiFontScale))
+                                .foregroundStyle(theme.palette.textSecondary).padding(16)
+                        }
+                        ForEach(visibleStations) { st in
                             ConsoleStationRow(station: st)
                             Rectangle()
                                 .fill(theme.palette.divider)
@@ -871,6 +914,7 @@ private struct ConsoleStationRow: View {
                 : Color.clear
         )
         .foregroundStyle(theme.palette.textPrimary)
+        .accessibilityIdentifier("station-play-" + station.id.uuidString)
     }
 
     /// Fuehrender Marker (LED, Nummer, Bullet) je nach Theme-Kontrollstil.

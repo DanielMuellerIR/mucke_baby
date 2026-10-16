@@ -28,7 +28,6 @@
 "Sender Im-/Export (JSON)" = "Sender Im-/Export (JSON)";
 "Exportieren …" = "Exportieren …";
 "Importieren …" = "Importieren …";
-"Export schreibt die ganze Liste; Import fügt neue Sender hinzu (Dubletten per URL übersprungen)." = "Export schreibt die ganze Liste; Import fügt neue Sender hinzu (Dubletten per URL übersprungen).";
 "Daten" = "Daten";
 "Im Finder zeigen" = "Im Finder zeigen";
 "Fertig" = "Fertig";
@@ -207,3 +206,31 @@
 "Die Startauswahl konnte nicht geladen oder gespeichert werden. Automatische Wiedergabe bleibt aus; bitte den Speicherzugriff prüfen." = "Die Startauswahl konnte nicht geladen oder gespeichert werden. Automatische Wiedergabe bleibt aus; bitte den Speicherzugriff prüfen.";
 "Die Startauswahl konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten." = "Die Startauswahl konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten.";
 "Keine sichtbaren Sender." = "Keine sichtbaren Sender.";
+
+/* Gruppen und Schnellauswahl */
+"Eigene Sender durchsuchen" = "Eigene Sender durchsuchen";
+"Suche leeren" = "Suche leeren";
+"Senderauswahl" = "Senderauswahl";
+"Favoriten" = "Favoriten";
+"Ohne Gruppe" = "Ohne Gruppe";
+"Sendergruppen" = "Sendergruppen";
+"Ein Sender kann mehreren Gruppen angehören. Gruppenlöschung entfernt nur die Zuordnung, keine Sender." = "Ein Sender kann mehreren Gruppen angehören. Gruppenlöschung entfernt nur die Zuordnung, keine Sender.";
+"Noch keine Gruppen." = "Noch keine Gruppen.";
+"Gruppenname" = "Gruppenname";
+"Neue Gruppe" = "Neue Gruppe";
+"Bitte einen eindeutigen, nicht leeren Gruppennamen eingeben." = "Bitte einen eindeutigen, nicht leeren Gruppennamen eingeben.";
+"Die Änderung konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten." = "Die Änderung konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten.";
+"Sender" = "Sender";
+"Sender schnell auswählen …" = "Sender schnell auswählen …";
+"Sender schnell auswählen" = "Sender schnell auswählen";
+"%lld: %@" = "%lld: %@";
+"Keine passenden Sender." = "Keine passenden Sender.";
+"Suchen und Return drücken. Mit Tab zur Liste wechseln und mit den Pfeiltasten auswählen." = "Suchen und Return drücken. Mit Tab zur Liste wechseln und mit den Pfeiltasten auswählen.";
+"Schnellplätze" = "Schnellplätze";
+"Nicht belegt" = "Nicht belegt";
+"⌥⌘%lld" = "⌥⌘%lld";
+"Die Tastenkürzel starten den gewählten Sender. Fehlende oder ausgeblendete Ziele bleiben deaktiviert." = "Die Tastenkürzel starten den gewählten Sender. Fehlende oder ausgeblendete Ziele bleiben deaktiviert.";
+"Gruppen" = "Gruppen";
+"%lld von %lld Sendern" = "%lld von %lld Sendern";
+"Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden." = "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden.";
+"JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal." = "JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal.";

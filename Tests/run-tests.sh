@@ -33,9 +33,14 @@ swiftc -parse-as-library \
 "$BUILD/review-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/Store.swift \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift \
   Tests/StoreHarness.swift -o "$BUILD/store-harness"
 "$BUILD/store-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift \
+  Tests/StationSelectionHarness.swift -o "$BUILD/station-selection-harness"
+"$BUILD/station-selection-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
   Sources/Safety.swift Sources/Models.swift Sources/StartupSettings.swift \

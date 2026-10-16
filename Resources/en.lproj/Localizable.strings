@@ -28,7 +28,6 @@
 "Sender Im-/Export (JSON)" = "Station Import/Export (JSON)";
 "Exportieren …" = "Export…";
 "Importieren …" = "Import…";
-"Export schreibt die ganze Liste; Import fügt neue Sender hinzu (Dubletten per URL übersprungen)." = "Export writes the entire list; import adds new stations (duplicates by URL are skipped).";
 "Daten" = "Data";
 "Im Finder zeigen" = "Show in Finder";
 "Fertig" = "Done";
@@ -207,3 +206,31 @@
 "Die Startauswahl konnte nicht geladen oder gespeichert werden. Automatische Wiedergabe bleibt aus; bitte den Speicherzugriff prüfen." = "The startup selection could not be loaded or saved. Automatic playback remains off; please check storage access.";
 "Die Startauswahl konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten." = "The startup selection could not be saved. The previous selection is retained.";
 "Keine sichtbaren Sender." = "No visible stations.";
+
+/* Gruppen und Schnellauswahl */
+"Eigene Sender durchsuchen" = "Search your stations";
+"Suche leeren" = "Clear search";
+"Senderauswahl" = "Station selection";
+"Favoriten" = "Favorites";
+"Ohne Gruppe" = "Ungrouped";
+"Sendergruppen" = "Station groups";
+"Ein Sender kann mehreren Gruppen angehören. Gruppenlöschung entfernt nur die Zuordnung, keine Sender." = "A station can belong to several groups. Deleting a group removes membership only, never stations.";
+"Noch keine Gruppen." = "No groups yet.";
+"Gruppenname" = "Group name";
+"Neue Gruppe" = "New group";
+"Bitte einen eindeutigen, nicht leeren Gruppennamen eingeben." = "Enter a unique, nonempty group name.";
+"Die Änderung konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten." = "The change could not be saved. The previous selection is retained.";
+"Sender" = "Stations";
+"Sender schnell auswählen …" = "Quickly select a station …";
+"Sender schnell auswählen" = "Quickly select a station";
+"%lld: %@" = "%lld: %@";
+"Keine passenden Sender." = "No matching stations.";
+"Suchen und Return drücken. Mit Tab zur Liste wechseln und mit den Pfeiltasten auswählen." = "Search and press Return. Use Tab to focus the list and the arrow keys to select.";
+"Schnellplätze" = "Quick slots";
+"Nicht belegt" = "Unassigned";
+"⌥⌘%lld" = "⌥⌘%lld";
+"Die Tastenkürzel starten den gewählten Sender. Fehlende oder ausgeblendete Ziele bleiben deaktiviert." = "Keyboard shortcuts play the selected station. Missing or hidden targets remain disabled.";
+"Gruppen" = "Groups";
+"%lld von %lld Sendern" = "%lld of %lld stations";
+"Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden." = "The station list uses a different app version and remains unchanged. Please use a compatible app version.";
+"JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal." = "JSON exports stations and favorites. Import adds visible stations without favorites and skips duplicate URLs. Groups and quick slots remain local.";

@@ -66,6 +66,7 @@ open "build/Mucke, Baby!.app"                    # starten
 - **Getrennte Löschaktionen** — Verlaufleeren erhält alle Aufnahmen. „Alle Aufnahmen löschen“ entfernt nach Bestätigung nur abgeschlossene Aufnahmen; der Verlauf und eine laufende Aufnahme bleiben erhalten.
 - **Optionale Stream-Aufnahme** (standardmäßig aus) — schneidet den laufenden Stream nach `~/Music/MuckeBaby/Aufnahmen/` mit, inkl. songweiser Extraktion; stoppt automatisch bei unter 10 GB frei.
 - **Direktlinks** aus dem Verlauf, um einen Titel in Apple Music oder Spotify nachzuschlagen.
+- **Sendergruppen und Schnellauswahl** — eigene Sender nach Namen oder URL suchen und mit Favoriten oder einer Gruppe kombinieren. Ein Sender kann mehreren benannten Gruppen angehören; Gruppenlöschung erhält alle Sender. ⌘K öffnet die Tastaturauswahl, fünf konfigurierbare Plätze verwenden ⌥⌘1–5. Gruppen und Plätze sind lokale Einstellungen; der Sender-JSON-Austausch bleibt getrennt.
 - Senderliste mit Play/Stop, Ein-/Ausblenden und Umsortieren pro Sender; mehrere **Favoriten**, unabhängig von der Startauswahl. In den Einstellungen stehen kein Autostart, letzter Sender oder ein bestimmter Sender zur Wahl. Fehlende oder ausgeblendete Startziele lassen die Wiedergabe aus. Bestehende Startpräferenzen werden einmalig übernommen.
 - Sender hinzufügen / bearbeiten / löschen; **kuratierte Genre-Listen** per Klick importieren.
 - Playlist-Auflösung für `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.

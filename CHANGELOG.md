@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.3 — 2026-10-16
+
+- Search local stations by name or URL and combine results with favorites, groups, or ungrouped stations in the main window and menu bar.
+- Named groups support multiple memberships, renaming and removal without station loss; existing station arrays migrate to a versioned document on the next saved change.
+- ⌘K opens a station picker with search and keyboard selection. Five configurable quick slots use ⌥⌘1–5 and disable unavailable targets.
+
 ## 1.9.2 — 2026-10-16
 
 - Multiple station favorites persist independently of launch playback, with consistent star controls in the editor and menu bar. The menu-bar station list now receives a usable bounded height.

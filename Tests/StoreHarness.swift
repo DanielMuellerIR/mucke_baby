@@ -81,7 +81,7 @@ enum StoreHarness {
         check(store.stations.last?.id == new.id
               && store.stations.last?.url == "https://example.com/Changed?Key=Y",
               "add/update müssen gültige URLs normalisieren und Identität erhalten")
-        let persisted = try JSONDecoder().decode([Station].self, from: Data(contentsOf: store.stationsURL))
+        let persisted = try JSONDecoder().decode(StationCollection.self, from: Data(contentsOf: store.stationsURL)).stations
         check(persisted == store.stations, "Akzeptierte Änderungen müssen auf Platte stehen")
         check(store.importData(Data("""
         [{"name":"Duplicate","url":"https://EXAMPLE.com:443/Changed?Key=Y"},
