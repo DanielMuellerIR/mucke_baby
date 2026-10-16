@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.9 — 2026-10-16
+
+- Keep partially visible history rows at their reading position when new tracks arrive or playback closes the current entry. Restore an anchor only when it disappears from the visible results.
+
 ## 1.9.8 — 2026-10-16
 
 - Recover the metadata connection independently with bounded retries while the audio player continues. Reject callbacks from replaced metadata sessions and retain recording safety failures across automatic retries.

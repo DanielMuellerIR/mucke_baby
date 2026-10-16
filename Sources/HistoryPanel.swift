@@ -334,7 +334,7 @@ struct HistoryPanel: View {
             }
             .scrollPosition(id: Binding(get: { scrollAnchor }, set: { id in
                 // Ein neues Layout darf den Leseanker nicht überschreiben,
-                // bevor die Datenänderung ihre bisherige Position restauriert.
+                // bevor eine entfallene Lesestelle ersetzt wurde.
                 guard !isRestoringFilter, displayedEntries == history.entries else { return }
                 scrollAnchor = id
                 if let id { lastVisibleAnchor = id }
@@ -381,7 +381,8 @@ struct HistoryPanel: View {
             }
             .onChange(of: visible.map(\.id)) { _, ids in
                 guard !isRestoringFilter, displayedEntries == history.entries,
-                      !ids.isEmpty, filter.isActive || !followsLatest else { return }
+                      !ids.isEmpty, filter.isActive || !followsLatest,
+                      let previous = lastVisibleAnchor, !ids.contains(previous) else { return }
                 if let retained = HistoryFilter.retainedAnchor(lastVisibleAnchor, entries: history.entries, visible: visible) {
                     proxy.scrollTo(retained, anchor: .top)
                 }
@@ -393,7 +394,10 @@ struct HistoryPanel: View {
                     guard entries == history.entries else { return }
                     if follow, let last = visible.last?.id {
                         proxy.scrollTo(last, anchor: .bottom)
-                    } else if let retained {
+                    // Erhaltene Zeilen behalten ihren Pixeloffset; scrollTo würde
+                    // auch bei bloßem Anhängen oder einer Endzeitänderung einrasten.
+                    } else if let previous = lastVisibleAnchor,
+                              !visible.contains(where: { $0.id == previous }), let retained {
                         scrollAnchor = retained
                         proxy.scrollTo(retained, anchor: .top)
                         lastVisibleAnchor = retained
