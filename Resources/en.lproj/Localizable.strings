@@ -150,3 +150,24 @@
 "Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar." = "OFF by default. When enabled, the stream is saved as an audio file while you listen. Location: ~/Music/MuckeBaby/Aufnahmen/. Stops automatically below 10 GB of free space. Change this here or in Settings → Recording at any time.";
 "%lld neue Sender aus „%@“ hinzugefügt." = "Added %lld new stations from “%@”.";
 "„%@“: alle Sender bereits vorhanden." = "“%@”: all stations are already in your list.";
+
+/* --- Verlauf durchsuchen und filtern --- */
+"Jeder Zeitraum" = "Any date";
+"Heute" = "Today";
+"Letzte 7 Tage" = "Last 7 days";
+"Letzte 30 Tage" = "Last 30 days";
+"Eigener Zeitraum" = "Custom dates";
+"Titel oder Interpret suchen" = "Search titles or artists";
+"Suche löschen" = "Clear search";
+"Alle Sender" = "All stations";
+"Verlauf nach Sender filtern" = "Filter history by station";
+"Verlauf nach Zeitraum filtern" = "Filter history by date";
+"Von" = "From";
+"Bis" = "To";
+"%lld von %lld Titeln" = "%lld of %lld titles";
+"Zurücksetzen" = "Reset";
+"Alle Verlaufsfilter zurücksetzen" = "Reset all history filters";
+"Suchwörter werden gemeinsam gesucht. Zeiträume umfassen ganze Kalendertage und alle darin gehörten Titel." = "All search words must match. Date ranges include whole calendar days and any titles heard during them.";
+"Keine Titel für diese Filter." = "No titles match these filters.";
+"Filter zurücksetzen" = "Reset filters";
+"Neueste anzeigen" = "Show latest";

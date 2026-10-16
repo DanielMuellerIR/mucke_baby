@@ -3,6 +3,11 @@ import AppKit
 import UniformTypeIdentifiers
 import CoreTransferable
 
+private struct HistoryScrollExtentKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 // Rechtes Panel: "Verlauf" — gehoerte Titel mit Zeitspanne. Eintraege sind
 // selektierbar; darunter Buttons, die den Song in Apple Music / Spotify oeffnen
 // (bzw. im Web, falls die App fehlt). Neueste unten.
@@ -15,6 +20,7 @@ struct HistoryPanel: View {
     // bisherige native Aussehen auf — alle Tokens sind dort semantisch
     // (textPrimary = .primary, panelBackground = windowBackgroundColor usw.).
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     // UI-Schriftfaktor (1.0 = normal). Wird hier durchgereicht, damit die
     // Theme-Fonts genauso mitzoomen wie das frueher per `scaledFont` der Fall war.
     @Environment(\.uiFontScale) private var uiFontScale
@@ -24,6 +30,15 @@ struct HistoryPanel: View {
     @State private var exportMsg = ""
     @State private var showExportChoice = false
     @State private var showDeleteAllRecordingsConfirmation = false
+    @State private var filter = HistoryFilter()
+    @State private var filterNow = Date()
+    @State private var scrollAnchor: UUID?
+    @State private var lastVisibleAnchor: UUID?
+    @State private var followsLatest = true
+    @State private var filterAnchor: UUID?
+    @State private var filterRevision = 0
+    @State private var isRestoringFilter = false
+    @Namespace private var scrollSpace
 
     // Verlauf-Tinte: auf der hellen Pergament-Textur (retro) waere der dunkle
     // Theme-Text unlesbar -> dort eine dunkle Tinte erzwingen. Sonst der normale
@@ -65,7 +80,8 @@ struct HistoryPanel: View {
     }
 
     private var selectedEntry: SongEntry? {
-        history.entries.first { $0.id == selection }
+        guard let entry = history.entries.first(where: { $0.id == selection }) else { return nil }
+        return filter.apply(to: [entry], now: filterNow).first
     }
     // Bei einem Mitschnitt-Platzhalter gibt es keinen Songtitel -> Musik-/
     // Songtext-Suche sinnlos; nur der Export bleibt aktiv.
@@ -79,7 +95,8 @@ struct HistoryPanel: View {
     private var headerTitle: String { theme.id == .midi ? "PLAYBACK_HISTORY" : "Verlauf" }
 
     var body: some View {
-        VStack(spacing: 0) {
+        let visible = filter.apply(to: history.entries, now: filterNow)
+        return VStack(spacing: 0) {
             HStack {
                 // classic (schlicht): wie bisher der schlichte Headline-Text.
                 // console: stilisierter SectionHeader (Tracking/Uppercase je Theme).
@@ -120,48 +137,9 @@ struct HistoryPanel: View {
             }
             .padding(10)
             Divider()
-
-            if history.entries.isEmpty {
-                Spacer()
-                Text("Noch nichts gehört.")
-                    .themedFont(theme, .body, size: 13 * uiFontScale)
-                    .foregroundColor(historyInkDim).frame(maxWidth: .infinity)
-                Spacer()
-            } else {
-                ScrollViewReader { proxy in
-                    List {
-                        ForEach(history.entries) { entry in
-                            SongRow(entry: entry).id(entry.id)
-                                // Selektion manuell (kein `List(selection:)`): macOS faerbt das
-                                // eingebaute Inset-Highlight mit der SYSTEM-Highlight-Farbe, die
-                                // `.tint` nicht zuverlaessig ueberschreibt und oft nicht zum Theme
-                                // passt. Stattdessen eigener, theme-getoenter Zeilenhintergrund.
-                                .listRowBackground(
-                                    selection == entry.id ? theme.palette.selection : Color.clear
-                                )
-                                .contentShape(Rectangle())
-                                .onTapGesture { selection = entry.id }
-                                // `.draggable` (statt `.onDrag`) vertraegt sich mit dem Tap;
-                                // der Export laeuft erst beim Drop (off-main), blockiert den Klick nicht.
-                                .draggable(DraggableSong(entry: entry, recorder: player.recorder))
-                        }
-                    }
-                    .listStyle(.inset)
-                    // List-Eigenhintergrund ausblenden → der Theme-Panel/das Pergament
-                    // (ThemedSurface/ParchmentBackground) scheint durch. Behebt bei retro die
-                    // unlesbare Tinte (dunkle Schrift lag auf dem dunklen List-Default-Material,
-                    // Creme nur als „Rahmen") und macht alle Themes konsistent.
-                    .scrollContentBackground(.hidden)
-                    .onChange(of: history.entries) { _, _ in
-                        if let last = history.entries.last?.id {
-                            withAnimation { proxy.scrollTo(last, anchor: .bottom) }
-                        }
-                    }
-                    .onAppear {
-                        if let last = history.entries.last?.id { proxy.scrollTo(last, anchor: .bottom) }
-                    }
-                }
-            }
+            filterControls(count: visible.count)
+            Divider()
+            historyList(visible)
 
             Divider()
             // Aktionen fuer den ausgewaehlten Titel — Icon UND Text.
@@ -227,6 +205,199 @@ struct HistoryPanel: View {
         }
         .sheet(item: $lyricsFor) { e in
             LyricsView(artist: e.artist ?? "", title: e.title ?? e.raw)
+        }
+        .onChange(of: history.entries.map(\.id)) { _, ids in
+            if let selection, !ids.contains(selection) { self.selection = nil }
+        }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
+            if filter.period != .all { filterNow = date }
+        }
+    }
+
+    private var filterBinding: Binding<HistoryFilter> {
+        Binding(get: { filter }, set: { value in updateFilter { $0 = value } })
+    }
+
+    private func updateFilter(_ change: (inout HistoryFilter) -> Void) {
+        var value = filter
+        change(&value)
+        guard value != filter else { return }
+        if !isRestoringFilter { filterAnchor = scrollAnchor ?? lastVisibleAnchor }
+        isRestoringFilter = true
+        filter = value
+        filterRevision += 1
+    }
+
+    private func filterControls(count: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(historyInkDim)
+                TextField("Titel oder Interpret suchen", text: filterBinding.query)
+                    .textFieldStyle(.plain)
+                    .accessibilityIdentifier("history-search")
+                if !filter.query.isEmpty {
+                    Button { updateFilter { $0.query = "" } } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(historyInkDim)
+                        .help("Suche löschen").accessibilityLabel("Suche löschen")
+                }
+            }
+            .padding(7)
+            .background(historyInk.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+            HStack(spacing: 8) {
+                Menu {
+                    Button("Alle Sender") { updateFilter { $0.station = nil } }
+                    Divider()
+                    ForEach(HistoryFilter.stations(in: history.entries), id: \.self) { station in
+                        Button { updateFilter { $0.station = station } } label: {
+                            if filter.station == station { Label(station, systemImage: "checkmark") }
+                            else { Text(station) }
+                        }
+                    }
+                } label: {
+                    filterLabel(filter.station ?? String(localized: "Alle Sender"), image: "dot.radiowaves.left.and.right")
+                }
+                .accessibilityLabel("Verlauf nach Sender filtern")
+                .accessibilityIdentifier("history-station-filter")
+                Menu {
+                    ForEach(HistoryPeriod.allCases) { period in
+                        Button { updateFilter { $0.period = period }; filterNow = Date() } label: {
+                            if filter.period == period { Label(period.title, systemImage: "checkmark") }
+                            else { Text(period.title) }
+                        }
+                    }
+                } label: { filterLabel(filter.period.title, image: "calendar") }
+                    .accessibilityLabel("Verlauf nach Zeitraum filtern")
+                    .accessibilityIdentifier("history-period-filter")
+            }
+            .menuStyle(.borderlessButton)
+            if filter.period == .custom {
+                DatePicker("Von", selection: filterBinding.firstDay, in: ...filter.lastDay, displayedComponents: .date)
+                DatePicker("Bis", selection: filterBinding.lastDay, in: filter.firstDay..., displayedComponents: .date)
+            }
+            HStack {
+                Text("\(count) von \(history.entries.count) Titeln")
+                    .foregroundStyle(historyInkDim)
+                    .accessibilityIdentifier("history-result-count")
+                Spacer(minLength: 4)
+                Button("Zurücksetzen") { updateFilter { $0 = HistoryFilter() }; filterNow = Date() }
+                    .buttonStyle(.plain)
+                    .disabled(!filter.isActive)
+                    .help("Alle Verlaufsfilter zurücksetzen")
+                    .accessibilityIdentifier("history-reset-filters")
+            }
+        }
+        .font(theme.font(.label, size: 11 * uiFontScale))
+        .foregroundStyle(historyInk)
+        .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
+        .padding(10)
+        .help("Suchwörter werden gemeinsam gesucht. Zeiträume umfassen ganze Kalendertage und alle darin gehörten Titel.")
+    }
+
+    private func filterLabel(_ title: String, image: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: image)
+            Text(title).lineLimit(1).truncationMode(.tail)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+        .help(title)
+    }
+
+    private func historyList(_ visible: [SongEntry]) -> some View {
+        ScrollViewReader { proxy in
+            GeometryReader { viewport in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(visible) { entry in
+                            VStack(spacing: 0) {
+                                Button { selection = entry.id } label: {
+                                    SongRow(entry: entry)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .background(selection == entry.id ? theme.palette.selection : Color.clear)
+                                .accessibilityAddTraits(selection == entry.id ? [.isSelected] : [])
+                                .accessibilityIdentifier("history-song-\(entry.id)")
+                                // Der Export beginnt erst beim Drop und blockiert die Auswahl nicht.
+                                .draggable(DraggableSong(entry: entry, recorder: player.recorder))
+                                Rectangle().fill(theme.palette.divider.opacity(0.5)).frame(height: 1)
+                            }
+                            .id(entry.id)
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background {
+                        GeometryReader { content in
+                            Color.clear.preference(key: HistoryScrollExtentKey.self,
+                                value: content.frame(in: .named(scrollSpace)).maxY - viewport.size.height)
+                        }
+                    }
+                }
+                .coordinateSpace(name: scrollSpace)
+                .scrollPosition(id: Binding(get: { scrollAnchor }, set: { id in
+                    scrollAnchor = id
+                    if let id, !isRestoringFilter { lastVisibleAnchor = id }
+                }), anchor: .top)
+                .onPreferenceChange(HistoryScrollExtentKey.self) { remaining in followsLatest = remaining <= 24 }
+                .overlay {
+                    if visible.isEmpty {
+                        VStack(spacing: 10) {
+                            Text(history.entries.isEmpty ? String(localized: "Noch nichts gehört.")
+                                 : String(localized: "Keine Titel für diese Filter."))
+                                .multilineTextAlignment(.center)
+                            if filter.isActive {
+                                Button("Filter zurücksetzen") { updateFilter { $0 = HistoryFilter() } }
+                                    .buttonStyle(.bordered)
+                            }
+                        }
+                        .themedFont(theme, .body, size: 12 * uiFontScale)
+                        .foregroundStyle(historyInkDim)
+                        .padding(16)
+                    }
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if !followsLatest && !visible.isEmpty {
+                    Button {
+                        if let last = visible.last?.id { proxy.scrollTo(last, anchor: .bottom) }
+                    } label: { Label("Neueste anzeigen", systemImage: "arrow.down.to.line") }
+                        .font(theme.font(.label, size: 10 * uiFontScale))
+                        .buttonStyle(.bordered)
+                        .padding(8)
+                }
+            }
+            .onChange(of: filterRevision) { _, revision in
+                let retained = HistoryFilter.retainedAnchor(filterAnchor, entries: history.entries, visible: visible)
+                // SwiftUI muss die neue LazyVStack erst einsetzen, bevor scrollTo
+                // ihre IDs auflösen kann. Währenddessen den alten Leseanker behalten.
+                DispatchQueue.main.async {
+                    guard revision == filterRevision else { return }
+                    if let retained {
+                        scrollAnchor = retained
+                        proxy.scrollTo(retained, anchor: .top)
+                        lastVisibleAnchor = retained
+                    }
+                    isRestoringFilter = false
+                }
+            }
+            .onChange(of: visible.map(\.id)) { _, ids in
+                guard !isRestoringFilter, !ids.isEmpty, filter.isActive || !followsLatest else { return }
+                if let retained = HistoryFilter.retainedAnchor(lastVisibleAnchor, entries: history.entries, visible: visible) {
+                    proxy.scrollTo(retained, anchor: .top)
+                }
+            }
+            .onChange(of: history.entries) { old, entries in
+                if !filter.isActive, followsLatest, old.last?.id != entries.last?.id, let last = visible.last?.id {
+                    proxy.scrollTo(last, anchor: .bottom)
+                }
+            }
+            .onAppear {
+                if let last = visible.last?.id { proxy.scrollTo(last, anchor: .bottom) }
+            }
         }
     }
 
@@ -409,6 +580,9 @@ struct SongRow: View {
     private static let timeFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; return f
     }()
+    private static let dayFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .short; return f
+    }()
     private var isLive: Bool { entry.end == nil }
 
     // Verlauf-Tinte: retro-Pergament ist hell -> dunkle Tinte erzwingen, sonst
@@ -455,7 +629,7 @@ struct SongRow: View {
         return entry.title ?? entry.raw
     }
     private var timeRange: String {
-        let s = Self.timeFmt.string(from: entry.start)
+        let s = Self.dayFmt.string(from: entry.start) + " · " + Self.timeFmt.string(from: entry.start)
         if let e = entry.end { return "\(s) – \(Self.timeFmt.string(from: e))" }
         return "\(s) – …"
     }

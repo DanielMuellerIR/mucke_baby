@@ -150,3 +150,24 @@
 "Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar." = "Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar.";
 "%lld neue Sender aus „%@“ hinzugefügt." = "%lld neue Sender aus „%@“ hinzugefügt.";
 "„%@“: alle Sender bereits vorhanden." = "„%@“: alle Sender bereits vorhanden.";
+
+/* --- Verlauf durchsuchen und filtern --- */
+"Jeder Zeitraum" = "Jeder Zeitraum";
+"Heute" = "Heute";
+"Letzte 7 Tage" = "Letzte 7 Tage";
+"Letzte 30 Tage" = "Letzte 30 Tage";
+"Eigener Zeitraum" = "Eigener Zeitraum";
+"Titel oder Interpret suchen" = "Titel oder Interpret suchen";
+"Suche löschen" = "Suche löschen";
+"Alle Sender" = "Alle Sender";
+"Verlauf nach Sender filtern" = "Verlauf nach Sender filtern";
+"Verlauf nach Zeitraum filtern" = "Verlauf nach Zeitraum filtern";
+"Von" = "Von";
+"Bis" = "Bis";
+"%lld von %lld Titeln" = "%lld von %lld Titeln";
+"Zurücksetzen" = "Zurücksetzen";
+"Alle Verlaufsfilter zurücksetzen" = "Alle Verlaufsfilter zurücksetzen";
+"Suchwörter werden gemeinsam gesucht. Zeiträume umfassen ganze Kalendertage und alle darin gehörten Titel." = "Suchwörter werden gemeinsam gesucht. Zeiträume umfassen ganze Kalendertage und alle darin gehörten Titel.";
+"Keine Titel für diese Filter." = "Keine Titel für diese Filter.";
+"Filter zurücksetzen" = "Filter zurücksetzen";
+"Neueste anzeigen" = "Neueste anzeigen";

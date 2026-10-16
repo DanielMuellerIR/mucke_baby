@@ -26,6 +26,7 @@ swiftc -parse-as-library \
   Sources/Recorder.swift \
   Sources/Models.swift \
   Sources/SongHistory.swift \
+  Sources/HistoryFilter.swift \
   Tests/ReviewHarness.swift \
   -o "$BUILD/review-harness"
 

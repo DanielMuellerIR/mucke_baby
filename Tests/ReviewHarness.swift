@@ -11,6 +11,7 @@ enum ReviewHarness {
         try testRecordingLifecycle()
         try testPersistenceRecovery()
         try await testHistorySessionIdentity()
+        try testHistoryFiltering()
         testURLPolicyAndIdentity()
         testLatestRequestWins()
         testPreviewSwitchDoesNotStopReplacement()
@@ -47,6 +48,83 @@ enum ReviewHarness {
               "Verlauf übernimmt Sessionbindung nicht")
         let restored = SongHistory(directory: root)
         check(restored.entries == history.entries, "Verlauf verliert persistierte Sessionbindung")
+    }
+
+    private static func testHistoryFiltering() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 3, day: 29, hour: 12))!
+        let start = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: start)!
+        let first = SongEntry(station: "Fixture A", raw: "Original Radio Text", artist: "Björk", title: "Grüße (Live Mix)",
+                              start: start.addingTimeInterval(60), end: start.addingTimeInterval(300))
+        let second = SongEntry(station: "Fixture B", raw: "夜の曲", title: "夜の曲",
+                               start: start.addingTimeInterval(600), end: start.addingTimeInterval(900))
+        let ongoing = SongEntry(station: "Fixture A", raw: "Mitschnitt", start: start.addingTimeInterval(-60), placeholder: true)
+        let endingAtStart = SongEntry(station: "Fixture A", raw: "Earlier", start: start.addingTimeInterval(-120), end: start)
+        let nextDay = SongEntry(station: "Fixture A", raw: "Tomorrow", start: tomorrow, end: tomorrow.addingTimeInterval(60))
+        let entries = [endingAtStart, ongoing, first, second, nextDay]
+        let original = try JSONEncoder.isoPretty.encode(entries)
+        var filter = HistoryFilter()
+        check(filter.apply(to: entries) == entries && !filter.isActive, "Inaktiver Filter verändert den Verlauf")
+        filter.query = "  BJORK\n grusse  "
+        check(filter.apply(to: entries).map(\.id) == [first.id], "Suche ignoriert Akzente/Schreibweise oder Wortkombination nicht")
+        filter.query = "bjork missing-word"
+        check(filter.apply(to: entries).isEmpty, "Ein fehlendes Suchwort darf nicht durch einen anderen Treffer ersetzt werden")
+        filter.query = "ｂｊｏｒｋ live"
+        check(filter.apply(to: entries).map(\.id) == [first.id], "Suche behandelt volle Zeichenbreite nicht")
+        filter.query = "original"
+        check(filter.apply(to: entries).map(\.id) == [first.id], "Rohtext wird nicht durchsucht")
+        filter.query = "夜 曲"
+        check(filter.apply(to: entries).map(\.id) == [second.id], "Japanische Suchwörter werden nicht kombiniert")
+        filter.station = "Fixture A"
+        check(filter.apply(to: entries).isEmpty, "Senderfilter wird nicht mit der Suche kombiniert")
+        filter.query = "Mitschnitt"
+        check(filter.apply(to: entries).map(\.id) == [ongoing.id], "Mitschnitt-Platzhalter ist nicht auffindbar")
+        filter.query = " \n "
+        filter.station = nil
+        check(!filter.isActive, "Reine Leerzeichen aktivieren den Filter")
+        filter.period = .today
+        check(filter.apply(to: entries, now: now, calendar: calendar).map(\.id) == [ongoing.id, first.id, second.id],
+              "Kalendertage, Überschneidung oder laufender Titel werden falsch abgegrenzt")
+        let range = filter.dateRange(now: now, calendar: calendar)!
+        check(range.duration == 23 * 3600, "Sommerzeit-Tag muss 23 echte Stunden umfassen")
+        let point = SongEntry(station: "Fixture A", raw: "Zeitpunkt", start: start, end: start)
+        let nextPoint = SongEntry(station: "Fixture A", raw: "Nächster Tag", start: tomorrow, end: tomorrow)
+        check(filter.apply(to: [point, nextPoint], now: now, calendar: calendar).map(\.id) == [point.id],
+              "Ein Eintrag ohne Dauer gehört nur zu seinem eigenen Kalendertag")
+        let autumn = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25, hour: 12))!
+        check(filter.dateRange(now: autumn, calendar: calendar)!.duration == 25 * 3600,
+              "Winterzeit-Tag muss 25 echte Stunden umfassen")
+        filter.period = .week
+        let week = filter.dateRange(now: now, calendar: calendar)!
+        check(calendar.dateComponents([.day], from: week.start, to: week.end).day == 7, "Wochenfilter umfasst nicht sieben Kalendertage")
+        filter.period = .month
+        let month = filter.dateRange(now: now, calendar: calendar)!
+        check(calendar.dateComponents([.day], from: month.start, to: month.end).day == 30, "Monatsfilter umfasst nicht 30 Kalendertage")
+        filter.period = .custom
+        filter.firstDay = tomorrow
+        filter.lastDay = now
+        check(filter.apply(to: entries, now: now, calendar: calendar).map(\.id) == [ongoing.id, first.id, second.id, nextDay.id],
+              "Eigener Zeitraum schließt Endtag nicht ein oder behandelt umgekehrte Grenzen falsch")
+        let unchanged = try JSONEncoder.isoPretty.encode(entries)
+        check(unchanged == original, "Filter hat gespeicherte Einträge verändert")
+        check(HistoryFilter.stations(in: entries) == ["Fixture A", "Fixture B"], "Senderauswahl enthält Dubletten")
+        check(HistoryFilter.retainedAnchor(first.id, entries: entries, visible: [first, second]) == first.id,
+              "Sichtbare Lesestelle wird nicht erhalten")
+        check(HistoryFilter.retainedAnchor(first.id, entries: entries, visible: [second]) == second.id,
+              "Entfernte Lesestelle wechselt nicht zum nächsten Treffer")
+        check(HistoryFilter.retainedAnchor(second.id, entries: entries, visible: [first]) == first.id,
+              "Nach dem letzten Treffer fehlt eine erhaltene Lesestelle")
+        check(HistoryFilter.retainedAnchor(first.id, entries: entries, visible: []) == nil, "Leeres Ergebnis erhält ungültige Lesestelle")
+        let large = (0..<10_000).map { index in
+            SongEntry(station: index.isMultiple(of: 2) ? "Fixture A" : "Fixture B", raw: "Björk - Track \(index)",
+                      artist: "Björk", title: "Track \(index)", start: now, end: now.addingTimeInterval(60))
+        }
+        filter = HistoryFilter(query: "bjork track", station: "Fixture A")
+        let began = ProcessInfo.processInfo.systemUptime
+        check(filter.apply(to: large).count == 5_000, "Großer Verlauf liefert unvollständige Treffer")
+        print(String(format: "HistoryFilter: 10000 Einträge in %.1f ms", (ProcessInfo.processInfo.systemUptime - began) * 1000))
     }
 
     @MainActor

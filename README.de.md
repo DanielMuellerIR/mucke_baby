@@ -61,7 +61,7 @@ open "build/Mucke, Baby!.app"                    # starten
 - **Sieben Themes**, je mit eigenem Layout, eigenen Texturen und eigenem Visualizer: Standard, Acid Rave, Retro, Fanzine, GuitarAmp, Danish, Black MIDI.
 - **Audio-reaktive Visualizer** — analoge VU-Nadeln, Oszilloskop, Spektrum-Balken und eine Piano-Roll — gespeist von einem **CoreAudio-Process-Tap** auf die eigene Tonausgabe. Das getappte Signal wird vor der Analyse normalisiert, damit leiseres Hören den Visualizer nicht kleiner macht; das Bild bleibt perfekt synchron und flüssig (~90 Hz).
 - **Now-Playing** (Interpret/Titel) über einen eingebauten ICY-Metadaten-Leser (markier- und kopierbar), mit korrekter Dekodierung von Nicht-UTF-8-Sendern (UTF-8 → Shift-JIS/CP932 → Latin-1, z. B. japanische Sender).
-- **Verlauf** — jeder Titel mit Start-/Endzeit und Sender, auch über Senderwechsel hinweg.
+- **Verlauf** — jeder Titel mit Datum, Start-/Endzeit und Sender, auch über Senderwechsel hinweg. Suche nach Titel oder Interpret sowie kombinierbare Sender- und Zeitraumfilter helfen beim Wiederfinden. Zeiträume umfassen ganze Kalendertage, einschließlich darin noch laufender Titel.
 - **Getrennte Löschaktionen** — Verlaufleeren erhält alle Aufnahmen. „Alle Aufnahmen löschen“ entfernt nach Bestätigung nur abgeschlossene Aufnahmen; der Verlauf und eine laufende Aufnahme bleiben erhalten.
 - **Optionale Stream-Aufnahme** (standardmäßig aus) — schneidet den laufenden Stream nach `~/Music/MuckeBaby/Aufnahmen/` mit, inkl. songweiser Extraktion; stoppt automatisch bei unter 10 GB frei.
 - **Direktlinks** aus dem Verlauf, um einen Titel in Apple Music oder Spotify nachzuschlagen.

@@ -3,6 +3,17 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.9.0] - 2026-10-16
+### Added
+- Search listening history by title, artist or original stream text, with case-, accent- and width-insensitive matching. Combine search words with station and calendar-date filters, including custom dates and tracks crossing a day boundary.
+- Show each history entry's date, distinguish an empty history from an empty filter result and restore filters with one action. Preserve selection and reading position; hidden selections cannot trigger song actions.
+
+### Changed
+- New history entries follow the latest track only when already reading at the end with no active filters. A separate action returns to the latest matching entry.
+
+### Tests
+- Unicode search, combined filters, ongoing entries, inclusive calendar dates, daylight-saving transitions, retained reading anchors and a 10,000-entry history fixture.
+
 ## [1.8.11] - 2026-10-13
 ### Fixed
 - Bind recordings and song history to their playback session, preventing later unrecorded stations from exporting earlier audio. Keep received intervals separate from media duration so bundled recordings remain fully exportable.
