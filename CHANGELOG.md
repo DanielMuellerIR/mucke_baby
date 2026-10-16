@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Recover the metadata connection independently with bounded retries while the audio player continues. Reject callbacks from replaced metadata sessions and retain recording safety failures across automatic retries.
 - Close recording and history intervals at the last received audio boundary. Suspend an explicitly requested station for system sleep and resume it once after wake unless Stop or another selection supersedes it.
 
+## 1.9.7 — 2026-10-16
+
+- Publish the current station, track and live playback/loading state to macOS media controls, without a simulated duration or seek position.
+- Media play/pause stops the live stream; previous/next selects visible stations in saved order. Stop, terminal failure and Quit release command handlers and metadata.
+- Reject commands from superseded registrations and avoid reasserting playback state for track-only updates. Windows and the menu bar share one player and media-control lifetime.
+
 ## 1.9.6 — 2026-10-16
 
 - Switch recording on or off during playback without replacing the audio player or opening another recording connection. The existing metadata connection stays available for audio-only streams and is renewed when container formats need fresh start headers.

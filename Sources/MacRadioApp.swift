@@ -6,9 +6,10 @@ private let uiLog = Logger(subsystem: "de.danielmuller.macradio", category: "ui"
 
 @main
 struct MacRadioApp: App {
-    @StateObject private var store: Store
-    @StateObject private var startup: StartupSettings
-    @StateObject private var player = RadioPlayer()
+    @StateObject private var services = RadioServices()
+    private var store: Store { services.store }
+    private var startup: StartupSettings { services.startup }
+    private var player: RadioPlayer { services.player }
     @StateObject private var health = StationHealth()
     @StateObject private var bookmarks = BookmarkStore()
     // Audio-Reaktivität der Visualizer (CoreAudio Process-Tap auf die eigene Ausgabe,
@@ -39,12 +40,6 @@ struct MacRadioApp: App {
     /// Niemals nil, damit der Wechsel sauber durchschlaegt.
     private var effectiveScheme: ColorScheme { theme.colorScheme ?? sysAppearance.scheme }
 
-    init() {
-        let store = Store()
-        _store = StateObject(wrappedValue: store)
-        _startup = StateObject(wrappedValue: StartupSettings(directory: store.dir, stations: store.stations))
-    }
-
     var body: some Scene {
         // Normales App-Fenster (Standardmodus).
         WindowGroup("Mucke, Baby!") {
@@ -60,13 +55,13 @@ struct MacRadioApp: App {
                 // Theme und ColorScheme ins Environment injizieren
                 .environment(\.theme, theme)
                 .preferredColorScheme(effectiveScheme)
-                .alert("Startauswahl", isPresented: $startup.showNotice) {
+                .alert("Startauswahl", isPresented: Binding(get: { startup.showNotice }, set: { startup.showNotice = $0 })) {
                     Button("OK", role: .cancel) {}
                 } message: {
                     Text(startup.notice ?? "")
                 }
                 .alert(store.persistenceMessage,
-                       isPresented: $store.persistenceFailed) {
+                       isPresented: Binding(get: { store.persistenceFailed }, set: { store.persistenceFailed = $0 })) {
                     Button("OK", role: .cancel) {}
                 }
         }
