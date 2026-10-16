@@ -277,3 +277,24 @@
 "Genrefilter entfernen" = "Genrefilter entfernen";
 "Filterlisten werden geladen …" = "Filterlisten werden geladen …";
 "Einige Filterlisten sind derzeit nicht verfügbar. Gespeicherte Auswahl bleibt erhalten." = "Einige Filterlisten sind derzeit nicht verfügbar. Gespeicherte Auswahl bleibt erhalten.";
+
+/* Tatsächlicher Aufnahmestatus */
+"Aus" = "Aus";
+"Wartet" = "Wartet";
+"Läuft" = "Läuft";
+"Speicher" = "Speicher";
+"Indexfehler" = "Indexfehler";
+"Verbindung" = "Verbindung";
+"Schreibfehler" = "Schreibfehler";
+"Aufnahme ist ausgeschaltet." = "Aufnahme ist ausgeschaltet.";
+"Aufnahme ist aktiviert und wartet auf Audiobytes. Ohne laufenden Stream wird nichts gespeichert." = "Aufnahme ist aktiviert und wartet auf Audiobytes. Ohne laufenden Stream wird nichts gespeichert.";
+"Audiobytes werden im Aufnahmeordner gespeichert." = "Audiobytes werden im Aufnahmeordner gespeichert.";
+"Aufnahme gestoppt: weniger als 10 GiB frei. Speicher freigeben und Aufnahme aus- und wieder einschalten." = "Aufnahme gestoppt: weniger als 10 GiB frei. Speicher freigeben und Aufnahme aus- und wieder einschalten.";
+"Der Aufnahmeindex ist nicht verfügbar. Aufnahmeordner prüfen; bestehende Dateien bleiben erhalten." = "Der Aufnahmeindex ist nicht verfügbar. Aufnahmeordner prüfen; bestehende Dateien bleiben erhalten.";
+"Die Metadatenverbindung ist beendet. Für einen neuen Aufnahmeversuch den Sender erneut starten." = "Die Metadatenverbindung ist beendet. Für einen neuen Aufnahmeversuch den Sender erneut starten.";
+"Die Aufnahme konnte nicht geschrieben werden. Aufnahmeordner und Speicher prüfen; danach aus- und wieder einschalten." = "Die Aufnahme konnte nicht geschrieben werden. Aufnahmeordner und Speicher prüfen; danach aus- und wieder einschalten.";
+"Aufnahme ausschalten" = "Aufnahme ausschalten";
+"Aufnahme einschalten" = "Aufnahme einschalten";
+"Aufnahmestatus" = "Aufnahmestatus";
+"Der Schalter wirkt sofort auf den Mitschnitt. Die Wiedergabe läuft weiter. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Aufnahme ist bei einer neuen Installation aus." = "Der Schalter wirkt sofort auf den Mitschnitt. Die Wiedergabe läuft weiter. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Aufnahme ist bei einer neuen Installation aus.";
+"Standardmäßig AUS. Der Schalter wirkt sofort während der Wiedergabe. Aufnahme stoppt unter 10 GiB freiem Speicher. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Der tatsächliche Status steht unten im Hauptfenster." = "Standardmäßig AUS. Der Schalter wirkt sofort während der Wiedergabe. Aufnahme stoppt unter 10 GiB freiem Speicher. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Der tatsächliche Status steht unten im Hauptfenster.";

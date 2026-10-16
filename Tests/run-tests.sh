@@ -23,7 +23,7 @@ swiftc -parse-as-library \
   -module-cache-path "$BUILD/module-cache" \
   Sources/Safety.swift \
   Sources/PlaylistResolver.swift \
-  Sources/Recorder.swift \
+  Sources/RecordingState.swift Sources/Recorder.swift \
   Sources/Models.swift \
   Sources/SongHistory.swift \
   Sources/HistoryFilter.swift \
@@ -49,7 +49,7 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
   Sources/Models.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
-  Sources/Recorder.swift Sources/BookmarkStore.swift Tests/BookmarkHarness.swift \
+  Sources/RecordingState.swift Sources/Recorder.swift Sources/BookmarkStore.swift Tests/BookmarkHarness.swift \
   -o "$BUILD/bookmark-harness"
 MUCKE_BOOKMARK_EXPORT_FIXTURE="$BUILD/bookmarks.csv" "$BUILD/bookmark-harness"
 python3 - <<'PY'
@@ -67,15 +67,20 @@ print('Bookmark CSV: unabhängiger UTF-8-/CSV-Roundtrip OK')
 PY
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/ICYMetadataReader.swift Sources/Recorder.swift Sources/Models.swift \
+  Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift \
   Sources/SongHistory.swift Tests/ICYHarness.swift -o "$BUILD/icy-harness"
 "$BUILD/icy-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/Recorder.swift \
+  Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift \
   Sources/Models.swift Sources/SongHistory.swift Tests/ExportHarness.swift \
   -o "$BUILD/export-harness"
 "$BUILD/export-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift Sources/SongHistory.swift \
+  Sources/ICYMetadataReader.swift Tests/CaptureHarness.swift -o "$BUILD/capture-harness"
+"$BUILD/capture-harness"
 bash Tests/fleet-rules.sh
 
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \

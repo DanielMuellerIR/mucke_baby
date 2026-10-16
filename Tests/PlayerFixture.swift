@@ -27,14 +27,25 @@ struct Station { var id = UUID(); var name: String; var url: String }
 struct RBStation { var stationuuid: String; var streamURL: String }
 enum RadioBrowserAPI { static func countClick(stationUUID: String) {} }
 enum PlaylistResolver { static func resolve(_ raw: String) async -> URL? { URL(string: raw) } }
+struct FixtureSongEntry { var start: Date; var station: String = ""; var end: Date? = nil }
 final class SongHistory {
+    var entries: [FixtureSongEntry] = []
     func closeCurrent() {}
-    func beginSession(station: String, at: Date, sessionID: UUID?) {}
-    func note(station: String, raw: String, at: Date, sessionID: UUID?) {}
+    func beginSession(station: String, at: Date, sessionID: UUID?) { entries.append(FixtureSongEntry(start: at, station: station)) }
+    func note(station: String, raw: String, at: Date = Date(), sessionID: UUID?) {}
     func remove(olderThan: Date) {}
 }
 final class Recorder {
     var onLowDisk: (() -> Void)?
+    var onCaptureState: ((RecordingState) -> Void)?
+    var changes: [(Bool, UInt64)] = []
+    var streamID: UUID?
+    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64) { self.streamID = streamID }
+    func setCaptureEnabled(_ enabled: Bool, revision: UInt64) { changes.append((enabled, revision)) }
+    func clearCapture(enabled: Bool, revision: UInt64) {}
+    func captureFormat(_ contentType: String?, streamID: UUID) {}
+    func captureAudio(_ data: Data, at: Date, streamID: UUID) {}
+    func finishCapture(streamID: UUID, at: Date) {}
     func end(at: Date = Date()) {}
     func begin(station: String, contentType: String?, at: Date, sessionID: UUID) {}
     func write(_ data: Data) {}
@@ -47,7 +58,7 @@ final class ICYMetadataReader {
     var onTitle: ((String, Date) -> Void)?
     func stop() {}
     func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
-               onBoundary: @escaping (String, Date) -> Void, onAudio: @escaping (Data) -> Void, onCompletion: @escaping (Date) -> Void) {}
+               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date) -> Void, onCompletion: @escaping (Date) -> Void) {}
 }
 enum TestEvents {
     static let queue = DispatchQueue(label: "fixture.events", target: .main)
@@ -146,6 +157,32 @@ struct PlayerHarness {
         check(VLCMediaPlayer.latest === previous && retryRadio.currentStreamURL == nil && !retryRadio.isLoading,
               "Ungültige URL wird automatisch wiederholt oder an VLC übergeben")
         retryRadio.stop()
+
+        let suite = "MuckeCaptureFixture-" + UUID().uuidString
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let recordingRadio = RadioPlayer(preferences: preferences)
+        check(!recordingRadio.recordingRequested, "Aufnahme ist bei neuer Installation an")
+        recordingRadio.play(Station(name: "Capture", url: "https://fixture.invalid/capture"))
+        await waitFor { recordingRadio.currentStreamURL != nil }
+        let capturePlayer = VLCMediaPlayer.latest!
+        capturePlayer.timeEvent(); await drainEvents()
+        let streamURL = recordingRadio.currentStreamURL
+        recordingRadio.setRecordingRequested(true)
+        recordingRadio.setRecordingRequested(false)
+        check(VLCMediaPlayer.latest === capturePlayer && recordingRadio.currentStreamURL == streamURL && recordingRadio.isPlaying,
+              "Aufnahmeschalter startet oder stoppt den Audioplayer")
+        let changes = recordingRadio.recorder.changes
+        check(changes.count == 2 && changes[0].0 && !changes[1].0, "Aufnahmepräferenz erreicht die Dateisenke nicht")
+        recordingRadio.recorder.onCaptureState?(RecordingState(phase: .recording, revision: changes[0].1))
+        check(recordingRadio.recordingState.phase != .recording, "Verspäteter aktiver Aufnahmestatus überholt Ausschalten")
+        recordingRadio.setRecordingRequested(true)
+        let startedAt = Date()
+        recordingRadio.history.entries = [FixtureSongEntry(start: startedAt.addingTimeInterval(1000), station: "Other", end: startedAt.addingTimeInterval(1001))]
+        recordingRadio.recorder.onCaptureState?(RecordingState(phase: .recording, revision: recordingRadio.recorder.changes.last!.1,
+            streamID: recordingRadio.recorder.streamID, segmentID: UUID(), startedAt: startedAt, bytes: 1))
+        check(recordingRadio.history.entries.last?.start == startedAt, "Alte fremde Verlaufzeit verschiebt neuen Aufnahmebeginn")
+        recordingRadio.stop()
 
         let preview = PreviewPlayer()
         preview.toggle(RBStation(stationuuid: "A", streamURL: "https://fixture.invalid/a"), volume: 0)

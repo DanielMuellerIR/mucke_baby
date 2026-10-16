@@ -17,6 +17,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     private var onStart: ((String?, Date) -> Void)?
     private var onBoundary: ((String, Date) -> Void)?
     private var onAudio: ((Data) -> Void)?
+    private var onAudioAt: ((Data, Date) -> Void)?
     private var onCompletion: ((Date) -> Void)?
     private var contentType: String?
     private var lastAudioAt: Date?
@@ -58,6 +59,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                onStart: ((String?, Date) -> Void)? = nil,
                onBoundary: ((String, Date) -> Void)? = nil,
                onAudio: ((Data) -> Void)? = nil,
+               onAudioAt: ((Data, Date) -> Void)? = nil,
                onCompletion: ((Date) -> Void)? = nil) {
         stop()
         let cfg = configuration
@@ -80,6 +82,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.onStart = onStart
             self.onBoundary = onBoundary
             self.onAudio = onAudio
+            self.onAudioAt = onAudioAt
             self.onCompletion = onCompletion
             self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
@@ -102,7 +105,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         q.sync {
             self.parserTask = nil
             self.onStart = nil
-            self.onAudio = nil; self.onBoundary = nil
+            self.onAudio = nil; self.onAudioAt = nil; self.onBoundary = nil
             self.onCompletion = nil
             self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
@@ -173,6 +176,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         if lastAudioAt == nil { onStart?(contentType, date) }
         lastAudioAt = date
         onAudio?(data)
+        onAudioAt?(data, date)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -182,7 +186,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             // letzten Byte darf keine zusätzliche aufgenommene Zeit erfinden.
             self.onCompletion?(self.lastAudioAt ?? Date())
             self.parserTask = nil
-            self.onStart = nil; self.onAudio = nil; self.onBoundary = nil; self.onCompletion = nil
+            self.onStart = nil; self.onAudio = nil; self.onAudioAt = nil; self.onBoundary = nil; self.onCompletion = nil
         }
         // Stream zu Ende / Fehler / Timeout -> die GERADE beendete Session freigeben
         // (sonst bliebe sie mit ihrer starken Referenz auf self samt Socket offen, bis

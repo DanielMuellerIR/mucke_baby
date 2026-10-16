@@ -277,3 +277,24 @@
 "Genrefilter entfernen" = "Remove genre filter";
 "Filterlisten werden geladen …" = "Loading filter lists …";
 "Einige Filterlisten sind derzeit nicht verfügbar. Gespeicherte Auswahl bleibt erhalten." = "Some filter lists are currently unavailable. Saved selections are retained.";
+
+/* Tatsächlicher Aufnahmestatus */
+"Aus" = "Off";
+"Wartet" = "Waiting";
+"Läuft" = "Recording";
+"Speicher" = "Storage";
+"Indexfehler" = "Index error";
+"Verbindung" = "Connection";
+"Schreibfehler" = "Write error";
+"Aufnahme ist ausgeschaltet." = "Recording is off.";
+"Aufnahme ist aktiviert und wartet auf Audiobytes. Ohne laufenden Stream wird nichts gespeichert." = "Recording is enabled and waiting for audio data. Nothing is saved without a running stream.";
+"Audiobytes werden im Aufnahmeordner gespeichert." = "Audio data is being saved in the recording folder.";
+"Aufnahme gestoppt: weniger als 10 GiB frei. Speicher freigeben und Aufnahme aus- und wieder einschalten." = "Recording stopped: less than 10 GiB free. Free up space, then turn recording off and on again.";
+"Der Aufnahmeindex ist nicht verfügbar. Aufnahmeordner prüfen; bestehende Dateien bleiben erhalten." = "The recording index is unavailable. Check the recording folder; existing files are preserved.";
+"Die Metadatenverbindung ist beendet. Für einen neuen Aufnahmeversuch den Sender erneut starten." = "The metadata connection has ended. Restart the station to try recording again.";
+"Die Aufnahme konnte nicht geschrieben werden. Aufnahmeordner und Speicher prüfen; danach aus- und wieder einschalten." = "The recording could not be written. Check the recording folder and storage, then turn recording off and on again.";
+"Aufnahme ausschalten" = "Turn recording off";
+"Aufnahme einschalten" = "Turn recording on";
+"Aufnahmestatus" = "Recording status";
+"Der Schalter wirkt sofort auf den Mitschnitt. Die Wiedergabe läuft weiter. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Aufnahme ist bei einer neuen Installation aus." = "The switch changes recording immediately while playback continues. Folder: ~/Music/MuckeBaby/Aufnahmen/. Recording is off on a fresh installation.";
+"Standardmäßig AUS. Der Schalter wirkt sofort während der Wiedergabe. Aufnahme stoppt unter 10 GiB freiem Speicher. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Der tatsächliche Status steht unten im Hauptfenster." = "Off by default. The switch takes effect immediately during playback. Recording stops below 10 GiB of free space. Folder: ~/Music/MuckeBaby/Aufnahmen/. The actual status appears at the bottom of the main window.";

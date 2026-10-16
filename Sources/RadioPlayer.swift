@@ -43,9 +43,6 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var statusText = String(localized: "Bereit")
     @Published private(set) var nowPlayingTitle = ""
-    // Aufnahme wegen Platzmangel gestoppt (< 10 GB frei). Wird im Now-Playing-Fuss
-    // angezeigt und beim naechsten Senderstart in play() zurueckgesetzt.
-    @Published private(set) var lowDiskWarning = false
     // B2: Zeitpunkt, ab dem der aktuelle Sender wirklich spielt (erstes Audio).
     // Footer zeigt daraus die laufende Sender-Laufzeit. nil = spielt nicht.
     @Published private(set) var playStartedAt: Date?
@@ -54,7 +51,12 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var currentStreamURL: URL?
 
     let history = SongHistory()
-    let recorder = Recorder()
+    let recorder: Recorder
+    @Published private(set) var recordingRequested: Bool
+    private let preferences: UserDefaults
+    @Published private(set) var recordingState = RecordingState()
+    private var recordingRevision: UInt64 = 0
+    private var recordingSegmentID: UUID?
 
     private var player: VLCMediaPlayer
     private let makePlayer: () -> VLCMediaPlayer
@@ -71,25 +73,59 @@ final class RadioPlayer: ObservableObject {
     private var networkMonitor: NWPathMonitor?
     private var networkToken = UUID()
 
-    // Mitschnitt standardmaessig AUS; in den Einstellungen aktivierbar.
-    static var recordingEnabled: Bool {
-        UserDefaults.standard.object(forKey: "recordStreams") as? Bool ?? false
-    }
-
-    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }) {
+    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard) {
+        self.preferences = preferences
+        self.recordingRequested = preferences.object(forKey: "recordStreams") as? Bool ?? false
+        self.recorder = recorder
         self.makePlayer = makePlayer
         self.player = makePlayer()
         self.reconnect = reconnect ?? PlaybackReconnect()
         let reconnect = self.reconnect
         // codereview-ok: icy/recorder sind app-lebenslange Member mit [weak self]-Closures — kein Retain-Cycle/Leak (2026-07-01)
         icy.onTitle  = { [weak self] title, boundary in self?.setNowPlaying(title, at: boundary) }
-        recorder.onLowDisk = { [weak self] in self?.lowDiskWarning = true }
+        recorder.onCaptureState = { [weak self] state in self?.captureStateChanged(state) }
+        resetCapture()
         reconnect.onRetry = { [weak self] id in
             guard let self, let station = self.desiredStation, station.id == id else { return }
             self.startAttempt(station)
         }
         reconnect.onTimeout = { [weak self] in self?.attemptFailed() }
         reconnect.onChange = { [weak self] phase in self?.reconnectPhaseChanged(phase) }
+    }
+
+    func setRecordingRequested(_ enabled: Bool) {
+        guard enabled != recordingRequested else { return }
+        recordingRequested = enabled
+        preferences.set(enabled, forKey: "recordStreams")
+        recordingRevision &+= 1
+        recorder.setCaptureEnabled(enabled, revision: recordingRevision)
+    }
+
+    private func resetCapture() {
+        recordingRevision &+= 1
+        recordingSegmentID = nil
+        recordingState = RecordingState(phase: recordingRequested ? .waiting : .off, revision: recordingRevision)
+        recorder.clearCapture(enabled: recordingRequested, revision: recordingRevision)
+    }
+
+    private func captureStateChanged(_ state: RecordingState) {
+        guard state.revision == recordingRevision else { return }
+        recordingState = state
+        if state.phase == .recording, let id = state.segmentID, recordingSegmentID != id,
+           state.streamID == recordingSessionID, let station = currentStation, let startedAt = state.startedAt {
+            recordingSegmentID = id
+            let entry = history.entries.last
+            let date = entry?.end == nil && entry?.station == station.name
+                ? max(startedAt, entry?.start ?? startedAt) : startedAt
+            if nowPlayingTitle.isEmpty { history.beginSession(station: station.name, at: date, sessionID: id) }
+            else { history.note(station: station.name, raw: nowPlayingTitle, at: date, sessionID: id) }
+        } else if state.phase != .recording, recordingSegmentID != nil {
+            recordingSegmentID = nil
+            history.closeCurrent()
+            if currentStreamURL != nil, let station = currentStation, !nowPlayingTitle.isEmpty {
+                history.note(station: station.name, raw: nowPlayingTitle, sessionID: recordingSessionID)
+            }
+        }
     }
 
     // Lautstaerke 0.0 … 1.0  (VLC-Skala: 0…100, 100 = Originalpegel)
@@ -111,7 +147,7 @@ final class RadioPlayer: ObservableObject {
     private func startAttempt(_ station: Station) {
         history.closeCurrent()      // Senderwechsel = Songende
         icy.stop()                  // erst alle noch laufenden Senken abwarten
-        recorder.end()              // danach kann kein alter begin-Auftrag mehr folgen
+        resetCapture()              // danach kann kein alter begin-Auftrag mehr folgen
         resolveTask?.cancel()
         resolveTask = nil
         let generation = requests.begin()
@@ -125,11 +161,6 @@ final class RadioPlayer: ObservableObject {
         isPlaying = false
         playStartedAt = nil
         lastState = nil
-        // Neuer Senderstart = neuer Aufnahme-Versuch: alte Platzmangel-Warnung
-        // zuruecksetzen. Ist der Speicher weiterhin knapp, setzt der Recorder sie
-        // beim naechsten Platz-Check sofort wieder.
-        lowDiskWarning = false
-
         let raw = station.url
         guard StreamURLPolicy.validatedURL(raw) != nil else {
             desiredStation = nil
@@ -174,28 +205,18 @@ final class RadioPlayer: ObservableObject {
         player.play()
         currentStreamURL = url   // AudioTap starten: er tappt die eigene Prozessausgabe
 
-        // ICY-Reader: Now-Playing-Titel + (bei aktivierter Aufnahme) Audio mitschneiden.
+        // Die vorhandene ICY-Verbindung bleibt auch ohne Metadaten erhalten.
+        // Nur die Dateisenke wird umgeschaltet; VLC und Streamverbindungen bleiben gleich.
         let recorder = self.recorder
         let stationName = currentStation?.name ?? "Sender"
-        let rec = Self.recordingEnabled
-        let sessionID = recordingSessionID
-        // Aufnahme und Platzhalter beginnen mit den ersten Audiobytes. Wartezeit
-        // für HTTP-Header gehört nicht in die Zeitachse der gespeicherten Datei.
-        // Die Pro-Session-Senken werden an start() uebergeben (nicht als Property gesetzt),
-        // damit der ICY-Reader sie intern queue-serialisiert halten kann (Race-frei beim
-        // Senderwechsel).
-        icy.start(url: url, allowAudioOnly: rec,
-                  onStart: { [weak self] ct, startedAt in
-                      guard rec else { return }
-                      recorder.begin(station: stationName, contentType: ct, at: startedAt, sessionID: sessionID)
-                      DispatchQueue.main.async {
-                          guard let self, self.requests.accepts(generation), self.currentStreamURL != nil else { return }
-                          self.history.beginSession(station: stationName, at: startedAt, sessionID: sessionID)
-                      }
-                  },
-                  onBoundary: { _, boundary in if rec { recorder.songBoundary(at: boundary) } },
-                  onAudio: { data in if rec { recorder.write(data) } },
-                  onCompletion: { endedAt in if rec { recorder.end(at: endedAt) } })
+        let streamID = recordingSessionID
+        recorder.configureCapture(station: stationName, streamID: streamID,
+                                  enabled: recordingRequested, revision: recordingRevision)
+        icy.start(url: url, allowAudioOnly: true,
+                  onStart: { contentType, _ in recorder.captureFormat(contentType, streamID: streamID) },
+                  onBoundary: { _, boundary in recorder.songBoundary(at: boundary) },
+                  onAudioAt: { data, date in recorder.captureAudio(data, at: date, streamID: streamID) },
+                  onCompletion: { date in recorder.finishCapture(streamID: streamID, at: date) })
         // Nur Schema/Host/Pfad loggen: Query und Benutzerinfo koennen Tokens oder
         // Passwoerter enthalten und landeten frueher unmaskiert im Unified Log.
         log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(StreamURLPolicy.redactedForLog(url), privacy: .public)")
@@ -212,7 +233,7 @@ final class RadioPlayer: ObservableObject {
     private func stopAttempt() {
         history.closeCurrent()
         icy.stop()
-        recorder.end()
+        resetCapture()
         resolveTask?.cancel()
         resolveTask = nil
         requests.invalidate()
@@ -339,7 +360,7 @@ final class RadioPlayer: ObservableObject {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, t != nowPlayingTitle else { return }
         nowPlayingTitle = t
-        if let st = currentStation { history.note(station: st.name, raw: t, at: boundary, sessionID: recordingSessionID) }
+        if let st = currentStation { history.note(station: st.name, raw: t, at: boundary, sessionID: recordingSegmentID ?? recordingSessionID) }
         log.notice("nowplaying \(t, privacy: .public)")
     }
 }

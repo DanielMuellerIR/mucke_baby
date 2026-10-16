@@ -6,11 +6,11 @@ private let log = Logger(subsystem: "de.danielmuller.macradio", category: "recor
 
 // Schreibt den laufenden Stream als Roh-Audio-Dump in Dateien unter
 // ~/Music/MuckeBaby/Aufnahmen/. Eine Datei pro Sender-Session; Rollover am
-// naechsten Songwechsel nach 24 h. Stoppt bei < 10 GB frei. Thread-sicher
+// naechsten Songwechsel nach 24 h. Stoppt bei < 10 GiB frei. Thread-sicher
 // ueber eine serielle Queue (alle Datei-/Index-Operationen laufen dort).
 //
 // Mitschnitt ist Default AUS (seit v1.7.37, `recordStreams ?? false`); der Nutzer
-// aktiviert ihn bewusst in den Einstellungen, die Wahl bleibt dann erhalten.
+// aktiviert ihn bewusst im Hauptfenster oder in den Einstellungen. Die Wahl bleibt erhalten.
 //
 // @unchecked Sendable: aller veraenderlicher Zustand wird ausschliesslich ueber die
 // serielle Queue `q` angefasst -> thread-sicher. Erlaubt, den Recorder in einem
@@ -30,10 +30,28 @@ final class Recorder: @unchecked Sendable {
         var receivedEnd: Date? = nil
     }
 
-    static let minFreeBytes: Int64 = 10 * 1024 * 1024 * 1024   // 10 GB
+    static let minFreeBytes: Int64 = 10 * 1024 * 1024 * 1024   // 10 GiB
 
     let dir: URL
     var onLowDisk: (() -> Void)?           // Main-Thread
+    // Vor Benutzung einmal setzen; Zustellung erfolgt in Queue-Reihenfolge auf Main.
+    var onCaptureState: ((RecordingState) -> Void)?
+    private struct Capture {
+        var station: String
+        var streamID: UUID
+        var contentType: String?
+        var segmentID = UUID()
+        var enabledAt: Date
+    }
+    private var capture: Capture?
+    private var captureRequested = false
+    private var captureRevision: UInt64 = 0
+    private var captureBlocked: RecordingState.Phase?
+    private var captureBytes: Int64 = 0
+    private var publishedBytes: Int64 = -1
+    private var capacityTimer: DispatchSourceTimer?
+    private let capacityCheckInterval: TimeInterval
+    private let writeAudio: @Sendable (FileHandle, Data) throws -> Void
 
     private let indexURL: URL
     private let minimumFreeBytes: Int64
@@ -46,7 +64,8 @@ final class Recorder: @unchecked Sendable {
     private var indexWritable = true
 
     init(directory: URL? = nil, minimumFreeBytes: Int64 = Recorder.minFreeBytes,
-         availableCapacity: (@Sendable () -> Int64?)? = nil) {
+         availableCapacity: (@Sendable () -> Int64?)? = nil, capacityCheckInterval: TimeInterval = 15,
+         writeAudio: @escaping @Sendable (FileHandle, Data) throws -> Void = { try $0.write(contentsOf: $1) }) {
         if let directory {
             // Expliziter Pfad ist fuer Headless-Tests/isolierte Werkzeuge; dabei
             // niemals reale Musikordner migrieren oder beruehren.
@@ -56,12 +75,91 @@ final class Recorder: @unchecked Sendable {
             let music = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
             dir = music.appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
         }
+        self.writeAudio = writeAudio
+        self.capacityCheckInterval = max(0.01, capacityCheckInterval)
         self.minimumFreeBytes = minimumFreeBytes
         self.availableCapacity = availableCapacity
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         indexURL = dir.appendingPathComponent("recordings-index.json")
         q.sync { loadIndex(); closeDangling() }
     }
+
+    // Steuerung und Audio treffen auf derselben Datei-Queue ein. Alte Stream-IDs
+    // dürfen eine neue Aufnahme weder beginnen noch schließen.
+    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64, at date: Date = Date()) {
+        q.async {
+            self._close(at: date)
+            self.captureRequested = enabled; self.captureRevision = revision
+            self.capture = Capture(station: station, streamID: streamID, enabledAt: date)
+            self.captureBlocked = nil; self.captureBytes = 0; self.publishedBytes = -1
+            self.publishCapture()
+        }
+    }
+
+    func setCaptureEnabled(_ enabled: Bool, revision: UInt64, at date: Date = Date()) {
+        q.async {
+            self._close(at: date)
+            self.captureRequested = enabled; self.captureRevision = revision
+            if !enabled || self.capture != nil { self.captureBlocked = nil }
+            self.captureBytes = 0; self.publishedBytes = -1
+            self.capture?.enabledAt = date; self.capture?.segmentID = UUID()
+            self.publishCapture()
+        }
+    }
+
+    func captureFormat(_ contentType: String?, streamID: UUID) {
+        q.async { if self.capture?.streamID == streamID { self.capture?.contentType = contentType } }
+    }
+
+    func captureAudio(_ data: Data, at date: Date, streamID: UUID) {
+        q.async {
+            guard let capture = self.capture, capture.streamID == streamID,
+                  self.captureRequested, self.captureBlocked == nil,
+                  date >= capture.enabledAt, !data.isEmpty else { return }
+            if self.handle == nil {
+                self._begin(station: capture.station, ext: Self.ext(for: capture.contentType), at: date, sessionID: capture.segmentID)
+                guard self.handle != nil else { self.publishCapture(); return }
+            }
+            guard self._write(data, at: date) else { self.publishCapture(); return }
+            self.captureBytes += Int64(data.count)
+            if self.captureBlocked != nil || self.publishedBytes < 0 || self.captureBytes - self.publishedBytes >= 64 * 1024 {
+                self.publishCapture()
+            }
+        }
+    }
+
+    func finishCapture(streamID: UUID, at date: Date) {
+        q.async {
+            guard self.capture?.streamID == streamID else { return }
+            self._close(at: date); self.capture = nil
+            if self.captureRequested && self.captureBlocked == nil { self.captureBlocked = .streamEnded }
+            self.publishCapture()
+        }
+    }
+
+    func clearCapture(enabled: Bool, revision: UInt64, at date: Date = Date()) {
+        q.async {
+            self._close(at: date); self.capture = nil
+            self.captureRequested = enabled; self.captureRevision = revision
+            self.captureBlocked = nil; self.captureBytes = 0; self.publishCapture()
+        }
+    }
+
+    func captureState() -> RecordingState { q.sync { currentCaptureState() } }
+
+    private func currentCaptureState() -> RecordingState {
+        let phase: RecordingState.Phase = !captureRequested ? .off
+            : captureBlocked ?? (handle != nil && captureBytes > 0 ? .recording : .waiting)
+        return RecordingState(phase: phase, revision: captureRevision, streamID: capture?.streamID,
+                              segmentID: capture?.segmentID, startedAt: fileStart, bytes: captureBytes)
+    }
+
+    private func publishCapture() {
+        let state = currentCaptureState(); publishedBytes = captureBytes
+        DispatchQueue.main.async { self.onCaptureState?(state) }
+    }
+
+    deinit { capacityTimer?.cancel() }
 
     // Aufnahme fuer einen Sender starten (Codec-Endung aus Content-Type).
     func begin(station: String, contentType: String?, at date: Date = Date(), sessionID: UUID = UUID()) {
@@ -70,16 +168,7 @@ final class Recorder: @unchecked Sendable {
 
     func write(_ data: Data) {
         q.async {
-            guard let h = self.handle else { return }
-            do { try h.write(contentsOf: data) } catch { self._close(at: Date()) ; return }
-            self.bytesSinceCheck += data.count
-            if self.bytesSinceCheck > 8 * 1024 * 1024 {          // alle ~8 MB Platz pruefen
-                self.bytesSinceCheck = 0
-                if !self.hasSpace() {
-                    self._close(at: Date())
-                    DispatchQueue.main.async { self.onLowDisk?() }
-                }
-            }
+            _ = self._write(data, at: Date())
         }
     }
 
@@ -91,6 +180,7 @@ final class Recorder: @unchecked Sendable {
                 let station = last.station, ext = last.ext
                 self._close(at: date)
                 self._begin(station: station, ext: ext, at: date, sessionID: last.sessionID)
+                if self.capture != nil { self.publishCapture() }
             }
         }
     }
@@ -181,9 +271,13 @@ final class Recorder: @unchecked Sendable {
     // MARK: - intern (immer auf q)
 
     private func _begin(station: String, ext: String, at date: Date, sessionID: UUID?) {
-        guard indexWritable else { return }
+        guard indexWritable else { captureBlocked = .indexUnavailable; return }
         _close(at: date)
-        guard hasSpace() else { DispatchQueue.main.async { self.onLowDisk?() }; return }
+        guard hasSpace() else {
+            captureBlocked = .lowDisk
+            DispatchQueue.main.async { self.onLowDisk?() }
+            return
+        }
         let name = fileName(station: station, date: date, ext: ext)
         let url = dir.appendingPathComponent(name)
         FileManager.default.createFile(atPath: url.path, contents: nil)
@@ -193,9 +287,11 @@ final class Recorder: @unchecked Sendable {
             // leere 0-Byte-Datei als Muell im Aufnahmeordner liegen (kein Clip/Index
             // kennt sie) — deshalb hier wieder entfernen.
             try? FileManager.default.removeItem(at: url)
+            captureBlocked = .writeFailed
             return
         }
         fileStart = date
+        captureBytes = 0; publishedBytes = -1
         clips.append(Clip(file: name, station: station, start: date, end: nil, ext: ext, sessionID: sessionID))
         guard saveIndex() else {
             // Ohne gespeicherten Index wäre diese neue Datei nach Neustart verwaist.
@@ -204,18 +300,51 @@ final class Recorder: @unchecked Sendable {
             handle = nil; fileStart = nil
             clips.removeLast()
             try? FileManager.default.removeItem(at: url)
+            captureBlocked = .writeFailed
             return
         }
+        startCapacityTimer()
+    }
+
+    private func _write(_ data: Data, at date: Date) -> Bool {
+        guard let handle else { return false }
+        do { try writeAudio(handle, data) }
+        catch { _close(at: date); captureBlocked = .writeFailed; publishCapture(); return false }
+        bytesSinceCheck += data.count
+        if bytesSinceCheck > 8 * 1024 * 1024 {
+            bytesSinceCheck = 0
+            _ = checkCapacity(at: date)
+        }
+        return true
+    }
+
+    private func startCapacityTimer() {
+        capacityTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: q)
+        timer.schedule(deadline: .now() + capacityCheckInterval, repeating: capacityCheckInterval)
+        timer.setEventHandler { [weak self] in _ = self?.checkCapacity(at: Date()) }
+        capacityTimer = timer; timer.resume()
+    }
+
+    private func checkCapacity(at date: Date) -> Bool {
+        guard handle != nil else { return false }
+        guard hasSpace() else {
+            _close(at: date); captureBlocked = .lowDisk; publishCapture()
+            DispatchQueue.main.async { self.onLowDisk?() }
+            return false
+        }
+        return true
     }
 
     private func _close(at date: Date) {
+        capacityTimer?.cancel(); capacityTimer = nil
         guard handle != nil else { return }
         try? handle?.close()
         handle = nil; fileStart = nil; bytesSinceCheck = 0
         if let i = clips.indices.last, clips[i].end == nil {
             clips[i].receivedEnd = max(clips[i].start, date)
             clips[i].end = recordingEnd(for: clips[i], receivedEnd: date)
-            saveIndex()
+            if !saveIndex() { captureBlocked = .writeFailed }
         }
     }
 
