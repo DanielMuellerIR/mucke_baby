@@ -27,3 +27,5 @@ Codecunterstützung des Exports hängt von macOS ab. Die vier Formate wurden auf
 macOS 26.6.2 geprüft; damit ist ihre Unterstützung auf macOS 14.2 nicht belegt.
 Unlesbare Aufnahmen müssen kontrolliert abgewiesen werden. Wiedergabe über VLCKit
 und echte GUI-/Drag-Prüfungen sind gesonderte App-Abnahmen mit notarisiertem Bundle.
+
+Der `StationRepairHarness` prüft optionale Katalogherkunft und Altdaten, UUID-Abfragen samt Mirror-/Abbruchfällen, Vorschau ohne Speicherung, veraltete Antworten, unsichere URLs, Schreibfehler und den Erhalt lokaler Senderdaten. Kontrollierte Erreichbarkeitsproben belegen, dass Ergebnisse für eine ersetzte URL nicht mehr veröffentlicht werden.

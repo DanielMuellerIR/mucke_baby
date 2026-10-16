@@ -33,12 +33,12 @@ swiftc -parse-as-library \
 "$BUILD/review-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
   Tests/StoreHarness.swift -o "$BUILD/store-harness"
 "$BUILD/store-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
   Tests/StationSelectionHarness.swift -o "$BUILD/station-selection-harness"
 "$BUILD/station-selection-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
@@ -91,7 +91,7 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/RadioBrowser.swift Sources/CatalogCache.swift \
+  Sources/Safety.swift Sources/Models.swift Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/CatalogCache.swift \
   Tests/CatalogHarness.swift -o "$BUILD/catalog-harness"
 "$BUILD/catalog-harness"
 
@@ -110,3 +110,10 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/audio-tap-harness"
 python3 Tests/release-mount.py
 python3 Tests/release-publish.py
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift \
+  Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/StationHealth.swift Sources/PlaylistResolver.swift \
+  Tests/StationRepairHarness.swift -o "$BUILD/station-repair-harness"
+"$BUILD/station-repair-harness"

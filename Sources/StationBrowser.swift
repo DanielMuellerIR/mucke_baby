@@ -335,7 +335,8 @@ struct StationBrowserView: View {
     private func add(_ station: RBStation) {
         addError = ""
         guard let url = StreamURLPolicy.validatedURL(station.streamURL) else { return }
-        if store.addIfNew(name: station.name, url: url.absoluteString) { addedIDs.insert(station.stationuuid) }
+        if store.addIfNew(name: station.name, url: url.absoluteString,
+                          radioBrowserID: UUID(uuidString: station.stationuuid)) { addedIDs.insert(station.stationuuid) }
         else if store.persistenceFailed { store.persistenceFailed = false; addError = String(localized: "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.") }
     }
 }

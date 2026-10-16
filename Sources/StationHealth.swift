@@ -5,21 +5,30 @@ import Foundation
 // pro Sender als @Published -> ⚠️-Anzeige in der Liste, Klick zeigt den Fehler.
 @MainActor
 final class StationHealth: ObservableObject {
-    enum Status: Equatable { case unknown, checking, ok, bad(String) }
+    enum Status: Equatable, Sendable { case unknown, checking, ok, bad(String) }
 
     @Published var states: [UUID: Status] = [:]
     private var running = false
     private var pending: [Station]?   // waehrend eines Laufs zuletzt angeforderte Liste
+    private var requestedURLs: [UUID: String] = [:]
+    private let probeURL: @Sendable (String) async -> Status
+
+    init(probe: @escaping @Sendable (String) async -> Status = { await StationHealth.probe($0) }) {
+        probeURL = probe
+    }
 
     func checkAll(_ stations: [Station]) {
+        let nextURLs = Dictionary(stations.map { ($0.id, $0.url) }, uniquingKeysWith: { _, last in last })
+        states = states.filter { nextURLs[$0.key] != nil }
+        for s in stations where requestedURLs[s.id] != s.url || states[s.id] != .ok {
+            states[s.id] = .checking
+        }
+        requestedURLs = nextURLs
         // Laeuft schon eine Pruefung? Dann nur die neueste Liste vormerken und nach
         // Abschluss genau einmal nachholen — sonst wuerden waehrend des Laufs (bis zu
         // 8 s pro Sender) hinzugefuegte Sender nie geprueft (Guard verwarf den Aufruf).
         if running { pending = stations; return }
         running = true
-        for s in stations where !s.url.isEmpty {
-            if states[s.id] != .ok { states[s.id] = .checking }
-        }
         Task {
             await run(stations)
             running = false
@@ -28,19 +37,20 @@ final class StationHealth: ObservableObject {
     }
 
     private func run(_ stations: [Station]) async {
-        await withTaskGroup(of: (UUID, Status).self) { group in
+        let probe = probeURL
+        await withTaskGroup(of: (UUID, String, Status).self) { group in
             var it = stations.makeIterator()
             var active = 0
             let maxConcurrent = 8
             func fill() {
                 while active < maxConcurrent, let s = it.next() {
                     active += 1
-                    group.addTask { (s.id, await Self.probe(s.url)) }
+                    group.addTask { (s.id, s.url, await probe(s.url)) }
                 }
             }
             fill()
-            for await (id, st) in group {
-                states[id] = st
+            for await (id, url, st) in group {
+                if requestedURLs[id] == url { states[id] = st }
                 active -= 1
                 fill()
             }

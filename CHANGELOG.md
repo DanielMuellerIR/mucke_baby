@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.11 — 2026-10-16
+
+- Keep optional Radio-Browser station IDs when adding catalog stations and exchanging station JSON. Existing and manually added stations remain independent.
+- Offer an explicit URL repair preview in the station editor. Fetch only the saved catalog identity, reject unsafe or ambiguous results, and save only the URL while retaining names, favorites, groups and quick slots.
+- Keep current playback connected during repair. Manual playback controls use the saved address on the next start, and outdated health checks cannot overwrite the result for a changed URL.
+
 ## 1.9.10 — 2026-10-16
 
 - Wrap playback and metadata recovery status in narrow windows so every theme shows the full message. Track titles remain horizontally scrollable.

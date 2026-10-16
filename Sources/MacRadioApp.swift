@@ -462,7 +462,11 @@ struct ContentView: View {
             // Transport: Play/Stop (Stopp oben). Bei Platzmangel fällt das
             // Text-Label weg — nur das Icon bleibt. ViewThatFits nimmt die
             // erste Variante, die in die verfügbare Breite passt.
-            Button { if let s = player.currentStation { player.toggle(s) } } label: {
+            Button {
+                if let s = player.currentStation {
+                    player.toggle(store.stations.first(where: { $0.id == s.id }) ?? s)
+                }
+            } label: {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 5) {
                         Image(systemName: (player.isPlaying || player.isLoading) ? "stop.fill" : "play.fill")

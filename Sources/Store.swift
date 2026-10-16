@@ -6,6 +6,7 @@ enum StationSaveError: Error {
     case persistenceFailed
     case stationNotFound
     case invalidGroupName
+    case stationChanged
 }
 
 // Haelt die Senderliste und kuemmert sich um Laden/Speichern.
@@ -170,6 +171,18 @@ final class Store: ObservableObject {
                                                quickSlots: quickSlots))
     }
 
+    func applyURLRepair(_ proposal: StationURLRepairProposal) throws {
+        guard var station = stations.first(where: { $0.id == proposal.stationID }) else {
+            throw StationSaveError.stationNotFound
+        }
+        guard station.radioBrowserID == proposal.radioBrowserID, station.url == proposal.oldURL else {
+            throw StationSaveError.stationChanged
+        }
+        // Nur die URL aus der Vorschau übernehmen, nie den veralteten Sender-Snapshot.
+        station.url = proposal.newURL
+        try update(station)
+    }
+
     @discardableResult
     func delete(_ station: Station) -> Bool {
         attemptCommit(stations.filter { $0.id != station.id })
@@ -263,12 +276,12 @@ final class Store: ObservableObject {
     // Einzelnen Sender uebernehmen, falls seine URL noch nicht in der Liste ist.
     // true erst nach Speicherung; false bei Dublette, ungültiger URL oder Speicherfehler.
     @discardableResult
-    func addIfNew(name: String, url: String) -> Bool {
+    func addIfNew(name: String, url: String, radioBrowserID: UUID? = nil) -> Bool {
         guard let validated = StreamURLPolicy.validatedURL(url),
               !containsURL(validated.absoluteString)
         else { return false }
         return attemptCommit(stations + [Station(name: name, url: validated.absoluteString,
-                                                 enabled: true, favorite: false)])
+                                                 enabled: true, favorite: false, radioBrowserID: radioBrowserID)])
     }
 
     // Fuegt nur Sender hinzu, die per (normalisierter) URL noch nicht da sind.
@@ -286,7 +299,7 @@ final class Store: ObservableObject {
             seen.insert(key)
             // Importierte Sender nie als Favorit uebernehmen.
             next.append(Station(name: s.name, url: validated.absoluteString,
-                                    enabled: true, favorite: false))
+                                    enabled: true, favorite: false, radioBrowserID: s.radioBrowserID))
             added += 1
         }
         if added > 0, !attemptCommit(next) { return -2 }
@@ -323,10 +336,11 @@ final class Store: ObservableObject {
 
     // MARK: - JSON Im-/Export (portabel, ohne interne ids)
 
-    // Aktuelle Senderliste als JSON-Daten (Array aus {name,url,enabled,favorite}).
+    // Portabler Senderexport mit optionaler Katalogherkunft, ohne lokale Sender-IDs.
     func exportData() -> Data? {
         let arr = stations.map {
-            PortableStation(name: $0.name, url: $0.url, enabled: $0.enabled, favorite: $0.favorite)
+            PortableStation(name: $0.name, url: $0.url, enabled: $0.enabled, favorite: $0.favorite,
+                            radioBrowserID: $0.radioBrowserID)
         }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -341,12 +355,13 @@ final class Store: ObservableObject {
     }
 }
 
-// Portables Export-Format (kein interner UUID-Ballast).
+// Lokale Sender-IDs bleiben lokal; Katalog-IDs sind auf anderen Geräten nutzbar.
 struct PortableStation: Codable {
     var name: String
     var url: String
     var enabled: Bool
     var favorite: Bool
+    var radioBrowserID: UUID?
 }
 
 // Eintrag im Genre-Listen-Manifest.

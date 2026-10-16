@@ -53,11 +53,12 @@ final class SystemMediaBinding {
     private var ended = false
     init(player: RadioPlayer, store: Store) {
         self.player = player; self.store = store
-        coordinator = SystemMediaCoordinator(backend: MediaPlayerBackend()) { [weak player] action, station in
+        coordinator = SystemMediaCoordinator(backend: MediaPlayerBackend()) { [weak player, weak store] action, station in
             guard let player else { return }
             switch action {
             case .pause, .stop, .toggle: player.stop()
-            case .play, .previous, .next: if let station { player.play(station) }
+            case .play, .previous, .next:
+                if let station { player.play(store?.stations.first(where: { $0.id == station.id }) ?? station) }
             }
         }
         let changes: [AnyPublisher<Void, Never>] = [

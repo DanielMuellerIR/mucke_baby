@@ -108,7 +108,7 @@ protocol CatalogFetching: Sendable {
     func facets() async throws -> CatalogFacets
 }
 
-struct RadioBrowserClient: CatalogFetching {
+struct RadioBrowserClient: CatalogFetching, StationOriginFetching {
     var mirrors: [String]
     var session: URLSession
     static var standard: RadioBrowserClient {
@@ -121,6 +121,15 @@ struct RadioBrowserClient: CatalogFetching {
         return RadioBrowserClient(mirrors: RadioBrowserAPI.mirrors)
     }
     init(mirrors: [String], session: URLSession = .shared) { self.mirrors = mirrors; self.session = session }
+
+    func station(id: UUID) async throws -> RBStation? {
+        let rows: [RBStation] = try await get("/json/stations/byuuid", [.init(name: "uuids", value: id.uuidString.lowercased())])
+        guard !rows.isEmpty else { return nil }
+        guard rows.count == 1, UUID(uuidString: rows[0].stationuuid) == id else {
+            throw StationRepairError.invalidResponse
+        }
+        return rows[0]
+    }
 
     func search(_ selection: CatalogSelection, at date: Date = Date()) async throws -> CatalogPage {
         guard selection.isValid else { throw URLError(.badURL) }

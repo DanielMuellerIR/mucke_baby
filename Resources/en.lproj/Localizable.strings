@@ -309,3 +309,25 @@
 "Titeldaten warten auf das Netzwerk." = "Track information is waiting for the network.";
 "Titeldaten werden erneut verbunden …" = "Reconnecting track information …";
 "Titeldaten nicht verfügbar. Für einen neuen Versuch den Sender erneut starten." = "Track information is unavailable. Restart the station to try again.";
+
+/* Senderherkunft und bewusste URL-Reparatur */
+"Senderherkunft" = "Station source";
+"Katalogadresse prüfen …" = "Check catalog address…";
+"Die Reparatur speichert nur die Katalogadresse. Andere Änderungen im Editor erst mit Sichern übernehmen." = "Repair saves only the catalog address. Use Save to apply other edits in the editor.";
+"Keine Katalogherkunft gespeichert. Die Adresse kann manuell im Editor geändert werden." = "No catalog source saved. You can change the address manually in the editor.";
+"Senderadresse reparieren" = "Repair station address";
+"Die gespeicherte Radio-Browser-ID bestimmt den Katalogeintrag. Ähnliche Namen werden nicht zugeordnet." = "The saved Radio-Browser ID identifies the catalog entry. Similar names are never matched.";
+"Katalogadresse wird abgerufen …" = "Fetching catalog address…";
+"Dieser Katalogeintrag ist nicht mehr vorhanden. Die bisherige Adresse bleibt erhalten." = "This catalog entry no longer exists. The current address is kept.";
+"Der Katalog nennt bereits die gespeicherte Adresse. Es ist keine Reparatur nötig." = "The catalog already lists the saved address. No repair is needed.";
+"Katalogname" = "Catalog name";
+"Bisherige URL" = "Current URL";
+"Vorgeschlagene URL" = "Proposed URL";
+"Die vorgeschlagene Adresse verwendet unverschlüsseltes HTTP." = "The proposed address uses unencrypted HTTP.";
+"Nur die URL wird gespeichert. Name, Gruppen und Favoriten bleiben erhalten. Laufende Wiedergabe bleibt unverändert; die neue Adresse gilt beim nächsten manuellen Start." = "Only the URL is saved. Your name, groups and favorites are kept. Current playback continues unchanged; the new address takes effect on the next manual start.";
+"Erneut prüfen" = "Check again";
+"URL speichern" = "Save URL";
+"Der Sender wurde inzwischen geändert. Bitte die Vorschau schließen und erneut prüfen." = "The station has changed in the meantime. Please close the preview and check again.";
+"Die Katalogantwort gehört nicht eindeutig zu diesem Sender. Es wurde nichts geändert." = "The catalog response does not uniquely identify this station. Nothing was changed.";
+"Der Katalog enthält keine sichere HTTP- oder HTTPS-Adresse ohne Zugangsdaten. Es wurde nichts geändert." = "The catalog has no safe HTTP or HTTPS address without credentials. Nothing was changed.";
+"Der Katalog ist gerade nicht erreichbar oder liefert keine lesbare Antwort. Bitte erneut versuchen." = "The catalog is currently unavailable or returned an unreadable response. Please try again.";

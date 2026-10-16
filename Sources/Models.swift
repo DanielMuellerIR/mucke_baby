@@ -9,18 +9,21 @@ struct Station: Identifiable, Codable, Equatable, Hashable {
     var url: String
     var enabled: Bool = true   // entspricht "Show in list" (inc) aus Radio++
     var favorite: Bool = false
+    var radioBrowserID: UUID?
 
-    init(id: UUID = UUID(), name: String, url: String, enabled: Bool = true, favorite: Bool = false) {
+    init(id: UUID = UUID(), name: String, url: String, enabled: Bool = true, favorite: Bool = false,
+         radioBrowserID: UUID? = nil) {
         self.id = id
         self.name = name
         self.url = url
         self.enabled = enabled
         self.favorite = favorite
+        self.radioBrowserID = radioBrowserID
     }
 
     // Toleranter Decoder: fehlende Felder in handgepflegten stations.json
     // brechen das Laden nicht ab, sondern bekommen sinnvolle Defaults.
-    enum CodingKeys: String, CodingKey { case id, name, url, enabled, favorite }
+    enum CodingKeys: String, CodingKey { case id, name, url, enabled, favorite, radioBrowserID }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
@@ -28,6 +31,7 @@ struct Station: Identifiable, Codable, Equatable, Hashable {
         url = try c.decode(String.self, forKey: .url)
         enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
         favorite = (try? c.decode(Bool.self, forKey: .favorite)) ?? false
+        radioBrowserID = try? c.decode(UUID.self, forKey: .radioBrowserID)
     }
 }
 
@@ -38,24 +42,26 @@ struct SeedStation: Decodable {
     let url: String
     var enabled: Bool = true
     var favorite: Bool = false
+    var radioBrowserID: UUID?
 
-    enum CodingKeys: String, CodingKey { case name, url, enabled, favorite }
+    enum CodingKeys: String, CodingKey { case name, url, enabled, favorite, radioBrowserID }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name = try c.decode(String.self, forKey: .name)
         url = try c.decode(String.self, forKey: .url)
         enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
         favorite = (try? c.decode(Bool.self, forKey: .favorite)) ?? false
+        radioBrowserID = try? c.decode(UUID.self, forKey: .radioBrowserID)
     }
 
     func toStation() -> Station {
-        Station(name: name, url: url, enabled: enabled, favorite: favorite)
+        Station(name: name, url: url, enabled: enabled, favorite: favorite, radioBrowserID: radioBrowserID)
     }
 }
 
 // App-Version an einer Stelle. Wird auch in der Info.plist gespiegelt.
 enum AppInfo {
-    static let version = "1.9.10"
+    static let version = "1.9.11"
 }
 
 enum JSONFileRecovery {

@@ -309,3 +309,25 @@
 "Titeldaten warten auf das Netzwerk." = "Titeldaten warten auf das Netzwerk.";
 "Titeldaten werden erneut verbunden …" = "Titeldaten werden erneut verbunden …";
 "Titeldaten nicht verfügbar. Für einen neuen Versuch den Sender erneut starten." = "Titeldaten nicht verfügbar. Für einen neuen Versuch den Sender erneut starten.";
+
+/* Senderherkunft und bewusste URL-Reparatur */
+"Senderherkunft" = "Senderherkunft";
+"Katalogadresse prüfen …" = "Katalogadresse prüfen …";
+"Die Reparatur speichert nur die Katalogadresse. Andere Änderungen im Editor erst mit Sichern übernehmen." = "Die Reparatur speichert nur die Katalogadresse. Andere Änderungen im Editor erst mit Sichern übernehmen.";
+"Keine Katalogherkunft gespeichert. Die Adresse kann manuell im Editor geändert werden." = "Keine Katalogherkunft gespeichert. Die Adresse kann manuell im Editor geändert werden.";
+"Senderadresse reparieren" = "Senderadresse reparieren";
+"Die gespeicherte Radio-Browser-ID bestimmt den Katalogeintrag. Ähnliche Namen werden nicht zugeordnet." = "Die gespeicherte Radio-Browser-ID bestimmt den Katalogeintrag. Ähnliche Namen werden nicht zugeordnet.";
+"Katalogadresse wird abgerufen …" = "Katalogadresse wird abgerufen …";
+"Dieser Katalogeintrag ist nicht mehr vorhanden. Die bisherige Adresse bleibt erhalten." = "Dieser Katalogeintrag ist nicht mehr vorhanden. Die bisherige Adresse bleibt erhalten.";
+"Der Katalog nennt bereits die gespeicherte Adresse. Es ist keine Reparatur nötig." = "Der Katalog nennt bereits die gespeicherte Adresse. Es ist keine Reparatur nötig.";
+"Katalogname" = "Katalogname";
+"Bisherige URL" = "Bisherige URL";
+"Vorgeschlagene URL" = "Vorgeschlagene URL";
+"Die vorgeschlagene Adresse verwendet unverschlüsseltes HTTP." = "Die vorgeschlagene Adresse verwendet unverschlüsseltes HTTP.";
+"Nur die URL wird gespeichert. Name, Gruppen und Favoriten bleiben erhalten. Laufende Wiedergabe bleibt unverändert; die neue Adresse gilt beim nächsten manuellen Start." = "Nur die URL wird gespeichert. Name, Gruppen und Favoriten bleiben erhalten. Laufende Wiedergabe bleibt unverändert; die neue Adresse gilt beim nächsten manuellen Start.";
+"Erneut prüfen" = "Erneut prüfen";
+"URL speichern" = "URL speichern";
+"Der Sender wurde inzwischen geändert. Bitte die Vorschau schließen und erneut prüfen." = "Der Sender wurde inzwischen geändert. Bitte die Vorschau schließen und erneut prüfen.";
+"Die Katalogantwort gehört nicht eindeutig zu diesem Sender. Es wurde nichts geändert." = "Die Katalogantwort gehört nicht eindeutig zu diesem Sender. Es wurde nichts geändert.";
+"Der Katalog enthält keine sichere HTTP- oder HTTPS-Adresse ohne Zugangsdaten. Es wurde nichts geändert." = "Der Katalog enthält keine sichere HTTP- oder HTTPS-Adresse ohne Zugangsdaten. Es wurde nichts geändert.";
+"Der Katalog ist gerade nicht erreichbar oder liefert keine lesbare Antwort. Bitte erneut versuchen." = "Der Katalog ist gerade nicht erreichbar oder liefert keine lesbare Antwort. Bitte erneut versuchen.";

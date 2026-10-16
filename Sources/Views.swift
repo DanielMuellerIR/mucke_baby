@@ -14,6 +14,7 @@ struct StationEditView: View {
     @State private var favorite = false
     @State private var selectedGroupIDs: Set<UUID> = []
     @State private var saveError: StationSaveError?
+    @State private var showingRepair = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -24,6 +25,21 @@ struct StationEditView: View {
                 TextField("Name", text: $name)
                 TextField("Stream-URL", text: $url)
                     .textContentType(.URL)
+                if let station {
+                    Section("Senderherkunft") {
+                        if let origin = station.radioBrowserID {
+                            Text("Radio-Browser").font(.subheadline.bold())
+                            Text(origin.uuidString.lowercased()).font(.caption.monospaced()).textSelection(.enabled)
+                            Button("Katalogadresse prüfen …") { showingRepair = true }
+                                .accessibilityIdentifier("station-repair")
+                            Text("Die Reparatur speichert nur die Katalogadresse. Andere Änderungen im Editor erst mit Sichern übernehmen.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text("Keine Katalogherkunft gespeichert. Die Adresse kann manuell im Editor geändert werden.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
                 Toggle("In Liste anzeigen", isOn: $enabled)
                 Toggle("Favorit", isOn: $favorite)
                     .accessibilityIdentifier("station-favorite")
@@ -74,6 +90,11 @@ struct StationEditView: View {
         }
         .padding(18)
         .frame(width: 440)
+        .sheet(isPresented: $showingRepair) {
+            if let current = store.stations.first(where: { $0.id == station?.id }) {
+                StationRepairView(station: current) { newURL in url = newURL }
+            }
+        }
         .onChange(of: url) { _, _ in saveError = nil }
         .onAppear {
             if let s = station {
@@ -87,7 +108,8 @@ struct StationEditView: View {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let trimmedURL = url.trimmingCharacters(in: .whitespaces)
         do {
-            var s = station ?? Station(name: trimmedName, url: trimmedURL)
+            var s = store.stations.first(where: { $0.id == station?.id })
+                ?? station ?? Station(name: trimmedName, url: trimmedURL)
             s.name = trimmedName; s.url = trimmedURL; s.enabled = enabled; s.favorite = favorite
             if station != nil {
                 try store.update(s, groupIDs: selectedGroupIDs)
@@ -346,7 +368,9 @@ struct MenuBarView: View {
             RecordingControl(identifier: "menu-recording")
             HStack {
                 Button((player.isPlaying || player.isLoading) ? "Stop" : "Play") {
-                    if let s = player.currentStation { player.toggle(s) }
+                    if let s = player.currentStation {
+                        player.toggle(store.stations.first(where: { $0.id == s.id }) ?? s)
+                    }
                 }
                 .disabled(player.currentStation == nil)
                 Spacer()
