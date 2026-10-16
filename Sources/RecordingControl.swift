@@ -59,10 +59,10 @@ struct RecordingControl: View {
             .popover(isPresented: $showingDetails) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Aufnahmestatus").font(.headline)
-                    Text(status).font(.callout).accessibilityIdentifier("recording-status-message")
+                    Text(status).font(.callout).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("recording-status-message")
                     Toggle("Laufende Streams mitschneiden", isOn: Binding(get: { player.recordingRequested }, set: player.setRecordingRequested))
                     Text("Der Schalter wirkt sofort auf den Mitschnitt. Die Wiedergabe läuft weiter. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Aufnahme ist bei einer neuen Installation aus.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     Button("Fertig") { showingDetails = false }.keyboardShortcut(.cancelAction)
                 }.padding(16).frame(width: 330)
             }
