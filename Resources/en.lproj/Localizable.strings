@@ -234,3 +234,5 @@
 "%lld von %lld Sendern" = "%lld of %lld stations";
 "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden." = "The station list uses a different app version and remains unchanged. Please use a compatible app version.";
 "JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal." = "JSON exports stations and favorites. Import adds visible stations without favorites and skips duplicate URLs. Groups and quick slots remain local.";
+
+"Sender wiedergeben" = "Play station";

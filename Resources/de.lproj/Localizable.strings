@@ -234,3 +234,5 @@
 "%lld von %lld Sendern" = "%lld von %lld Sendern";
 "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden." = "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden.";
 "JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal." = "JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal.";
+
+"Sender wiedergeben" = "Sender wiedergeben";

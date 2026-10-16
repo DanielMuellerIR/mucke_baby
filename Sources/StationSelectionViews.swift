@@ -183,7 +183,7 @@ struct StationQuickSelectionView: View {
             HStack {
                 Button("Abbrechen") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Wiedergabe") { playSelection() }.keyboardShortcut(.defaultAction)
+                Button("Sender wiedergeben") { playSelection() }.keyboardShortcut(.defaultAction)
                     .disabled(!matches.contains { $0.id == selectedID })
                     .accessibilityIdentifier("quick-station-play")
             }
