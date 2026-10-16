@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.10 — 2026-10-16
+
+- Wrap playback and metadata recovery status in narrow windows so every theme shows the full message. Track titles remain horizontally scrollable.
+
 ## 1.9.9 — 2026-10-16
 
 - Keep partially visible history rows at their reading position when new tracks arrive or playback closes the current entry. Restore an anchor only when it disappears from the visible results.

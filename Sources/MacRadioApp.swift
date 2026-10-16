@@ -607,21 +607,21 @@ struct ContentView: View {
 
     // MARK: Now-Playing-Fuß
 
-    /// Fuß: laufender Sender + Titel — groß und **markierbar/kopierbar** (textSelection),
-    /// bei Überlänge horizontal scrollbar — plus Merkliste, Laufzeit und Lautstärke.
+    /// Fuß: kopierbarer Titel mit horizontalem Scrollen oder vollständig umbrechender
+    /// Status — plus Merkliste, Laufzeit und Lautstärke.
     private var nowPlayingFooter: some View {
         HStack(spacing: 12) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(player.currentStation?.name ?? "Kein Sender")
-                        .font(theme.font(.label, size: 11 * uiFontScale))
-                        .foregroundStyle(theme.palette.textSecondary)
-                    nowPlayingFooterTitle
+            if player.nowPlayingTitle.isEmpty {
+                nowPlayingFooterText
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    nowPlayingFooterText
+                        .fixedSize(horizontal: true, vertical: false)
                 }
-                .textSelection(.enabled)
-                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             if let song = player.currentSong { BookmarkButton(song: song) }
             Button { showingBookmarks = true } label: {
@@ -655,7 +655,18 @@ struct ContentView: View {
         .background { ThemedSurface(.panel) }
     }
 
-    /// Großer Now-Playing-Titel im Fuß (Interpret fett + Titel), als EIN Text → kopierbar.
+    private var nowPlayingFooterText: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(player.currentStation?.name ?? "Kein Sender")
+                .font(theme.font(.label, size: 11 * uiFontScale))
+                .foregroundStyle(theme.palette.textSecondary)
+                .lineLimit(1)
+            nowPlayingFooterTitle
+        }
+        .textSelection(.enabled)
+    }
+
+    /// Aktueller Titel (Interpret fett + Titel) oder Status als ein kopierbarer Text.
     @ViewBuilder
     private var nowPlayingFooterTitle: some View {
         if !player.nowPlayingTitle.isEmpty {
