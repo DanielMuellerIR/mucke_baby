@@ -171,3 +171,23 @@
 "Keine Titel für diese Filter." = "No titles match these filters.";
 "Filter zurücksetzen" = "Reset filters";
 "Neueste anzeigen" = "Show latest";
+
+/* Gemerkte Titel */
+"Merkliste" = "Bookmarks";
+"Merkliste öffnen" = "Open bookmarks";
+"Titel merken" = "Bookmark title";
+"Aus Merkliste entfernen" = "Remove bookmark";
+"Gemerkte Titel enthalten Metadaten, keine Audiodateien." = "Bookmarks contain metadata, not audio files.";
+"Noch keine Titel gemerkt." = "No bookmarked titles yet.";
+"Keine Titel für diese Suche." = "No titles match this search.";
+"Sichtbare Merkliste exportieren" = "Export visible bookmarks";
+"Text …" = "Text …";
+"CSV …" = "CSV …";
+"Die Merkliste ist schreibgeschützt. Bitte den Speicherzugriff oder die Dateiversion prüfen." = "Bookmarks are read-only. Check storage access or the file version.";
+"Dieser Eintrag enthält keinen Songtitel." = "This entry does not contain a song title.";
+"Die Merklistendatei darf nicht durch einen Export ersetzt werden." = "The bookmarks file cannot be replaced by an export.";
+"Diese Merkliste verwendet eine unbekannte Dateiversion. Die Datei bleibt unverändert." = "These bookmarks use an unknown file version. The file is left unchanged.";
+"Die beschädigte Merkliste wurde separat gesichert. Eine neue Liste kann angelegt werden." = "The damaged bookmarks file was saved separately. You can start a new list.";
+"Die Merkliste konnte nicht geladen werden. Die Datei bleibt geschützt." = "Bookmarks could not be loaded. The file remains protected.";
+"Titel nicht geladen." = "Titles not loaded.";
+"Merkliste derzeit nicht verfügbar." = "Bookmarks are currently unavailable.";

@@ -3,11 +3,6 @@ import AppKit
 import UniformTypeIdentifiers
 import CoreTransferable
 
-private struct HistoryScrollExtentKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
 // Rechtes Panel: "Verlauf" — gehoerte Titel mit Zeitspanne. Eintraege sind
 // selektierbar; darunter Buttons, die den Song in Apple Music / Spotify oeffnen
 // (bzw. im Web, falls die App fehlt). Neueste unten.
@@ -38,7 +33,7 @@ struct HistoryPanel: View {
     @State private var filterAnchor: UUID?
     @State private var filterRevision = 0
     @State private var isRestoringFilter = false
-    @Namespace private var scrollSpace
+    @State private var displayedEntries: [SongEntry] = []
 
     // Verlauf-Tinte: auf der hellen Pergament-Textur (retro) waere der dunkle
     // Theme-Text unlesbar -> dort eine dunkle Tinte erzwingen. Sonst der normale
@@ -147,10 +142,10 @@ struct HistoryPanel: View {
             // .bottom: alle Labels liegen unten buendig (Icon-Box gleicht Glyphenhoehen aus).
             HStack(alignment: .bottom, spacing: 4) {
                 // Apple Music: das Apple-Logo-Zeichen (U+F8FF) statt des Wortes „Apple".
-                Button { if let e = selectedEntry { openInMusic(e) } } label: {
+                Button { if let e = selectedEntry { SongActions.openInMusic(e) } } label: {
                     historyActionLabel("music.note", "\u{F8FF} Music")
                 }.buttonStyle(.plain).help("In Apple Music suchen").disabled(!selectedIsLookup)
-                Button { if let e = selectedEntry { openInSpotify(e) } } label: {
+                Button { if let e = selectedEntry { SongActions.openInSpotify(e) } } label: {
                     historyActionLabel("music.note.list", "Spotify")
                 }.buttonStyle(.plain).help("In Spotify / im Web suchen").disabled(!selectedIsLookup)
                 Button { lyricsFor = selectedEntry } label: {
@@ -185,11 +180,7 @@ struct HistoryPanel: View {
         //        Fallback: prozedurales Pergament wenn paper.png fehlt.
         //        Alle anderen Themes: ThemedSurface(.panel).
         .background {
-            if theme.id == .retro {
-                ParchmentBackground(texture: theme.image(theme.panelTexture))
-            } else {
-                ThemedSurface(.panel)
-            }
+            SongListSurface()
         }
         .confirmationDialog(
             "Alle Aufnahmen endgültig löschen?",
@@ -305,11 +296,11 @@ struct HistoryPanel: View {
 
     private func historyList(_ visible: [SongEntry]) -> some View {
         ScrollViewReader { proxy in
-            GeometryReader { viewport in
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(visible) { entry in
-                            VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(visible) { entry in
+                        VStack(spacing: 0) {
+                            HStack(spacing: 0) {
                                 Button { selection = entry.id } label: {
                                     SongRow(entry: entry)
                                         .padding(.horizontal, 6)
@@ -317,47 +308,51 @@ struct HistoryPanel: View {
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                .background(selection == entry.id ? theme.palette.selection : Color.clear)
                                 .accessibilityAddTraits(selection == entry.id ? [.isSelected] : [])
                                 .accessibilityIdentifier("history-song-\(entry.id)")
                                 // Der Export beginnt erst beim Drop und blockiert die Auswahl nicht.
                                 .draggable(DraggableSong(entry: entry, recorder: player.recorder))
-                                Rectangle().fill(theme.palette.divider.opacity(0.5)).frame(height: 1)
+                                if !entry.isPlaceholder {
+                                    BookmarkButton(song: entry, identifier: "bookmark-history-\(entry.id)",
+                                                   tint: theme.id == .retro ? historyActionInk : nil)
+                                }
                             }
-                            .id(entry.id)
+                            .background(selection == entry.id ? theme.palette.selection : Color.clear)
+                            Rectangle().fill(theme.palette.divider.opacity(0.5)).frame(height: 1)
                         }
-                    }
-                    .scrollTargetLayout()
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background {
-                        GeometryReader { content in
-                            Color.clear.preference(key: HistoryScrollExtentKey.self,
-                                value: content.frame(in: .named(scrollSpace)).maxY - viewport.size.height)
-                        }
+                        .id(entry.id)
                     }
                 }
-                .coordinateSpace(name: scrollSpace)
-                .scrollPosition(id: Binding(get: { scrollAnchor }, set: { id in
-                    scrollAnchor = id
-                    if let id, !isRestoringFilter { lastVisibleAnchor = id }
-                }), anchor: .top)
-                .onPreferenceChange(HistoryScrollExtentKey.self) { remaining in followsLatest = remaining <= 24 }
-                .overlay {
-                    if visible.isEmpty {
-                        VStack(spacing: 10) {
-                            Text(history.entries.isEmpty ? String(localized: "Noch nichts gehört.")
-                                 : String(localized: "Keine Titel für diese Filter."))
-                                .multilineTextAlignment(.center)
-                            if filter.isActive {
-                                Button("Filter zurücksetzen") { updateFilter { $0 = HistoryFilter() } }
-                                    .buttonStyle(.bordered)
-                            }
-                        }
-                        .themedFont(theme, .body, size: 12 * uiFontScale)
-                        .foregroundStyle(historyInkDim)
-                        .padding(16)
+                .scrollTargetLayout()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background {
+                    HistoryScrollObserver { atEnd in
+                        if displayedEntries == history.entries, followsLatest != atEnd { followsLatest = atEnd }
                     }
+                }
+            }
+            .scrollPosition(id: Binding(get: { scrollAnchor }, set: { id in
+                // Ein neues Layout darf den Leseanker nicht überschreiben,
+                // bevor die Datenänderung ihre bisherige Position restauriert.
+                guard !isRestoringFilter, displayedEntries == history.entries else { return }
+                scrollAnchor = id
+                if let id { lastVisibleAnchor = id }
+            }), anchor: .top)
+            .overlay {
+                if visible.isEmpty {
+                    VStack(spacing: 10) {
+                        Text(history.entries.isEmpty ? String(localized: "Noch nichts gehört.")
+                             : String(localized: "Keine Titel für diese Filter."))
+                            .multilineTextAlignment(.center)
+                        if filter.isActive {
+                            Button("Filter zurücksetzen") { updateFilter { $0 = HistoryFilter() } }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                    .themedFont(theme, .body, size: 12 * uiFontScale)
+                    .foregroundStyle(historyInkDim)
+                    .padding(16)
                 }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -385,17 +380,29 @@ struct HistoryPanel: View {
                 }
             }
             .onChange(of: visible.map(\.id)) { _, ids in
-                guard !isRestoringFilter, !ids.isEmpty, filter.isActive || !followsLatest else { return }
+                guard !isRestoringFilter, displayedEntries == history.entries,
+                      !ids.isEmpty, filter.isActive || !followsLatest else { return }
                 if let retained = HistoryFilter.retainedAnchor(lastVisibleAnchor, entries: history.entries, visible: visible) {
                     proxy.scrollTo(retained, anchor: .top)
                 }
             }
             .onChange(of: history.entries) { old, entries in
-                if !filter.isActive, followsLatest, old.last?.id != entries.last?.id, let last = visible.last?.id {
-                    proxy.scrollTo(last, anchor: .bottom)
+                let follow = !filter.isActive && followsLatest && old.last?.id != entries.last?.id
+                let retained = HistoryFilter.retainedAnchor(lastVisibleAnchor, entries: entries, visible: visible)
+                DispatchQueue.main.async {
+                    guard entries == history.entries else { return }
+                    if follow, let last = visible.last?.id {
+                        proxy.scrollTo(last, anchor: .bottom)
+                    } else if let retained {
+                        scrollAnchor = retained
+                        proxy.scrollTo(retained, anchor: .top)
+                        lastVisibleAnchor = retained
+                    }
+                    displayedEntries = entries
                 }
             }
             .onAppear {
+                displayedEntries = history.entries
                 if let last = visible.last?.id { proxy.scrollTo(last, anchor: .bottom) }
             }
         }
@@ -440,42 +447,19 @@ struct HistoryPanel: View {
             }
         }
     }
+}
 
-    // MARK: - Song-Aktionen
-
-    // Apple Music: exakten Track via iTunes-API finden (mit Zusatz-Stripping),
-    // in der Musik-App oeffnen; ohne App im Browser.
-    private func openInMusic(_ e: SongEntry) {
-        Task {
-            let url = await SongLink.appleMusic(artist: e.artist, title: e.title, raw: e.raw)
-            await MainActor.run { openURL(url, inApp: "com.apple.Music") }
-        }
-    }
-
-    // Spotify: per App-URI suchen (bereinigter Begriff); ohne Spotify-App im Web.
-    private func openInSpotify(_ e: SongEntry) {
-        let term = SongLink.enc(SongLink.spotifyQuery(artist: e.artist, title: e.title, raw: e.raw))
-        if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.spotify.client"),
-           let uri = URL(string: "spotify:search:\(term)") {
-            NSWorkspace.shared.open([uri], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-        } else if let web = URL(string: "https://open.spotify.com/search/\(term)") {
-            NSWorkspace.shared.open(web)
-        }
-    }
-
-    // URL bevorzugt in der angegebenen App oeffnen, sonst im Standardbrowser.
-    private func openURL(_ url: URL, inApp bundleID: String) {
-        if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-        } else {
-            NSWorkspace.shared.open(url)
-        }
+struct SongListSurface: View {
+    @Environment(\.theme) private var theme
+    var body: some View {
+        if theme.id == .retro { ParchmentBackground(texture: theme.image(theme.panelTexture)) }
+        else { ThemedSurface(.panel) }
     }
 }
 
 // MARK: - ParchmentBackground
 
-/// Heller Pergament-Hintergrund für das retro-History-Panel.
+/// Heller Pergament-Hintergrund für die gemeinsamen Songlisten im Retro-Theme.
 /// Wenn `texture` übergeben wird (paper.png), wird die echte PNG-Textur mit einem
 /// leichten Creme-Scrim überlagert — das sorgt für gleichmäßige Helligkeit und
 /// sichert die Lesbarkeit der dunklen Tinte (#2A2018).
@@ -571,6 +555,7 @@ private struct ParchmentBackground: View {
 // Eine Verlaufszeile: Zeitspanne, Titel, Sender.
 struct SongRow: View {
     let entry: SongEntry
+    var showsInterval = true
 
     // Theme + Schriftfaktor wie im Panel. SongRow liest beide selbst aus dem
     // Environment (kein Durchreichen noetig).
@@ -583,7 +568,7 @@ struct SongRow: View {
     private static let dayFmt: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .short; return f
     }()
-    private var isLive: Bool { entry.end == nil }
+    private var isLive: Bool { showsInterval && entry.end == nil }
 
     // Verlauf-Tinte: retro-Pergament ist hell -> dunkle Tinte erzwingen, sonst
     // unlesbar. Sonst die normalen Palette-Farben.
@@ -630,6 +615,7 @@ struct SongRow: View {
     }
     private var timeRange: String {
         let s = Self.dayFmt.string(from: entry.start) + " · " + Self.timeFmt.string(from: entry.start)
+        if !showsInterval { return s }
         if let e = entry.end { return "\(s) – \(Self.timeFmt.string(from: e))" }
         return "\(s) – …"
     }

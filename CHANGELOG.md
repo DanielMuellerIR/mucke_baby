@@ -3,6 +3,18 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.9.1] - 2026-10-16
+### Added
+- Bookmark tracks from history and current playback in a separate persistent metadata library. Search, remove and open bookmarked tracks with the existing music and lyrics actions; clearing history or recordings preserves bookmarks.
+- Export visible bookmarks as UTF-8 text or CSV, preserving Unicode and quoted fields while treating formula-like cells as text. Protect the bookmark database from export replacement.
+- Recover damaged bookmark files to a separate backup, preserve unknown format versions and report storage failures without showing a false saved state.
+
+### Fixed
+- Preserve the history reading position when incoming metadata updates an unfiltered list after a filter reset.
+
+### Tests
+- Bookmark identity, distinct mixes, restart persistence, independent deletion, recovery, read/write failures, protected export destinations and CSV roundtrip with an independent reader.
+
 ## [1.9.0] - 2026-10-16
 ### Added
 - Search listening history by title, artist or original stream text, with case-, accent- and width-insensitive matching. Combine search words with station and calendar-date filters, including custom dates and tracks crossing a day boundary.

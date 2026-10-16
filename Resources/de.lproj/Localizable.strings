@@ -171,3 +171,23 @@
 "Keine Titel für diese Filter." = "Keine Titel für diese Filter.";
 "Filter zurücksetzen" = "Filter zurücksetzen";
 "Neueste anzeigen" = "Neueste anzeigen";
+
+/* Gemerkte Titel */
+"Merkliste" = "Merkliste";
+"Merkliste öffnen" = "Merkliste öffnen";
+"Titel merken" = "Titel merken";
+"Aus Merkliste entfernen" = "Aus Merkliste entfernen";
+"Gemerkte Titel enthalten Metadaten, keine Audiodateien." = "Gemerkte Titel enthalten Metadaten, keine Audiodateien.";
+"Noch keine Titel gemerkt." = "Noch keine Titel gemerkt.";
+"Keine Titel für diese Suche." = "Keine Titel für diese Suche.";
+"Sichtbare Merkliste exportieren" = "Sichtbare Merkliste exportieren";
+"Text …" = "Text …";
+"CSV …" = "CSV …";
+"Die Merkliste ist schreibgeschützt. Bitte den Speicherzugriff oder die Dateiversion prüfen." = "Die Merkliste ist schreibgeschützt. Bitte den Speicherzugriff oder die Dateiversion prüfen.";
+"Dieser Eintrag enthält keinen Songtitel." = "Dieser Eintrag enthält keinen Songtitel.";
+"Die Merklistendatei darf nicht durch einen Export ersetzt werden." = "Die Merklistendatei darf nicht durch einen Export ersetzt werden.";
+"Diese Merkliste verwendet eine unbekannte Dateiversion. Die Datei bleibt unverändert." = "Diese Merkliste verwendet eine unbekannte Dateiversion. Die Datei bleibt unverändert.";
+"Die beschädigte Merkliste wurde separat gesichert. Eine neue Liste kann angelegt werden." = "Die beschädigte Merkliste wurde separat gesichert. Eine neue Liste kann angelegt werden.";
+"Die Merkliste konnte nicht geladen werden. Die Datei bleibt geschützt." = "Die Merkliste konnte nicht geladen werden. Die Datei bleibt geschützt.";
+"Titel nicht geladen." = "Titel nicht geladen.";
+"Merkliste derzeit nicht verfügbar." = "Merkliste derzeit nicht verfügbar.";

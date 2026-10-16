@@ -9,6 +9,7 @@ struct MacRadioApp: App {
     @StateObject private var store = Store()
     @StateObject private var player = RadioPlayer()
     @StateObject private var health = StationHealth()
+    @StateObject private var bookmarks = BookmarkStore()
     // Audio-Reaktivität der Visualizer (CoreAudio Process-Tap auf die eigene Ausgabe,
     // vor der Analyse gegen die App-Lautstaerke normalisiert).
     @StateObject private var audioTap = AudioTap()
@@ -43,6 +44,7 @@ struct MacRadioApp: App {
             ContentView()
                 .environmentObject(store)
                 .environmentObject(player)
+                .environmentObject(bookmarks)
                 .environmentObject(player.history)   // Wiedergabeverlauf
                 .environmentObject(health)           // Sender-Healthcheck
                 .environmentObject(audioTap)         // Audio-Reaktivität
@@ -108,6 +110,7 @@ struct MacRadioApp: App {
             MenuBarView()
                 .environmentObject(store)
                 .environmentObject(player)
+                .environmentObject(bookmarks)
                 .environment(\.uiFontScale, Self.scale(uiZoom))
                 // Auch im Menueleisten-Popup Theme + ColorScheme setzen
                 .environment(\.theme, theme)
@@ -276,6 +279,7 @@ struct ContentView: View {
     @State private var showingPrefs = false
     @State private var showingSearch = false
     @State private var showingGenres = false
+    @State private var showingBookmarks = false
     @State private var editStation: Station?
     @State private var didAutoplay = false
     // Startwert der Lautstaerke beim Beginn eines Knopf-Drags (knob-Themes). nil = kein Drag aktiv.
@@ -310,8 +314,7 @@ struct ContentView: View {
             // 3-Spalten-Layout (Stations | Stage+Visualizer | Verlauf). Standard = minimalste
             // Skin. Spalten werden responsiv ein-/ausgeblendet (s. consoleBody).
             consoleBody
-            // Fuß: aktueller Titel groß + kopierbar. Transport/Lautstärke
-            // sitzen oben in der Kopfleiste — hier NUR die Now-Playing-Anzeige.
+            // Fuß: aktueller Titel groß und kopierbar, Merkliste, Laufzeit und Lautstärke.
             Rectangle().fill(theme.palette.divider).frame(height: 1)
             nowPlayingFooter
         }
@@ -374,6 +377,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingPrefs) { PreferencesView() }
         .sheet(isPresented: $showingSearch) { StationBrowserView() }
         .sheet(isPresented: $showingGenres) { GenreListsView() }
+        .sheet(isPresented: $showingBookmarks) { BookmarkLibrary(onClose: { showingBookmarks = false }) }
         .sheet(isPresented: $showingWelcome, onDismiss: { autoplayIfNeeded() }) { WelcomeView() }
         // Cmd+"=" als zweite Zoom-in-Taste (Layout-unabhaengig), unsichtbar verdrahtet.
         .background {
@@ -586,8 +590,7 @@ struct ContentView: View {
     // MARK: Now-Playing-Fuß
 
     /// Fuß: laufender Sender + Titel — groß und **markierbar/kopierbar** (textSelection),
-    /// bei Überlänge horizontal scrollbar — plus Laufzeit. Bedienelemente sitzen oben in der
-    /// Kopfleiste; hier ausschließlich die Now-Playing-Anzeige.
+    /// bei Überlänge horizontal scrollbar — plus Merkliste, Laufzeit und Lautstärke.
     private var nowPlayingFooter: some View {
         HStack(spacing: 12) {
             ScrollView(.horizontal, showsIndicators: false) {
@@ -601,6 +604,16 @@ struct ContentView: View {
                 .fixedSize(horizontal: true, vertical: false)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let song = player.currentSong { BookmarkButton(song: song) }
+            Button { showingBookmarks = true } label: {
+                Image(systemName: "heart.text.square")
+                    .font(.system(size: 16)).frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).foregroundStyle(theme.palette.textSecondary)
+            .help("Merkliste öffnen").accessibilityLabel("Merkliste öffnen")
+            .accessibilityIdentifier("bookmarks-open")
 
             // Platzmangel-Hinweis: Der Recorder stoppt bei < 10 GB freiem Speicher
             // automatisch — die Wiedergabe laeuft hoerbar weiter, deshalb braucht der

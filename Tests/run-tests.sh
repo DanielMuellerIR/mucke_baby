@@ -38,6 +38,25 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/store-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
+  Sources/Models.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
+  Sources/Recorder.swift Sources/BookmarkStore.swift Tests/BookmarkHarness.swift \
+  -o "$BUILD/bookmark-harness"
+MUCKE_BOOKMARK_EXPORT_FIXTURE="$BUILD/bookmarks.csv" "$BUILD/bookmark-harness"
+python3 - <<'PY'
+import csv
+from pathlib import Path
+with Path('build/tests/bookmarks.csv').open(encoding='utf-8', newline='') as file:
+    rows = list(csv.DictReader(file))
+assert len(rows) == 1
+assert rows[0]['artist'] == 'Björk'
+assert rows[0]['title'] == "'@Formula"
+assert rows[0]['original'] == '東京, "Live"\r\nGrüße'
+assert rows[0]['station'] == "' =HYPERLINK(\"bad\")"
+assert rows[0]['heard_at'] == rows[0]['saved_at']
+print('Bookmark CSV: unabhängiger UTF-8-/CSV-Roundtrip OK')
+PY
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
   Sources/ICYMetadataReader.swift Sources/Recorder.swift Sources/Models.swift \
   Sources/SongHistory.swift Tests/ICYHarness.swift -o "$BUILD/icy-harness"
 "$BUILD/icy-harness"
