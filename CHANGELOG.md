@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.8 — 2026-10-16
+
+- Recover the metadata connection independently with bounded retries while the audio player continues. Reject callbacks from replaced metadata sessions and retain recording safety failures across automatic retries.
+- Close recording and history intervals at the last received audio boundary. Suspend an explicitly requested station for system sleep and resume it once after wake unless Stop or another selection supersedes it.
+
 ## 1.9.6 — 2026-10-16
 
 - Switch recording on or off during playback without replacing the audio player or opening another recording connection. The existing metadata connection stays available for audio-only streams and is renewed when container formats need fresh start headers.

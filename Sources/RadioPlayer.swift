@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import VLCKit
 import Network
 import os
@@ -69,17 +70,25 @@ final class RadioPlayer: ObservableObject {
     private var installedGeneration: UInt64 = 0
     private var recordingSessionID = UUID()
     private let reconnect: PlaybackReconnect
+    @Published private(set) var metadataStatus: String?
+    private let metadataReconnect: PlaybackReconnect
+    private var metadataGeneration: UInt64 = 0
+    private var metadataActivityUptime: TimeInterval = 0
+    private var sleepingStationID: UUID?
+    private let workspaceNotifications = NSWorkspace.shared.notificationCenter
+    private var systemObservers: [NSObjectProtocol] = []
     private var desiredStation: Station?
     private var networkMonitor: NWPathMonitor?
     private var networkToken = UUID()
 
-    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard) {
+    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil) {
         self.preferences = preferences
         self.recordingRequested = preferences.object(forKey: "recordStreams") as? Bool ?? false
         self.recorder = recorder
         self.makePlayer = makePlayer
         self.player = makePlayer()
         self.reconnect = reconnect ?? PlaybackReconnect()
+        self.metadataReconnect = metadataReconnect ?? PlaybackReconnect()
         let reconnect = self.reconnect
         // codereview-ok: icy/recorder sind app-lebenslange Member mit [weak self]-Closures — kein Retain-Cycle/Leak (2026-07-01)
         icy.onTitle  = { [weak self] title, boundary in self?.setNowPlaying(title, at: boundary) }
@@ -91,6 +100,35 @@ final class RadioPlayer: ObservableObject {
         }
         reconnect.onTimeout = { [weak self] in self?.attemptFailed() }
         reconnect.onChange = { [weak self] phase in self?.reconnectPhaseChanged(phase) }
+        self.metadataReconnect.onRetry = { [weak self] id in
+            guard let self, self.desiredStation?.id == id, let url = self.currentStreamURL else { return }
+            self.startMetadata(url: url, retry: true)
+        }
+        self.metadataReconnect.onTimeout = { [weak self] in self?.metadataEnded(at: Date()) }
+        self.metadataReconnect.onChange = { [weak self] phase in self?.metadataPhaseChanged(phase) }
+        systemObservers = [
+            workspaceNotifications.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.prepareForSleep() }
+            },
+            workspaceNotifications.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.resumeAfterWake() }
+            }]
+    }
+
+    deinit { for observer in systemObservers { workspaceNotifications.removeObserver(observer) } }
+
+    func prepareForSleep() {
+        guard sleepingStationID == nil, let desiredStation else { return }
+        sleepingStationID = desiredStation.id
+        reconnect.cancel(); stopMonitoringNetwork(); stopAttempt()
+        nowPlayingTitle = ""; statusText = String(localized: "Wiedergabe ruht bis zum Aufwachen.")
+    }
+
+    func resumeAfterWake() {
+        guard let id = sleepingStationID else { return }
+        sleepingStationID = nil
+        guard let station = desiredStation, station.id == id else { return }
+        play(station)
     }
 
     func setRecordingRequested(_ enabled: Bool) {
@@ -101,15 +139,16 @@ final class RadioPlayer: ObservableObject {
         recorder.setCaptureEnabled(enabled, revision: recordingRevision)
     }
 
-    private func resetCapture() {
+    private func resetCapture(at date: Date = Date()) {
         recordingRevision &+= 1
         recordingSegmentID = nil
         recordingState = RecordingState(phase: recordingRequested ? .waiting : .off, revision: recordingRevision)
-        recorder.clearCapture(enabled: recordingRequested, revision: recordingRevision)
+        recorder.clearCapture(enabled: recordingRequested, revision: recordingRevision, at: date)
     }
 
     private func captureStateChanged(_ state: RecordingState) {
         guard state.revision == recordingRevision else { return }
+        guard state.streamID == nil || state.streamID == recordingSessionID else { return }
         recordingState = state
         if state.phase == .needsStreamHeader, recordingRequested, state.streamID == recordingSessionID,
            let url = currentStreamURL {
@@ -143,6 +182,7 @@ final class RadioPlayer: ObservableObject {
     // Direkt-URL aufloesen — VLCMediaPlayer spielt Playlist-Container nicht
     // selbst ab. Codec/Redirect uebernimmt dann VLC.
     func play(_ station: Station) {
+        sleepingStationID = nil
         desiredStation = station
         reconnect.beginIntent(stationID: station.id)
         monitorNetwork()
@@ -150,9 +190,9 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func startAttempt(_ station: Station) {
-        history.closeCurrent()      // Senderwechsel = Songende
-        icy.stop()                  // erst alle noch laufenden Senken abwarten
-        resetCapture()              // danach kann kein alter begin-Auftrag mehr folgen
+        let capturedEnd = stopMetadata()
+        history.closeCurrent(at: capturedEnd ?? Date())
+        resetCapture(at: capturedEnd ?? Date())
         resolveTask?.cancel()
         resolveTask = nil
         let generation = requests.begin()
@@ -216,25 +256,77 @@ final class RadioPlayer: ObservableObject {
         log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(StreamURLPolicy.redactedForLog(url), privacy: .public)")
     }
 
-    private func startMetadata(url: URL) {
+    private func startMetadata(url: URL, retry: Bool = false) {
         // Container wie Ogg/FLAC benötigen beim Dateibeginn ihre Streamheader.
         // Die alte Metadatenverbindung zuerst schließen; VLC bleibt unverändert.
+        metadataGeneration &+= 1
+        let ticket = metadataGeneration
+        if !retry, let id = currentStation?.id { metadataReconnect.beginIntent(stationID: id) }
+        metadataReconnect.attemptStarted(); metadataActivityUptime = 0
         icy.stop()
         // Die vorhandene ICY-Verbindung bleibt auch ohne Metadaten erhalten.
         // MP3/AAC schalten nur die Dateisenke; Containerheader erneuern bei Bedarf diesen Reader.
         let recorder = self.recorder
         let stationName = currentStation?.name ?? "Sender"
+        // Auch bei gleichbleibendem VLC gehört jede ICY-Verbindung zu einer eigenen Aufnahme-Session.
+        recordingSessionID = UUID()
         let streamID = recordingSessionID
         recorder.configureCapture(station: stationName, streamID: streamID,
-                                  enabled: recordingRequested, revision: recordingRevision)
+                                  enabled: recordingRequested, revision: recordingRevision, preserveFailure: retry)
         icy.start(url: url, allowAudioOnly: true,
                   onStart: { contentType, _ in recorder.captureFormat(contentType, streamID: streamID) },
                   onBoundary: { _, boundary in recorder.songBoundary(at: boundary) },
-                  onAudioAt: { data, date, uptime in recorder.captureAudio(data, at: date, receivedUptime: uptime, streamID: streamID) },
-                  onCompletion: { date in recorder.finishCapture(streamID: streamID, at: date) })
+                  onAudioAt: { [weak self] data, date, uptime in
+                      recorder.captureAudio(data, at: date, receivedUptime: uptime, streamID: streamID)
+                      DispatchQueue.main.async { self?.metadataActivity(ticket: ticket, uptime: uptime) }
+                  },
+                  onCompletion: { [weak self] date in
+                      DispatchQueue.main.async {
+                          guard let self, self.metadataGeneration == ticket else { return }
+                          self.metadataEnded(at: date)
+                      }
+                      recorder.finishCapture(streamID: streamID, at: date)
+                  })
+    }
+
+    private func stopMetadata() -> Date? {
+        metadataGeneration &+= 1; metadataReconnect.cancel(); metadataStatus = nil
+        return icy.stop()
+    }
+
+    private func metadataActivity(ticket: UInt64, uptime: TimeInterval) {
+        guard ticket == metadataGeneration, desiredStation != nil, currentStreamURL != nil else { return }
+        metadataReconnect.playing()
+        if uptime - metadataActivityUptime >= 1 {
+            metadataActivityUptime = uptime; metadataReconnect.activity()
+        }
+    }
+
+    private func metadataEnded(at date: Date) {
+        guard desiredStation != nil, currentStreamURL != nil, metadataReconnect.desiredStationID != nil else { return }
+        metadataGeneration &+= 1
+        let endedAt = icy.stop() ?? date
+        recorder.finishCapture(streamID: recordingSessionID, at: endedAt)
+        history.closeCurrent(at: endedAt); nowPlayingTitle = ""
+        metadataReconnect.failed()
+    }
+
+    private func metadataPhaseChanged(_ phase: PlaybackReconnect.Phase) {
+        switch phase {
+        case .waiting(let attempt, let delay):
+            metadataStatus = String(localized: "Titeldaten: neuer Versuch \(attempt)/\(metadataReconnect.maximumRetries) in \(Int(delay)) s")
+        case .waitingForNetwork:
+            metadataStatus = String(localized: "Titeldaten warten auf das Netzwerk.")
+        case .connecting:
+            metadataStatus = metadataReconnect.retryCount > 0 ? String(localized: "Titeldaten werden erneut verbunden …") : nil
+        case .exhausted:
+            metadataStatus = String(localized: "Titeldaten nicht verfügbar. Für einen neuen Versuch den Sender erneut starten.")
+        case .playing, .idle: metadataStatus = nil
+        }
     }
 
     func stop() {
+        sleepingStationID = nil
         desiredStation = nil
         reconnect.cancel()
         stopMonitoringNetwork()
@@ -243,9 +335,9 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func stopAttempt() {
-        history.closeCurrent()
-        icy.stop()
-        resetCapture()
+        let endedAt = stopMetadata()
+        history.closeCurrent(at: endedAt ?? Date())
+        resetCapture(at: endedAt ?? Date())
         resolveTask?.cancel()
         resolveTask = nil
         requests.invalidate()
@@ -355,6 +447,7 @@ final class RadioPlayer: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.networkToken == token, self.desiredStation != nil else { return }
                 self.reconnect.setNetworkAvailable(available)
+                self.metadataReconnect.setNetworkAvailable(available)
             }
         }
         networkMonitor = monitor

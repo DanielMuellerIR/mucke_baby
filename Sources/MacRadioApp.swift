@@ -677,7 +677,7 @@ struct ContentView: View {
             }
         } else {
             Text(player.isLoading ? player.statusText
-                 : (player.isPlaying ? "♪" : player.statusText))
+                 : (player.isPlaying ? (player.metadataStatus ?? "♪") : player.statusText))
                 .font(theme.font(.body, size: 15 * uiFontScale))
                 .foregroundStyle(theme.palette.textPrimary)
         }

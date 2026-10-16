@@ -302,3 +302,10 @@
 "Aufnahme wird mit vollständigen Streamheadern vorbereitet. Die Wiedergabe läuft weiter." = "Aufnahme wird mit vollständigen Streamheadern vorbereitet. Die Wiedergabe läuft weiter.";
 
 "Abspielen" = "Abspielen";
+
+/* Metadatenverbindung und Aufwachen */
+"Wiedergabe ruht bis zum Aufwachen." = "Wiedergabe ruht bis zum Aufwachen.";
+"Titeldaten: neuer Versuch %lld/%lld in %lld s" = "Titeldaten: neuer Versuch %lld/%lld in %lld s";
+"Titeldaten warten auf das Netzwerk." = "Titeldaten warten auf das Netzwerk.";
+"Titeldaten werden erneut verbunden …" = "Titeldaten werden erneut verbunden …";
+"Titeldaten nicht verfügbar. Für einen neuen Versuch den Sender erneut starten." = "Titeldaten nicht verfügbar. Für einen neuen Versuch den Sender erneut starten.";

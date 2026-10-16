@@ -93,13 +93,18 @@ final class Recorder: @unchecked Sendable {
     // Empfangsreihenfolge nutzt die monotone Uhr; Datum bleibt für Dateinamen und Verlauf.
     // Steuerung und Audio treffen auf derselben Datei-Queue ein. Alte Stream-IDs
     // dürfen eine neue Aufnahme weder beginnen noch schließen.
-    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64, at date: Date = Date(), uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64, preserveFailure: Bool = false, at date: Date = Date(), uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         q.async {
             self._close(at: date)
+            let previousFailure = self.captureBlocked
             self.captureRequested = enabled; self.captureRevision = revision
             self.capture = Capture(station: station, streamID: streamID, enabledUptime: uptime)
             self.captureHasEnded = false
-            self.captureBlocked = nil; self.captureBytes = 0; self.publishedBytes = -1
+            self.captureBlocked = nil
+            if preserveFailure, let previousFailure, [.lowDisk, .writeFailed, .indexUnavailable].contains(previousFailure) {
+                self.captureBlocked = previousFailure
+            }
+            self.captureBytes = 0; self.publishedBytes = -1
             self.publishCapture()
         }
     }

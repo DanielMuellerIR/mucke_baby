@@ -30,7 +30,8 @@ enum PlaylistResolver { static func resolve(_ raw: String) async -> URL? { URL(s
 struct FixtureSongEntry { var start: Date; var station: String = ""; var end: Date? = nil }
 final class SongHistory {
     var entries: [FixtureSongEntry] = []
-    func closeCurrent() {}
+    var closedAt: Date?
+    func closeCurrent(at: Date = Date()) { closedAt = at }
     func beginSession(station: String, at: Date, sessionID: UUID?) { entries.append(FixtureSongEntry(start: at, station: station)) }
     func note(station: String, raw: String, at: Date = Date(), sessionID: UUID?) {}
     func remove(olderThan: Date) {}
@@ -40,9 +41,9 @@ final class Recorder {
     var onCaptureState: ((RecordingState) -> Void)?
     var changes: [(Bool, UInt64)] = []
     var streamID: UUID?
-    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64) { self.streamID = streamID }
+    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64, preserveFailure: Bool = false) { self.streamID = streamID }
     func setCaptureEnabled(_ enabled: Bool, revision: UInt64) { changes.append((enabled, revision)) }
-    func clearCapture(enabled: Bool, revision: UInt64) {}
+    func clearCapture(enabled: Bool, revision: UInt64, at: Date = Date()) {}
     func captureFormat(_ contentType: String?, streamID: UUID) {}
     func captureAudio(_ data: Data, at: Date, receivedUptime: TimeInterval, streamID: UUID) {}
     func finishCapture(streamID: UUID, at: Date) {}
@@ -55,11 +56,14 @@ final class Recorder {
 final class ICYMetadataReader {
     static var latest: ICYMetadataReader!
     var startCount = 0
+    var audioAt: ((Data, Date, TimeInterval) -> Void)?
+    var completion: ((Date) -> Void)?
+    var lastAudioAt: Date?
     init() { Self.latest = self }
     var onTitle: ((String, Date) -> Void)?
-    func stop() {}
+    @discardableResult func stop() -> Date? { let end = lastAudioAt; lastAudioAt = nil; return end }
     func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
-               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date, TimeInterval) -> Void, onCompletion: @escaping (Date) -> Void) { startCount += 1 }
+               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date, TimeInterval) -> Void, onCompletion: @escaping (Date) -> Void) { startCount += 1; audioAt = onAudioAt; completion = onCompletion }
 }
 enum TestEvents {
     static let queue = DispatchQueue(label: "fixture.events", target: .main)
@@ -189,6 +193,43 @@ struct PlayerHarness {
         check(metadata.startCount == starts + 1 && VLCMediaPlayer.latest === capturePlayer,
               "Containerheader ersetzen die Audiowiedergabe oder erneuern die Metadatenverbindung nicht")
         recordingRadio.stop()
+
+        let metadataClock = ReconnectClock()
+        let metadataPolicy = PlaybackReconnect(schedule: metadataClock.schedule)
+        let metadataRadio = RadioPlayer(metadataReconnect: metadataPolicy)
+        let metadataStation = Station(name: "Metadata", url: "https://fixture.invalid/metadata")
+        metadataRadio.play(metadataStation); await waitFor { metadataRadio.currentStreamURL != nil }
+        let audioPlayer = VLCMediaPlayer.latest!, metadataReader = ICYMetadataReader.latest!
+        audioPlayer.timeEvent(); await drainEvents()
+        metadataReader.audioAt?(Data([1]), Date(), 100); await drainEvents()
+        metadataReader.onTitle?("Fixture - Before loss", Date())
+        let oldCompletion = metadataReader.completion!
+        oldCompletion(Date()); await drainEvents()
+        check(metadataRadio.isPlaying && metadataRadio.currentStreamURL != nil && metadataRadio.nowPlayingTitle.isEmpty && metadataRadio.metadataStatus != nil,
+              "ICY-Ausfall stoppt Audio oder lässt unbemerkt einen alten Titel stehen")
+        let firstStarts = metadataReader.startCount
+        metadataClock.advance(2); await drainEvents()
+        check(metadataReader.startCount == firstStarts + 1 && VLCMediaPlayer.latest === audioPlayer,
+              "Nur ICY wird nicht unabhängig wiederverbunden")
+        oldCompletion(Date()); await drainEvents()
+        check(metadataPolicy.phase == .connecting, "Alter ICY-Abschluss beendet neue Verbindung")
+        let receivedEnd = Date(timeIntervalSince1970: 1_700_000_000)
+        metadataReader.lastAudioAt = receivedEnd
+        metadataRadio.stop(); metadataClock.advance(100); await drainEvents()
+        check(metadataRadio.history.closedAt == receivedEnd, "Stop verlängert den Verlauf über die letzte Empfangsgrenze")
+        check(metadataReader.startCount == firstStarts + 1 && metadataRadio.currentStreamURL == nil,
+              "Metadaten-Retry überholt manuellen Stop")
+        metadataRadio.play(metadataStation); await waitFor { metadataRadio.currentStreamURL != nil }
+        metadataRadio.prepareForSleep(); metadataRadio.stop(); metadataRadio.resumeAfterWake(); metadataClock.advance(100); await drainEvents()
+        check(metadataRadio.currentStreamURL == nil && !metadataRadio.isLoading, "Aufwachen reaktiviert gestoppte Wiedergabe")
+        metadataRadio.play(metadataStation); await waitFor { metadataRadio.currentStreamURL != nil }
+        let beforeSleep = VLCMediaPlayer.latest!
+        metadataRadio.prepareForSleep(); check(metadataRadio.currentStreamURL == nil, "Ruhezustand lässt Verbindung offen")
+        metadataRadio.resumeAfterWake(); await waitFor { metadataRadio.currentStreamURL != nil && VLCMediaPlayer.latest !== beforeSleep }
+        let afterWake = VLCMediaPlayer.latest!
+        metadataRadio.resumeAfterWake(); await drainEvents()
+        check(VLCMediaPlayer.latest === afterWake, "Doppeltes Aufwachereignis startet zweimal")
+        metadataRadio.stop()
 
         let preview = PreviewPlayer()
         preview.toggle(RBStation(stationuuid: "A", streamURL: "https://fixture.invalid/a"), volume: 0)

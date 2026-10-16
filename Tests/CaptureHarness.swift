@@ -143,6 +143,17 @@ enum CaptureHarness {
         disk.captureAudio(Data([2]), at: Date(), streamID: id); disk.flush()
         check(try Data(contentsOf: disk.dir.appendingPathComponent(disk.snapshot()[0].file)) == Data([1]), "Disk-Stopp wird durch neue Bytes rückgängig")
 
+        free.set(Recorder.minFreeBytes + 1)
+        disk.configureCapture(station: "Disk retry", streamID: foreign, enabled: true, revision: 2, preserveFailure: true)
+        disk.captureFormat("audio/mpeg", streamID: foreign)
+        disk.captureAudio(Data([3]), at: Date(), streamID: foreign); disk.flush()
+        check(disk.captureState().phase == .lowDisk && disk.snapshot().count == 1,
+              "Automatischer Metadaten-Retry hebt den Speicherstopp auf")
+        disk.setCaptureEnabled(false, revision: 3); disk.setCaptureEnabled(true, revision: 4)
+        disk.captureAudio(Data([4]), at: Date(), streamID: foreign); disk.flush()
+        check(disk.captureState().phase == .recording, "Expliziter Aufnahmeversuch nach Speicherfreigabe bleibt gesperrt")
+        disk.clearCapture(enabled: false, revision: 5); disk.flush()
+
         let writes = CaptureBox(0)
         let failed = Recorder(directory: root.appendingPathComponent("write"), minimumFreeBytes: -1, writeAudio: { handle, data in
             if writes.increment() == 2 { throw CocoaError(.fileWriteNoPermission) }

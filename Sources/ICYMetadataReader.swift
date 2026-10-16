@@ -93,7 +93,8 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         t.resume()
     }
 
-    func stop() {
+    @discardableResult
+    func stop() -> Date? {
         // Schon eingereihte Titel verlieren sofort ihre Gültigkeit, bevor
         // der synchrone Parser-Reset auf q an die Reihe kommt.
         generation = UUID()
@@ -102,7 +103,9 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         // q.sync wartet deshalb auch einen bereits laufenden Callback ab.
         task?.cancel(); task = nil
         session?.invalidateAndCancel(); session = nil
+        var endedAt: Date?
         q.sync {
+            endedAt = self.lastAudioAt
             self.parserTask = nil
             self.onStart = nil
             self.onAudio = nil; self.onAudioAt = nil; self.onBoundary = nil
@@ -112,6 +115,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.inMeta = false; self.metaLeft = 0
             self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
         }
+        return endedAt
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,

@@ -302,3 +302,10 @@
 "Aufnahme wird mit vollständigen Streamheadern vorbereitet. Die Wiedergabe läuft weiter." = "Recording is being prepared with complete stream headers. Playback continues.";
 
 "Abspielen" = "Play";
+
+/* Metadatenverbindung und Aufwachen */
+"Wiedergabe ruht bis zum Aufwachen." = "Playback is suspended until wake.";
+"Titeldaten: neuer Versuch %lld/%lld in %lld s" = "Track information: retry %lld/%lld in %lld s";
+"Titeldaten warten auf das Netzwerk." = "Track information is waiting for the network.";
+"Titeldaten werden erneut verbunden …" = "Reconnecting track information …";
+"Titeldaten nicht verfügbar. Für einen neuen Versuch den Sender erneut starten." = "Track information is unavailable. Restart the station to try again.";
