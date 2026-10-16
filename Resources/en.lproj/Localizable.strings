@@ -236,3 +236,9 @@
 "JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal." = "JSON exports stations and favorites. Import adds visible stations without favorites and skips duplicate URLs. Groups and quick slots remain local.";
 
 "Sender wiedergeben" = "Play station";
+
+/* Begrenzte Wiederverbindung */
+"Verbinde erneut (%lld/%lld) …" = "Reconnecting (%lld/%lld) …";
+"Wiederverbinden %lld/%lld: Wartezeit %lld s" = "Reconnect %lld/%lld: waiting %lld s";
+"Warte auf Netzwerk (%lld/%lld) …" = "Waiting for network (%lld/%lld) …";
+"Verbindung fehlgeschlagen. Bitte den Sender erneut starten." = "Connection failed. Please start the station again.";

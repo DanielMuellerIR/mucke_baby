@@ -325,8 +325,8 @@ struct MenuBarView: View {
                                     player.toggle(st)
                                 } label: {
                                     HStack {
-                                        Image(systemName: player.currentStation?.id == st.id && player.isPlaying
-                                              ? "pause.fill" : "play.fill")
+                                        Image(systemName: player.currentStation?.id == st.id && (player.isPlaying || player.isLoading)
+                                              ? "stop.fill" : "play.fill")
                                             .font(.caption).frame(width: 14)
                                         Text(st.name).lineLimit(1)
                                         Spacer()
@@ -344,7 +344,7 @@ struct MenuBarView: View {
 
             Divider()
             HStack {
-                Button(player.isPlaying ? "Stop" : "Play") {
+                Button((player.isPlaying || player.isLoading) ? "Stop" : "Play") {
                     if let s = player.currentStation { player.toggle(s) }
                 }
                 .disabled(player.currentStation == nil)

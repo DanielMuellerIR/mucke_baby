@@ -42,6 +42,8 @@ final class Recorder {
     func songBoundary(at: Date) {}
 }
 final class ICYMetadataReader {
+    static var latest: ICYMetadataReader!
+    init() { Self.latest = self }
     var onTitle: ((String, Date) -> Void)?
     func stop() {}
     func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
@@ -74,7 +76,7 @@ struct PlayerHarness {
     }
     @MainActor
     static func main() async {
-        let radio = RadioPlayer()
+        let radio = RadioPlayer(reconnect: PlaybackReconnect(delays: []))
         radio.play(Station(name: "A", url: "https://fixture.invalid/a"))
         await waitFor { radio.currentStreamURL?.lastPathComponent == "a" }
         let old = VLCMediaPlayer.latest!
@@ -103,9 +105,47 @@ struct PlayerHarness {
         radioFailing.stateEvent()
         TestEvents.queue.resume()
         await drainEvents()
-        check(radio.statusText == String(localized: "Fehler: Stream nicht abspielbar") && !radio.isPlaying && !radio.isLoading,
+        check(radio.statusText == String(localized: "Verbindung fehlgeschlagen. Bitte den Sender erneut starten.") && !radio.isPlaying && !radio.isLoading,
               "Spaeter Stopp hat den Hauptplayer-Fehler verdeckt")
         radio.stop()
+
+        let clock = ReconnectClock()
+        let retryPolicy = PlaybackReconnect(schedule: clock.schedule)
+        let retryRadio = RadioPlayer(reconnect: retryPolicy)
+        let retryStation = Station(name: "Retry", url: "https://fixture.invalid/retry")
+        retryRadio.play(retryStation)
+        await waitFor { retryRadio.currentStreamURL?.lastPathComponent == "retry" }
+        var current = VLCMediaPlayer.latest!
+        ICYMetadataReader.latest.onTitle?("Fixture - Old title", Date())
+        check(!retryRadio.nowPlayingTitle.isEmpty, "Titelfixture fehlt")
+        current.state = .error; current.stateEvent()
+        await drainEvents()
+        check(retryRadio.isLoading && !retryRadio.isPlaying && retryRadio.currentStreamURL == nil && retryRadio.nowPlayingTitle.isEmpty,
+              "Fehler hinterlässt aktive Seitenverbindung oder keinen bedienbaren Wartezustand")
+        let pending = clock.events.last!
+        retryRadio.stop(); pending.action(); clock.advance(100)
+        await drainEvents()
+        check(VLCMediaPlayer.latest === current && !retryRadio.isLoading && retryRadio.currentStreamURL == nil,
+              "Stop während Wartezeit startet später erneut")
+        retryRadio.play(retryStation)
+        await waitFor { retryRadio.currentStreamURL != nil }
+        current = VLCMediaPlayer.latest!
+        current.state = .ended; current.stateEvent(); await drainEvents()
+        clock.advance(2)
+        await waitFor { VLCMediaPlayer.latest !== current && retryRadio.currentStreamURL != nil }
+        let restarted = VLCMediaPlayer.latest!
+        TestEvents.queue.suspend()
+        current.timeEvent(); current.state = .error; current.stateEvent()
+        TestEvents.queue.resume(); await drainEvents()
+        check(!retryRadio.isPlaying && retryRadio.isLoading, "Alte Generation verändert Wiederverbindung")
+        restarted.timeEvent(); await waitFor { retryRadio.isPlaying }
+        retryRadio.stop()
+        let previous = VLCMediaPlayer.latest!
+        retryRadio.play(Station(name: "Unsafe", url: "file:///tmp/untrusted.mp3"))
+        clock.advance(100); await drainEvents()
+        check(VLCMediaPlayer.latest === previous && retryRadio.currentStreamURL == nil && !retryRadio.isLoading,
+              "Ungültige URL wird automatisch wiederholt oder an VLC übergeben")
+        retryRadio.stop()
 
         let preview = PreviewPlayer()
         preview.toggle(RBStation(stationuuid: "A", streamURL: "https://fixture.invalid/a"), volume: 0)

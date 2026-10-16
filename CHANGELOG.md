@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.4 — 2026-10-16
+
+- Recover from temporary stream and playlist failures with up to three cancellable retries, bounded backoff and network-return handling.
+- Detect stalled startup or playback progress, reset the retry budget only after stable playback, and preserve manual Stop or station changes over late callbacks.
+- Show reconnect status with a usable Stop action and clear stale track text while waiting. Each failed attempt closes metadata and recording resources before retrying.
+
 ## 1.9.3 — 2026-10-16
 
 - Search local stations by name or URL and combine results with favorites, groups, or ungrouped stations in the main window and menu bar.

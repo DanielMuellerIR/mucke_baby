@@ -78,6 +78,12 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/export-harness"
 bash Tests/fleet-rules.sh
 
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/PlaybackReconnect.swift Tests/ReconnectClock.swift Tests/ReconnectHarness.swift \
+  -o "$BUILD/reconnect-harness"
+"$BUILD/reconnect-harness"
+
 python3 Tests/player-events.py
 
 cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"

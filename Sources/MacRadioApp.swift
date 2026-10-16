@@ -463,14 +463,14 @@ struct ContentView: View {
             Button { if let s = player.currentStation { player.toggle(s) } } label: {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 5) {
-                        Image(systemName: player.isPlaying ? "stop.fill" : "play.fill")
+                        Image(systemName: (player.isPlaying || player.isLoading) ? "stop.fill" : "play.fill")
                             .font(.system(size: 13, weight: .semibold))
-                        Text(player.isPlaying ? "Stopp" : "Wiedergabe")
+                        Text((player.isPlaying || player.isLoading) ? "Stopp" : "Wiedergabe")
                             .font(theme.font(.label, size: 11 * uiFontScale, weight: .semibold))
                             .lineLimit(1)         // kein .fixedSize() — verhindert künstliches Aufblähen
                     }
                     // Fallback: nacktes Icon (Tooltip via .help unten gibt den Kontext)
-                    Image(systemName: player.isPlaying ? "stop.fill" : "play.fill")
+                    Image(systemName: (player.isPlaying || player.isLoading) ? "stop.fill" : "play.fill")
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .foregroundStyle(onGoldHeader ? headerInkStrong : theme.palette.playActive)
@@ -479,7 +479,7 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .disabled(player.currentStation == nil)
-            .help(player.isPlaying ? "Stopp" : "Wiedergabe")
+            .help((player.isPlaying || player.isLoading) ? "Stopp" : "Wiedergabe")
 
             // Laufzeit + Lautstaerke sitzen jetzt im Fuß (neben der Zeit) — in der Titelregion
             // der Kopfleiste fing der native Fenster-Drag den Knopf-Mouse-Down ab.

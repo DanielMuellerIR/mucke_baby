@@ -69,6 +69,7 @@ open "build/Mucke, Baby!.app"                    # launch
 - **Optional stream recording** (off by default) — records the playing stream to `~/Music/MuckeBaby/Aufnahmen/`, with per‑song extraction; auto‑stops when less than 10 GB is free.
 - **One‑click links** from the history to look a track up on Apple Music or Spotify.
 - **Station groups and quick selection** — search your stations by name or URL and combine this with favorites or a group. Stations can belong to several named groups; deleting a group keeps all stations. ⌘K opens keyboard selection, and five configurable slots use ⌥⌘1–5. Groups and slots are local settings; station JSON exchange remains separate.
+- **Connection recovery** — up to three automatic retries after a stream failure, with 2, 5 and 15 seconds between attempts. Playback progress is monitored, network return resumes only a pending request, and Stop cancels every retry. The budget resets after a minute of stable playback.
 - Station list with play/stop, per‑station show/hide and reordering; multiple **favorites** independent of startup playback. Settings offer no automatic playback, the last station, or a specific station. Missing or hidden startup targets leave playback off. Existing startup preferences are migrated once.
 - Add / edit / delete stations; **curated genre lists** to import in one click.
 - Playlist resolution for `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
