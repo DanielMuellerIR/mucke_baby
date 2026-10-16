@@ -90,6 +90,12 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   Tests/CatalogHarness.swift -o "$BUILD/catalog-harness"
 "$BUILD/catalog-harness"
 
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/SongHistory.swift Sources/SystemMedia.swift \
+  Tests/SystemMediaHarness.swift -o "$BUILD/system-media-harness"
+"$BUILD/system-media-harness"
+
 python3 Tests/player-events.py
 
 cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"

@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.7 — 2026-10-16
+
+- Publish the current station, track and live playback/loading state to macOS media controls, without a simulated duration or seek position.
+- Media play/pause stops the live stream; previous/next selects visible stations in saved order. Stop, terminal failure and Quit release command handlers and metadata.
+- Reject commands from superseded registrations and avoid reasserting playback state for track-only updates. Windows and the menu bar share one player and media-control lifetime.
+
 ## 1.9.5 — 2026-10-16
 
 - Combine catalog filters for name, country, language, genre, codec and minimum bitrate, with vote/name sorting and 50 results per page.
