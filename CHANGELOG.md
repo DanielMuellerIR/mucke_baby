@@ -9,6 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Media play/pause stops the live stream; previous/next selects visible stations in saved order. Stop, terminal failure and Quit release command handlers and metadata.
 - Reject commands from superseded registrations and avoid reasserting playback state for track-only updates. Windows and the menu bar share one player and media-control lifetime.
 
+## 1.9.6 — 2026-10-16
+
+- Switch recording on or off during playback without replacing the audio player or opening another recording connection. The existing metadata connection stays available for audio-only streams and is renewed when container formats need fresh start headers.
+- Show effective recording status after successful audio writes, with separate waiting, low-storage, connection and write/index failure states. Main window, menu bar and settings share the same persistent preference.
+- Serialize capture changes and stream IDs, close each recording segment cleanly, and check free space periodically even when audio data stops arriving.
+
 ## 1.9.5 — 2026-10-16
 
 - Combine catalog filters for name, country, language, genre, codec and minimum bitrate, with vote/name sorting and 50 results per page.

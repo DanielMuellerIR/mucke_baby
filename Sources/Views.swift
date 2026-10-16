@@ -111,7 +111,7 @@ struct PreferencesView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("menuBarMode") private var menuBarMode = false
-    @AppStorage("recordStreams") private var recordStreams = false
+    @EnvironmentObject private var player: RadioPlayer
     @State private var ioMessage = ""
 
     private var recordingsDir: URL {
@@ -167,8 +167,8 @@ struct PreferencesView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Aufnahme") {
-                    Toggle("Laufende Streams mitschneiden", isOn: $recordStreams)
-                    Text("Standardmäßig AUS. Wenn aktiviert: zeichnet durchgehend auf (Roh-Audio), stoppt automatisch bei < 10 GB frei. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Greift ab dem nächsten Senderstart.")
+                    Toggle("Laufende Streams mitschneiden", isOn: Binding(get: { player.recordingRequested }, set: player.setRecordingRequested))
+                    Text("Standardmäßig AUS. Der Schalter wirkt sofort während der Wiedergabe. Aufnahme stoppt unter 10 GiB freiem Speicher. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Der tatsächliche Status steht unten im Hauptfenster.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button("Aufnahmen im Finder zeigen") {
                         try? FileManager.default.createDirectory(at: recordingsDir, withIntermediateDirectories: true)
@@ -246,8 +246,8 @@ struct PreferencesView: View {
 //  2) Der Mitschnitt ist ab Werk AUS und kann hier bewusst aktiviert werden.
 struct WelcomeView: View {
     @Environment(\.dismiss) private var dismiss
-    // Selber Key wie in den Einstellungen — Aenderung hier wirkt sofort dort und umgekehrt.
-    @AppStorage("recordStreams") private var recordStreams = false
+    // Dieselbe Aufnahmesteuerung wie im Hauptfenster und in den Einstellungen.
+    @EnvironmentObject private var player: RadioPlayer
 
     private var recordingsDir: URL {
         FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
@@ -266,7 +266,7 @@ struct WelcomeView: View {
                         .font(.callout)
                 }
                 Section("Mitschnitt der Streams") {
-                    Toggle("Laufende Streams mitschneiden", isOn: $recordStreams)
+                    Toggle("Laufende Streams mitschneiden", isOn: Binding(get: { player.recordingRequested }, set: player.setRecordingRequested))
                     Text("Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar.")
                         .font(.callout).foregroundStyle(.secondary)
                     Button("Aufnahme-Ordner zeigen") {
@@ -343,6 +343,7 @@ struct MenuBarView: View {
             }
 
             Divider()
+            RecordingControl(identifier: "menu-recording")
             HStack {
                 Button((player.isPlaying || player.isLoading) ? "Stop" : "Play") {
                     if let s = player.currentStation { player.toggle(s) }

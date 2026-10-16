@@ -467,7 +467,7 @@ struct ContentView: View {
                     HStack(spacing: 5) {
                         Image(systemName: (player.isPlaying || player.isLoading) ? "stop.fill" : "play.fill")
                             .font(.system(size: 13, weight: .semibold))
-                        Text((player.isPlaying || player.isLoading) ? "Stopp" : "Wiedergabe")
+                        Text((player.isPlaying || player.isLoading) ? "Stopp" : "Abspielen")
                             .font(theme.font(.label, size: 11 * uiFontScale, weight: .semibold))
                             .lineLimit(1)         // kein .fixedSize() — verhindert künstliches Aufblähen
                     }
@@ -481,7 +481,7 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .disabled(player.currentStation == nil)
-            .help((player.isPlaying || player.isLoading) ? "Stopp" : "Wiedergabe")
+            .help((player.isPlaying || player.isLoading) ? "Stopp" : "Abspielen")
 
             // Laufzeit + Lautstaerke sitzen jetzt im Fuß (neben der Zeit) — in der Titelregion
             // der Kopfleiste fing der native Fenster-Drag den Knopf-Mouse-Down ab.
@@ -633,18 +633,7 @@ struct ContentView: View {
             .help("Merkliste öffnen").accessibilityLabel("Merkliste öffnen")
             .accessibilityIdentifier("bookmarks-open")
 
-            // Platzmangel-Hinweis: Der Recorder stoppt bei < 10 GB freiem Speicher
-            // automatisch — die Wiedergabe laeuft hoerbar weiter, deshalb braucht der
-            // stille Aufnahme-Stopp einen sichtbaren Hinweis. play() setzt das Flag
-            // beim naechsten Senderstart zurueck (RadioPlayer.lowDiskWarning).
-            if player.lowDiskWarning {
-                Label(String(localized: "Aufnahme gestoppt: < 10 GB frei"),
-                      systemImage: "exclamationmark.triangle.fill")
-                    .font(theme.font(.label, size: 11 * uiFontScale))
-                    .foregroundStyle(theme.palette.alert)
-                    .fixedSize()
-                    .help(String(localized: "Der Mitschnitt wurde wegen Platzmangel beendet. Speicherplatz freigeben — die Aufnahme startet beim nächsten Senderstart erneut."))
-            }
+            RecordingControl()
 
             if let started = player.playStartedAt {
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in

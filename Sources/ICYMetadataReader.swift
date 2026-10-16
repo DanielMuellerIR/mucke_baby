@@ -17,6 +17,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     private var onStart: ((String?, Date) -> Void)?
     private var onBoundary: ((String, Date) -> Void)?
     private var onAudio: ((Data) -> Void)?
+    private var onAudioAt: ((Data, Date, TimeInterval) -> Void)?
     private var onCompletion: ((Date) -> Void)?
     private var contentType: String?
     private var lastAudioAt: Date?
@@ -58,6 +59,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                onStart: ((String?, Date) -> Void)? = nil,
                onBoundary: ((String, Date) -> Void)? = nil,
                onAudio: ((Data) -> Void)? = nil,
+               onAudioAt: ((Data, Date, TimeInterval) -> Void)? = nil,
                onCompletion: ((Date) -> Void)? = nil) {
         stop()
         let cfg = configuration
@@ -80,6 +82,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.onStart = onStart
             self.onBoundary = onBoundary
             self.onAudio = onAudio
+            self.onAudioAt = onAudioAt
             self.onCompletion = onCompletion
             self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
@@ -102,7 +105,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
         q.sync {
             self.parserTask = nil
             self.onStart = nil
-            self.onAudio = nil; self.onBoundary = nil
+            self.onAudio = nil; self.onAudioAt = nil; self.onBoundary = nil
             self.onCompletion = nil
             self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
@@ -142,10 +145,11 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         let receivedAt = Date()
+        let receivedUptime = ProcessInfo.processInfo.systemUptime
         q.async {
             guard self.parserTask === dataTask else { return }
             guard !data.isEmpty, self.audioOnly || self.metaint > 0 else { return }
-            if self.audioOnly { self.emitAudio(data, at: receivedAt); return }
+            if self.audioOnly { self.emitAudio(data, at: receivedAt, uptime: receivedUptime); return }
             // Chunk in Audio-Laufstuecke + Metadatenbloecke zerlegen.
             var audio = Data(); audio.reserveCapacity(data.count)
             for b in data {
@@ -158,21 +162,22 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                     self.buf.append(b); self.metaLeft -= 1
                     if self.metaLeft == 0 {
                         // Audiobeginn vor dem zugehörigen Titel auf Main melden.
-                        self.emitAudio(audio, at: receivedAt)
+                        self.emitAudio(audio, at: receivedAt, uptime: receivedUptime)
                         audio.removeAll(keepingCapacity: true)
                         self.parse(self.buf, at: receivedAt); self.inMeta = false; self.skip = self.metaint
                     }
                 }
             }
-            self.emitAudio(audio, at: receivedAt)
+            self.emitAudio(audio, at: receivedAt, uptime: receivedUptime)
         }
     }
 
-    private func emitAudio(_ data: Data, at date: Date) {
+    private func emitAudio(_ data: Data, at date: Date, uptime: TimeInterval) {
         guard !data.isEmpty else { return }
         if lastAudioAt == nil { onStart?(contentType, date) }
         lastAudioAt = date
         onAudio?(data)
+        onAudioAt?(data, date, uptime)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -182,7 +187,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             // letzten Byte darf keine zusätzliche aufgenommene Zeit erfinden.
             self.onCompletion?(self.lastAudioAt ?? Date())
             self.parserTask = nil
-            self.onStart = nil; self.onAudio = nil; self.onBoundary = nil; self.onCompletion = nil
+            self.onStart = nil; self.onAudio = nil; self.onAudioAt = nil; self.onBoundary = nil; self.onCompletion = nil
         }
         // Stream zu Ende / Fehler / Timeout -> die GERADE beendete Session freigeben
         // (sonst bliebe sie mit ihrer starken Referenz auf self samt Socket offen, bis
