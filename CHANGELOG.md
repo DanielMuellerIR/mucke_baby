@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.5 — 2026-10-16
+
+- Combine catalog filters for name, country, language, genre, codec and minimum bitrate, with vote/name sorting and 50 results per page.
+- Restore the last search and browse up to 20 locally saved pages within a 2 MiB limit. Cached results show their date and explicitly avoid claims about current stream reachability.
+- Bound catalog downloads, cancel superseded searches and reject stale responses. Unknown bitrates are labeled; changing results stops the previous preview.
+
 ## 1.9.4 — 2026-10-16
 
 - Recover from temporary stream and playlist failures with up to three cancellable retries, bounded backoff and network-return handling.

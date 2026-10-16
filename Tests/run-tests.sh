@@ -84,6 +84,12 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -o "$BUILD/reconnect-harness"
 "$BUILD/reconnect-harness"
 
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/RadioBrowser.swift Sources/CatalogCache.swift \
+  Tests/CatalogHarness.swift -o "$BUILD/catalog-harness"
+"$BUILD/catalog-harness"
+
 python3 Tests/player-events.py
 
 cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"

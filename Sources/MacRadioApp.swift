@@ -294,6 +294,7 @@ struct ContentView: View {
     @State private var stationQuery = ""
     @State private var stationScope = StationListScope.all
     @State private var showingSearch = false
+    @State private var browserWidth: CGFloat = 780
     @State private var showingGenres = false
     @State private var showingBookmarks = false
     @State private var editStation: Station?
@@ -394,7 +395,13 @@ struct ContentView: View {
         .sheet(isPresented: $showingGroups) { StationGroupsView() }
         .sheet(isPresented: $showingQuickSelection) { StationQuickSelectionView() }
         .focusedSceneValue(\.openStationQuickSelection, quickSelectionAction)
-        .sheet(isPresented: $showingSearch) { StationBrowserView() }
+        .background {
+            GeometryReader { geometry in
+                Color.clear.onAppear { browserWidth = geometry.size.width - 32 }
+                    .onChange(of: geometry.size.width) { _, width in browserWidth = width - 32 }
+            }
+        }
+        .sheet(isPresented: $showingSearch) { StationBrowserView(availableWidth: browserWidth) }
         .sheet(isPresented: $showingGenres) { GenreListsView() }
         .sheet(isPresented: $showingBookmarks) { BookmarkLibrary(onClose: { showingBookmarks = false }) }
         .sheet(isPresented: $showingWelcome, onDismiss: { autoplayIfNeeded() }) { WelcomeView() }

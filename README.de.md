@@ -68,10 +68,11 @@ open "build/Mucke, Baby!.app"                    # starten
 - **Direktlinks** aus dem Verlauf, um einen Titel in Apple Music oder Spotify nachzuschlagen.
 - **Sendergruppen und Schnellauswahl** — eigene Sender nach Namen oder URL suchen und mit Favoriten oder einer Gruppe kombinieren. Ein Sender kann mehreren benannten Gruppen angehören; Gruppenlöschung erhält alle Sender. ⌘K öffnet die Tastaturauswahl, fünf konfigurierbare Plätze verwenden ⌥⌘1–5. Gruppen und Plätze sind lokale Einstellungen; der Sender-JSON-Austausch bleibt getrennt.
 - **Verbindungserholung** — nach einem Streamfehler höchstens drei automatische Wiederholungen mit 2, 5 und 15 Sekunden Abstand. Die App überwacht den Wiedergabefortschritt und setzt bei Netzrückkehr nur einen wartenden Auftrag fort. Stopp verwirft alle Wiederholungen; nach einer Minute stabiler Wiedergabe steht das begrenzte Budget erneut bereit.
+- **Katalogfilter und gespeicherte Treffer** — Land, Sprache, Genre, Name, Codec und Mindestbitrate des Katalogs gemeinsam filtern. Je Seite erscheinen höchstens 50 Treffer, sortiert nach Stimmen oder Namen. Bis zu 20 Seiten bleiben in einem auf 2 MiB begrenzten lokalen Cache verfügbar. Gespeicherte Treffer zeigen ihr Alter und belegen keine aktuelle Sendererreichbarkeit.
 - Senderliste mit Play/Stop, Ein-/Ausblenden und Umsortieren pro Sender; mehrere **Favoriten**, unabhängig von der Startauswahl. In den Einstellungen stehen kein Autostart, letzter Sender oder ein bestimmter Sender zur Wahl. Fehlende oder ausgeblendete Startziele lassen die Wiedergabe aus. Bestehende Startpräferenzen werden einmalig übernommen.
 - Sender hinzufügen / bearbeiten / löschen; **kuratierte Genre-Listen** per Klick importieren.
 - Playlist-Auflösung für `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
-- **Sender-Katalog** mit über 50.000 Sendern aus der offenen API von [radio-browser.info](https://www.radio-browser.info) — nach Genre stöbern, per Name suchen, Sender **probehören** und mit einem Klick übernehmen.
+- **Sender-Katalog** aus der offenen API von [radio-browser.info](https://www.radio-browser.info) — nach Genre stöbern, per Name suchen, Sender **probehören** und mit einem Klick übernehmen.
 - Hell- & Dunkelmodus; optionales Menüleisten-Symbol (standardmäßig aus).
 - **Selbst-Updates über Sparkle** — die App prüft einen signierten Appcast (GitHub Pages) und installiert nur nach Bestätigung; keine Telemetrie, kein System-Profiling.
 

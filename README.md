@@ -70,10 +70,11 @@ open "build/Mucke, Baby!.app"                    # launch
 - **One‑click links** from the history to look a track up on Apple Music or Spotify.
 - **Station groups and quick selection** — search your stations by name or URL and combine this with favorites or a group. Stations can belong to several named groups; deleting a group keeps all stations. ⌘K opens keyboard selection, and five configurable slots use ⌥⌘1–5. Groups and slots are local settings; station JSON exchange remains separate.
 - **Connection recovery** — up to three automatic retries after a stream failure, with 2, 5 and 15 seconds between attempts. Playback progress is monitored, network return resumes only a pending request, and Stop cancels every retry. The budget resets after a minute of stable playback.
+- **Catalog filters and saved results** — combine country, language, genre, name, codec and minimum catalog bitrate. Browse 50 results per page, sort by votes or name, and reopen up to 20 locally saved pages within a 2 MiB cache. Saved results display their age and do not establish current stream availability.
 - Station list with play/stop, per‑station show/hide and reordering; multiple **favorites** independent of startup playback. Settings offer no automatic playback, the last station, or a specific station. Missing or hidden startup targets leave playback off. Existing startup preferences are migrated once.
 - Add / edit / delete stations; **curated genre lists** to import in one click.
 - Playlist resolution for `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
-- **Station catalog** with over 50,000 stations from the open [radio‑browser.info](https://www.radio-browser.info) API — browse by genre, search by name, **preview** a station and add it to your list in one click.
+- **Station catalog** from the open [radio‑browser.info](https://www.radio-browser.info) API — browse by genre, search by name, **preview** a station and add it to your list in one click.
 - Light & dark mode; optional menu‑bar icon (off by default).
 - **Self‑updates via Sparkle** — the app checks a signed appcast (GitHub Pages) and installs only after you confirm; no telemetry, no system profiling.
 
