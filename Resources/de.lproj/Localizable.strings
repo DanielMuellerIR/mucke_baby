@@ -298,3 +298,7 @@
 "Aufnahmestatus" = "Aufnahmestatus";
 "Der Schalter wirkt sofort auf den Mitschnitt. Die Wiedergabe läuft weiter. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Aufnahme ist bei einer neuen Installation aus." = "Der Schalter wirkt sofort auf den Mitschnitt. Die Wiedergabe läuft weiter. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Aufnahme ist bei einer neuen Installation aus.";
 "Standardmäßig AUS. Der Schalter wirkt sofort während der Wiedergabe. Aufnahme stoppt unter 10 GiB freiem Speicher. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Der tatsächliche Status steht unten im Hauptfenster." = "Standardmäßig AUS. Der Schalter wirkt sofort während der Wiedergabe. Aufnahme stoppt unter 10 GiB freiem Speicher. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Der tatsächliche Status steht unten im Hauptfenster.";
+
+"Aufnahme wird mit vollständigen Streamheadern vorbereitet. Die Wiedergabe läuft weiter." = "Aufnahme wird mit vollständigen Streamheadern vorbereitet. Die Wiedergabe läuft weiter.";
+
+"Abspielen" = "Abspielen";

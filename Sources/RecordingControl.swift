@@ -10,7 +10,7 @@ struct RecordingControl: View {
     private var shortStatus: String {
         switch player.recordingState.phase {
         case .off: String(localized: "Aus")
-        case .waiting: String(localized: "Wartet")
+        case .waiting, .needsStreamHeader: String(localized: "Wartet")
         case .recording: String(localized: "Läuft")
         case .lowDisk: String(localized: "Speicher")
         case .indexUnavailable: String(localized: "Indexfehler")
@@ -22,6 +22,7 @@ struct RecordingControl: View {
         switch player.recordingState.phase {
         case .off: String(localized: "Aufnahme ist ausgeschaltet.")
         case .waiting: String(localized: "Aufnahme ist aktiviert und wartet auf Audiobytes. Ohne laufenden Stream wird nichts gespeichert.")
+        case .needsStreamHeader: String(localized: "Aufnahme wird mit vollständigen Streamheadern vorbereitet. Die Wiedergabe läuft weiter.")
         case .recording: String(localized: "Audiobytes werden im Aufnahmeordner gespeichert.")
         case .lowDisk: String(localized: "Aufnahme gestoppt: weniger als 10 GiB frei. Speicher freigeben und Aufnahme aus- und wieder einschalten.")
         case .indexUnavailable: String(localized: "Der Aufnahmeindex ist nicht verfügbar. Aufnahmeordner prüfen; bestehende Dateien bleiben erhalten.")
@@ -32,7 +33,7 @@ struct RecordingControl: View {
     private var color: Color {
         switch player.recordingState.phase {
         case .recording, .lowDisk, .indexUnavailable, .streamEnded, .writeFailed: theme.palette.alert
-        case .waiting: .orange
+        case .waiting, .needsStreamHeader: .orange
         case .off: theme.palette.textSecondary
         }
     }

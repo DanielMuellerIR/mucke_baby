@@ -111,6 +111,11 @@ final class RadioPlayer: ObservableObject {
     private func captureStateChanged(_ state: RecordingState) {
         guard state.revision == recordingRevision else { return }
         recordingState = state
+        if state.phase == .needsStreamHeader, recordingRequested, state.streamID == recordingSessionID,
+           let url = currentStreamURL {
+            startMetadata(url: url)
+            return
+        }
         if state.phase == .recording, let id = state.segmentID, recordingSegmentID != id,
            state.streamID == recordingSessionID, let station = currentStation, let startedAt = state.startedAt {
             recordingSegmentID = id
@@ -205,8 +210,18 @@ final class RadioPlayer: ObservableObject {
         player.play()
         currentStreamURL = url   // AudioTap starten: er tappt die eigene Prozessausgabe
 
+        startMetadata(url: url)
+        // Nur Schema/Host/Pfad loggen: Query und Benutzerinfo koennen Tokens oder
+        // Passwoerter enthalten und landeten frueher unmaskiert im Unified Log.
+        log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(StreamURLPolicy.redactedForLog(url), privacy: .public)")
+    }
+
+    private func startMetadata(url: URL) {
+        // Container wie Ogg/FLAC benötigen beim Dateibeginn ihre Streamheader.
+        // Die alte Metadatenverbindung zuerst schließen; VLC bleibt unverändert.
+        icy.stop()
         // Die vorhandene ICY-Verbindung bleibt auch ohne Metadaten erhalten.
-        // Nur die Dateisenke wird umgeschaltet; VLC und Streamverbindungen bleiben gleich.
+        // MP3/AAC schalten nur die Dateisenke; Containerheader erneuern bei Bedarf diesen Reader.
         let recorder = self.recorder
         let stationName = currentStation?.name ?? "Sender"
         let streamID = recordingSessionID
@@ -215,11 +230,8 @@ final class RadioPlayer: ObservableObject {
         icy.start(url: url, allowAudioOnly: true,
                   onStart: { contentType, _ in recorder.captureFormat(contentType, streamID: streamID) },
                   onBoundary: { _, boundary in recorder.songBoundary(at: boundary) },
-                  onAudioAt: { data, date in recorder.captureAudio(data, at: date, streamID: streamID) },
+                  onAudioAt: { data, date, uptime in recorder.captureAudio(data, at: date, receivedUptime: uptime, streamID: streamID) },
                   onCompletion: { date in recorder.finishCapture(streamID: streamID, at: date) })
-        // Nur Schema/Host/Pfad loggen: Query und Benutzerinfo koennen Tokens oder
-        // Passwoerter enthalten und landeten frueher unmaskiert im Unified Log.
-        log.notice("play \(self.currentStation?.name ?? "?", privacy: .public) -> \(StreamURLPolicy.redactedForLog(url), privacy: .public)")
     }
 
     func stop() {

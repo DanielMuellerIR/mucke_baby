@@ -40,11 +40,17 @@ final class Recorder: @unchecked Sendable {
         var station: String
         var streamID: UUID
         var contentType: String?
+        var receivedAudio = false
+        var canStartMidstream: Bool {
+            let type = contentType?.lowercased().split(separator: ";").first.map(String.init) ?? ""
+            return ["audio/mpeg", "audio/mp3", "audio/aac", "audio/aacp"].contains(type)
+        }
         var segmentID = UUID()
-        var enabledAt: Date
+        var enabledUptime: TimeInterval
     }
     private var capture: Capture?
     private var captureRequested = false
+    private var captureHasEnded = false
     private var captureRevision: UInt64 = 0
     private var captureBlocked: RecordingState.Phase?
     private var captureBytes: Int64 = 0
@@ -84,25 +90,30 @@ final class Recorder: @unchecked Sendable {
         q.sync { loadIndex(); closeDangling() }
     }
 
+    // Empfangsreihenfolge nutzt die monotone Uhr; Datum bleibt für Dateinamen und Verlauf.
     // Steuerung und Audio treffen auf derselben Datei-Queue ein. Alte Stream-IDs
     // dürfen eine neue Aufnahme weder beginnen noch schließen.
-    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64, at date: Date = Date()) {
+    func configureCapture(station: String, streamID: UUID, enabled: Bool, revision: UInt64, at date: Date = Date(), uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         q.async {
             self._close(at: date)
             self.captureRequested = enabled; self.captureRevision = revision
-            self.capture = Capture(station: station, streamID: streamID, enabledAt: date)
+            self.capture = Capture(station: station, streamID: streamID, enabledUptime: uptime)
+            self.captureHasEnded = false
             self.captureBlocked = nil; self.captureBytes = 0; self.publishedBytes = -1
             self.publishCapture()
         }
     }
 
-    func setCaptureEnabled(_ enabled: Bool, revision: UInt64, at date: Date = Date()) {
+    func setCaptureEnabled(_ enabled: Bool, revision: UInt64, at date: Date = Date(), uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         q.async {
             self._close(at: date)
             self.captureRequested = enabled; self.captureRevision = revision
-            if !enabled || self.capture != nil { self.captureBlocked = nil }
+            self.captureBlocked = enabled && self.captureHasEnded ? .streamEnded : nil
+            if enabled, let capture = self.capture, capture.receivedAudio, !capture.canStartMidstream {
+                self.captureBlocked = .needsStreamHeader
+            }
             self.captureBytes = 0; self.publishedBytes = -1
-            self.capture?.enabledAt = date; self.capture?.segmentID = UUID()
+            self.capture?.enabledUptime = uptime; self.capture?.segmentID = UUID()
             self.publishCapture()
         }
     }
@@ -111,11 +122,17 @@ final class Recorder: @unchecked Sendable {
         q.async { if self.capture?.streamID == streamID { self.capture?.contentType = contentType } }
     }
 
-    func captureAudio(_ data: Data, at date: Date, streamID: UUID) {
+    func captureAudio(_ data: Data, at date: Date, receivedUptime: TimeInterval = ProcessInfo.processInfo.systemUptime, streamID: UUID) {
         q.async {
-            guard let capture = self.capture, capture.streamID == streamID,
-                  self.captureRequested, self.captureBlocked == nil,
-                  date >= capture.enabledAt, !data.isEmpty else { return }
+            guard !data.isEmpty, let capture = self.capture, capture.streamID == streamID else { return }
+            self.capture?.receivedAudio = true
+            if self.captureRequested, self.captureBlocked == nil, receivedUptime < capture.enabledUptime,
+               !capture.canStartMidstream {
+                self.captureBlocked = .needsStreamHeader; self.publishCapture()
+                return
+            }
+            guard self.captureRequested, self.captureBlocked == nil,
+                  receivedUptime >= capture.enabledUptime, !data.isEmpty else { return }
             if self.handle == nil {
                 self._begin(station: capture.station, ext: Self.ext(for: capture.contentType), at: date, sessionID: capture.segmentID)
                 guard self.handle != nil else { self.publishCapture(); return }
@@ -131,7 +148,7 @@ final class Recorder: @unchecked Sendable {
     func finishCapture(streamID: UUID, at date: Date) {
         q.async {
             guard self.capture?.streamID == streamID else { return }
-            self._close(at: date); self.capture = nil
+            self._close(at: date); self.capture = nil; self.captureHasEnded = true
             if self.captureRequested && self.captureBlocked == nil { self.captureBlocked = .streamEnded }
             self.publishCapture()
         }
@@ -139,7 +156,7 @@ final class Recorder: @unchecked Sendable {
 
     func clearCapture(enabled: Bool, revision: UInt64, at date: Date = Date()) {
         q.async {
-            self._close(at: date); self.capture = nil
+            self._close(at: date); self.capture = nil; self.captureHasEnded = false
             self.captureRequested = enabled; self.captureRevision = revision
             self.captureBlocked = nil; self.captureBytes = 0; self.publishCapture()
         }
@@ -179,7 +196,11 @@ final class Recorder: @unchecked Sendable {
             if date.timeIntervalSince(start) > 24 * 3600 {
                 let station = last.station, ext = last.ext
                 self._close(at: date)
-                self._begin(station: station, ext: ext, at: date, sessionID: last.sessionID)
+                if let capture = self.capture, !capture.canStartMidstream {
+                    self.captureBlocked = .needsStreamHeader
+                } else {
+                    self._begin(station: station, ext: ext, at: date, sessionID: last.sessionID)
+                }
                 if self.capture != nil { self.publishCapture() }
             }
         }

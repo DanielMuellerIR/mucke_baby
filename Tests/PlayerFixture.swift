@@ -44,7 +44,7 @@ final class Recorder {
     func setCaptureEnabled(_ enabled: Bool, revision: UInt64) { changes.append((enabled, revision)) }
     func clearCapture(enabled: Bool, revision: UInt64) {}
     func captureFormat(_ contentType: String?, streamID: UUID) {}
-    func captureAudio(_ data: Data, at: Date, streamID: UUID) {}
+    func captureAudio(_ data: Data, at: Date, receivedUptime: TimeInterval, streamID: UUID) {}
     func finishCapture(streamID: UUID, at: Date) {}
     func end(at: Date = Date()) {}
     func begin(station: String, contentType: String?, at: Date, sessionID: UUID) {}
@@ -54,11 +54,12 @@ final class Recorder {
 }
 final class ICYMetadataReader {
     static var latest: ICYMetadataReader!
+    var startCount = 0
     init() { Self.latest = self }
     var onTitle: ((String, Date) -> Void)?
     func stop() {}
     func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
-               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date) -> Void, onCompletion: @escaping (Date) -> Void) {}
+               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date, TimeInterval) -> Void, onCompletion: @escaping (Date) -> Void) { startCount += 1 }
 }
 enum TestEvents {
     static let queue = DispatchQueue(label: "fixture.events", target: .main)
@@ -182,6 +183,11 @@ struct PlayerHarness {
         recordingRadio.recorder.onCaptureState?(RecordingState(phase: .recording, revision: recordingRadio.recorder.changes.last!.1,
             streamID: recordingRadio.recorder.streamID, segmentID: UUID(), startedAt: startedAt, bytes: 1))
         check(recordingRadio.history.entries.last?.start == startedAt, "Alte fremde Verlaufzeit verschiebt neuen Aufnahmebeginn")
+        let metadata = ICYMetadataReader.latest!, starts = metadata.startCount
+        recordingRadio.recorder.onCaptureState?(RecordingState(phase: .needsStreamHeader,
+            revision: recordingRadio.recorder.changes.last!.1, streamID: recordingRadio.recorder.streamID))
+        check(metadata.startCount == starts + 1 && VLCMediaPlayer.latest === capturePlayer,
+              "Containerheader ersetzen die Audiowiedergabe oder erneuern die Metadatenverbindung nicht")
         recordingRadio.stop()
 
         let preview = PreviewPlayer()

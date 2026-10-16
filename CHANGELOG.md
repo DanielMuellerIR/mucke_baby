@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## 1.9.6 — 2026-10-16
 
-- Switch recording on or off during playback without replacing the audio player or opening another recording connection. The existing metadata connection stays available for audio-only streams.
+- Switch recording on or off during playback without replacing the audio player or opening another recording connection. The existing metadata connection stays available for audio-only streams and is renewed when container formats need fresh start headers.
 - Show effective recording status after successful audio writes, with separate waiting, low-storage, connection and write/index failure states. Main window, menu bar and settings share the same persistent preference.
 - Serialize capture changes and stream IDs, close each recording segment cleanly, and check free space periodically even when audio data stops arriving.
 
