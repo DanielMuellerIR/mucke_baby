@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.2 — 2026-10-16
+
+- Multiple station favorites persist independently of launch playback, with consistent star controls in the editor and menu bar. The menu-bar station list now receives a usable bounded height.
+- Startup settings explicitly choose no playback, the last station, or a specific station. Existing preferences migrate once; unavailable targets remain stopped.
+- Startup configuration uses atomic persistence, preserves newer formats, and reports recovery or storage errors without replacing the previous selection.
+
 ## [1.9.1] - 2026-10-16
 ### Added
 - Bookmark tracks from history and current playback in a separate persistent metadata library. Search, remove and open bookmarked tracks with the existing music and lyrics actions; clearing history or recordings preserves bookmarks.

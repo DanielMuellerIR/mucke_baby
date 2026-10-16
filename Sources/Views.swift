@@ -24,7 +24,8 @@ struct StationEditView: View {
                 TextField("Stream-URL", text: $url)
                     .textContentType(.URL)
                 Toggle("In Liste anzeigen", isOn: $enabled)
-                Toggle("Favorit (Autostart)", isOn: $favorite)
+                Toggle("Favorit", isOn: $favorite)
+                    .accessibilityIdentifier("station-favorite")
             }
             .formStyle(.grouped)
 
@@ -89,10 +90,10 @@ struct StationEditView: View {
 // MARK: - Einstellungen
 
 struct PreferencesView: View {
+    @EnvironmentObject var startup: StartupSettings
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
 
-    @AppStorage("autoplayOnLaunch") private var autoplay = true
     @AppStorage("menuBarMode") private var menuBarMode = false
     @AppStorage("recordStreams") private var recordStreams = false
     @State private var ioMessage = ""
@@ -108,12 +109,39 @@ struct PreferencesView: View {
 
             Form {
                 Section("Start") {
-                    Toggle("Beim Start Favorit sofort abspielen", isOn: $autoplay)
-                    if let fav = store.favorite {
-                        Text("Favorit: \(fav.name)").font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Text("Kein Favorit gesetzt (Stern in der Bearbeiten-Ansicht).")
-                            .font(.caption).foregroundStyle(.secondary)
+                    Picker("Wiedergabe beim Start", selection: Binding(
+                        get: { startup.configuration.mode }, set: { startup.setMode($0) }
+                    )) {
+                        ForEach(StartupMode.allCases) { mode in Text(mode.label).tag(mode) }
+                    }
+                    .accessibilityIdentifier("startup-mode")
+                    .disabled(startup.isReadOnly)
+                    if startup.configuration.mode == .selectedStation {
+                        Picker("Startsender", selection: Binding(
+                            get: { startup.configuration.selectedStationID }, set: { startup.selectStation($0) }
+                        )) {
+                            Text("Bitte Sender auswählen").tag(UUID?.none)
+                            if let id = startup.configuration.selectedStationID,
+                               !store.enabledStations.contains(where: { $0.id == id }) {
+                                Text("Nicht verfügbar").tag(Optional(id))
+                            }
+                            ForEach(store.enabledStations) { station in Text(station.name).tag(Optional(station.id)) }
+                        }
+                        .accessibilityIdentifier("startup-station")
+                        .disabled(startup.isReadOnly)
+                    }
+                    if startup.configuration.mode != .none {
+                        if let target = startup.configuration.target(in: store.stations) {
+                            Text("Startsender: \(target.name)").font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text("Kein verfügbarer Startsender. Die App startet ohne Wiedergabe.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("Favoriten sind unabhängig von der Startauswahl. Fehlende oder ausgeblendete Startsender werden nicht ersetzt.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let notice = startup.notice {
+                        Text(notice).font(.caption).foregroundStyle(.red)
                     }
                 }
                 Section("Menüleiste") {
@@ -263,26 +291,33 @@ struct MenuBarView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(store.enabledStations) { st in
-                        Button {
-                            player.toggle(st)
-                        } label: {
-                            HStack {
-                                Image(systemName: player.currentStation?.id == st.id && player.isPlaying
-                                      ? "pause.fill" : "play.fill")
-                                    .font(.caption).frame(width: 14)
-                                Text(st.name).lineLimit(1)
-                                Spacer()
+            if store.enabledStations.isEmpty {
+                Text("Keine sichtbaren Sender.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(store.enabledStations) { st in
+                            HStack(spacing: 8) {
+                                Button {
+                                    player.toggle(st)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: player.currentStation?.id == st.id && player.isPlaying
+                                              ? "pause.fill" : "play.fill")
+                                            .font(.caption).frame(width: 14)
+                                        Text(st.name).lineLimit(1)
+                                        Spacer()
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                StationFavoriteButton(station: st)
                             }
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
                 }
+                .frame(height: min(280, CGFloat(store.enabledStations.count) * 32))
             }
-            .frame(maxHeight: 280)
 
             Divider()
             HStack {
@@ -296,5 +331,25 @@ struct MenuBarView: View {
         }
         .padding(12)
         .frame(width: 280)
+    }
+}
+
+struct StationFavoriteButton: View {
+    @EnvironmentObject var store: Store
+    let station: Station
+    private var label: String {
+        station.favorite ? String(localized: "Aus Favoriten entfernen") : String(localized: "Zu Favoriten hinzufügen")
+    }
+    var body: some View {
+        Button { store.toggleFavorite(station) } label: {
+            Image(systemName: station.favorite ? "star.fill" : "star")
+                .foregroundStyle(station.favorite ? Color.yellow : Color.secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("station-favorite-" + station.id.uuidString)
     }
 }

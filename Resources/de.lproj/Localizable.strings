@@ -9,7 +9,6 @@
 "Name" = "Name";
 "Stream-URL" = "Stream-URL";
 "In Liste anzeigen" = "In Liste anzeigen";
-"Favorit (Autostart)" = "Favorit (Autostart)";
 "Löschen" = "Löschen";
 "Abbrechen" = "Abbrechen";
 "Sichern" = "Sichern";
@@ -20,9 +19,6 @@
 /* --- Einstellungen --- */
 "Einstellungen" = "Einstellungen";
 "Start" = "Start";
-"Beim Start Favorit sofort abspielen" = "Beim Start Favorit sofort abspielen";
-"Favorit: %@" = "Favorit: %@";
-"Kein Favorit gesetzt (Stern in der Bearbeiten-Ansicht)." = "Kein Favorit gesetzt (Stern in der Bearbeiten-Ansicht).";
 "Menüleiste" = "Menüleiste";
 "Zusätzlich Symbol in der Menüleiste anzeigen" = "Zusätzlich Symbol in der Menüleiste anzeigen";
 "Optional — Standard ist nur das normale Fenster." = "Optional — Standard ist nur das normale Fenster.";
@@ -111,7 +107,6 @@
 "Hinzufügen" = "Hinzufügen";
 "Laufzeit" = "Laufzeit";
 "Sender nicht erreichbar" = "Sender nicht erreichbar";
-"Als Favorit/Autostart setzen" = "Als Favorit/Autostart setzen";
 "Bearbeiten" = "Bearbeiten";
 "Stop" = "Stop";
 "Play" = "Play";
@@ -191,3 +186,24 @@
 "Die Merkliste konnte nicht geladen werden. Die Datei bleibt geschützt." = "Die Merkliste konnte nicht geladen werden. Die Datei bleibt geschützt.";
 "Titel nicht geladen." = "Titel nicht geladen.";
 "Merkliste derzeit nicht verfügbar." = "Merkliste derzeit nicht verfügbar.";
+
+/* Favoriten und Startauswahl */
+"Favorit" = "Favorit";
+"Keine automatische Wiedergabe" = "Keine automatische Wiedergabe";
+"Zuletzt gespielten Sender starten" = "Zuletzt gespielten Sender starten";
+"Bestimmten Sender starten" = "Bestimmten Sender starten";
+"Wiedergabe beim Start" = "Wiedergabe beim Start";
+"Startauswahl" = "Startauswahl";
+"Startsender" = "Startsender";
+"Bitte Sender auswählen" = "Bitte Sender auswählen";
+"Nicht verfügbar" = "Nicht verfügbar";
+"Startsender: %@" = "Startsender: %@";
+"Kein verfügbarer Startsender. Die App startet ohne Wiedergabe." = "Kein verfügbarer Startsender. Die App startet ohne Wiedergabe.";
+"Favoriten sind unabhängig von der Startauswahl. Fehlende oder ausgeblendete Startsender werden nicht ersetzt." = "Favoriten sind unabhängig von der Startauswahl. Fehlende oder ausgeblendete Startsender werden nicht ersetzt.";
+"Aus Favoriten entfernen" = "Aus Favoriten entfernen";
+"Zu Favoriten hinzufügen" = "Zu Favoriten hinzufügen";
+"Die Startauswahl stammt aus einer anderen App-Version. Automatische Wiedergabe bleibt aus." = "Die Startauswahl stammt aus einer anderen App-Version. Automatische Wiedergabe bleibt aus.";
+"Die beschädigte Startauswahl wurde gesichert. Automatische Wiedergabe bleibt aus; bitte die Einstellungen prüfen." = "Die beschädigte Startauswahl wurde gesichert. Automatische Wiedergabe bleibt aus; bitte die Einstellungen prüfen.";
+"Die Startauswahl konnte nicht geladen oder gespeichert werden. Automatische Wiedergabe bleibt aus; bitte den Speicherzugriff prüfen." = "Die Startauswahl konnte nicht geladen oder gespeichert werden. Automatische Wiedergabe bleibt aus; bitte den Speicherzugriff prüfen.";
+"Die Startauswahl konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten." = "Die Startauswahl konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten.";
+"Keine sichtbaren Sender." = "Keine sichtbaren Sender.";

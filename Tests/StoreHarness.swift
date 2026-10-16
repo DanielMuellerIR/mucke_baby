@@ -138,7 +138,7 @@ enum StoreHarness {
         store.delete(at: IndexSet(integer: 0), in: snapshot)
         store.move(from: IndexSet(integer: 0), to: snapshot.count)
         store.toggleEnabled(snapshot[0])
-        store.setFavorite(snapshot.last!)
+        store.toggleFavorite(snapshot.last!)
         check(!store.addIfNew(name: "Catalog", url: "https://example.com/catalog"),
               "Katalog meldet ungespeicherten Sender als hinzugefügt")
         check(store.importData(Data("[{\"name\":\"Import\",\"url\":\"https://example.com/import\"}]".utf8)) == -2,
@@ -163,8 +163,24 @@ enum StoreHarness {
          {"name":"B","url":"https://example.com/b","favorite":true}]
         """.utf8).write(to: favoritesURL)
         let favorites = Store(directory: root.appendingPathComponent("favorites"), seedURL: favoritesURL)
-        check(favorites.stations.filter(\.favorite).count == 1 && favorites.favorite?.name == "A",
-              "Erstbefüllung muss genau den ersten gültigen Favoriten behalten")
+        check(favorites.favorites.count == 2, "Seeds müssen mehrere Favoriten behalten")
+        let third = Station(name: "C", url: "https://example.com/c", favorite: true)
+        try favorites.add(third)
+        var first = favorites.stations[0]
+        first.name = "A renamed"
+        try favorites.update(first)
+        check(favorites.favorites.count == 3, "Hinzufügen/Bearbeiten darf andere Favoriten nicht entfernen")
+        favorites.toggleFavorite(third)
+        check(favorites.favorites.count == 2, "Stern muss nur den gewählten Favoriten entfernen")
+        favorites.toggleFavorite(third)
+        favorites.toggleEnabled(third)
+        check(favorites.favorites.count == 2 && favorites.stations.last!.favorite,
+              "Ausblenden darf Favorit nicht verlieren oder zur Wiedergabe anbieten")
+        let restarted = Store(directory: favorites.dir, seedURL: nil)
+        check(restarted.stations == favorites.stations && restarted.stations.filter(\.favorite).count == 3,
+              "Mehrere Favoriten müssen einen Neustart überstehen")
+        let decoded = try JSONDecoder().decode([Station].self, from: favorites.exportData()!)
+        check(decoded.filter(\.favorite).count == 3, "Export muss alle Favoriten erhalten")
         print("StoreHarness: OK")
     }
 

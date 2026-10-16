@@ -38,6 +38,11 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/store-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/StartupSettings.swift \
+  Tests/StartupHarness.swift -o "$BUILD/startup-harness"
+"$BUILD/startup-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
   Sources/Models.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
   Sources/Recorder.swift Sources/BookmarkStore.swift Tests/BookmarkHarness.swift \
   -o "$BUILD/bookmark-harness"

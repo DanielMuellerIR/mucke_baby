@@ -9,7 +9,6 @@
 "Name" = "Name";
 "Stream-URL" = "Stream URL";
 "In Liste anzeigen" = "Show in List";
-"Favorit (Autostart)" = "Favorite (Autostart)";
 "Löschen" = "Delete";
 "Abbrechen" = "Cancel";
 "Sichern" = "Save";
@@ -20,9 +19,6 @@
 /* --- Einstellungen --- */
 "Einstellungen" = "Settings";
 "Start" = "Startup";
-"Beim Start Favorit sofort abspielen" = "Play favorite immediately on startup";
-"Favorit: %@" = "Favorite: %@";
-"Kein Favorit gesetzt (Stern in der Bearbeiten-Ansicht)." = "No favorite set (star in the edit view).";
 "Menüleiste" = "Menu Bar";
 "Zusätzlich Symbol in der Menüleiste anzeigen" = "Also show icon in menu bar";
 "Optional — Standard ist nur das normale Fenster." = "Optional — default is only the normal window.";
@@ -111,7 +107,6 @@
 "Hinzufügen" = "Add";
 "Laufzeit" = "Duration";
 "Sender nicht erreichbar" = "Station unavailable";
-"Als Favorit/Autostart setzen" = "Set as favorite/autostart";
 "Bearbeiten" = "Edit";
 "Stop" = "Stop";
 "Play" = "Play";
@@ -191,3 +186,24 @@
 "Die Merkliste konnte nicht geladen werden. Die Datei bleibt geschützt." = "Bookmarks could not be loaded. The file remains protected.";
 "Titel nicht geladen." = "Titles not loaded.";
 "Merkliste derzeit nicht verfügbar." = "Bookmarks are currently unavailable.";
+
+/* Favoriten und Startauswahl */
+"Favorit" = "Favorite";
+"Keine automatische Wiedergabe" = "No automatic playback";
+"Zuletzt gespielten Sender starten" = "Play the last station";
+"Bestimmten Sender starten" = "Play a specific station";
+"Wiedergabe beim Start" = "Playback on launch";
+"Startauswahl" = "Startup selection";
+"Startsender" = "Startup station";
+"Bitte Sender auswählen" = "Choose a station";
+"Nicht verfügbar" = "Unavailable";
+"Startsender: %@" = "Startup station: %@";
+"Kein verfügbarer Startsender. Die App startet ohne Wiedergabe." = "No startup station is available. The app will launch without playback.";
+"Favoriten sind unabhängig von der Startauswahl. Fehlende oder ausgeblendete Startsender werden nicht ersetzt." = "Favorites are independent of startup selection. Missing or hidden startup stations are not replaced.";
+"Aus Favoriten entfernen" = "Remove from favorites";
+"Zu Favoriten hinzufügen" = "Add to favorites";
+"Die Startauswahl stammt aus einer anderen App-Version. Automatische Wiedergabe bleibt aus." = "The startup selection uses a different app version. Automatic playback remains off.";
+"Die beschädigte Startauswahl wurde gesichert. Automatische Wiedergabe bleibt aus; bitte die Einstellungen prüfen." = "The damaged startup selection was backed up. Automatic playback remains off; please check settings.";
+"Die Startauswahl konnte nicht geladen oder gespeichert werden. Automatische Wiedergabe bleibt aus; bitte den Speicherzugriff prüfen." = "The startup selection could not be loaded or saved. Automatic playback remains off; please check storage access.";
+"Die Startauswahl konnte nicht gespeichert werden. Die bisherige Auswahl bleibt erhalten." = "The startup selection could not be saved. The previous selection is retained.";
+"Keine sichtbaren Sender." = "No visible stations.";

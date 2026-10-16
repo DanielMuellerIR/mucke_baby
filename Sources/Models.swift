@@ -8,7 +8,7 @@ struct Station: Identifiable, Codable, Equatable, Hashable {
     var name: String
     var url: String
     var enabled: Bool = true   // entspricht "Show in list" (inc) aus Radio++
-    var favorite: Bool = false // genau ein Sender ist Favorit -> Autostart
+    var favorite: Bool = false
 
     init(id: UUID = UUID(), name: String, url: String, enabled: Bool = true, favorite: Bool = false) {
         self.id = id
@@ -55,7 +55,7 @@ struct SeedStation: Decodable {
 
 // App-Version an einer Stelle. Wird auch in der Info.plist gespiegelt.
 enum AppInfo {
-    static let version = "1.9.1"
+    static let version = "1.9.2"
 }
 
 enum JSONFileRecovery {

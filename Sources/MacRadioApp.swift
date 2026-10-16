@@ -6,7 +6,8 @@ private let uiLog = Logger(subsystem: "de.danielmuller.macradio", category: "ui"
 
 @main
 struct MacRadioApp: App {
-    @StateObject private var store = Store()
+    @StateObject private var store: Store
+    @StateObject private var startup: StartupSettings
     @StateObject private var player = RadioPlayer()
     @StateObject private var health = StationHealth()
     @StateObject private var bookmarks = BookmarkStore()
@@ -38,11 +39,18 @@ struct MacRadioApp: App {
     /// Niemals nil, damit der Wechsel sauber durchschlaegt.
     private var effectiveScheme: ColorScheme { theme.colorScheme ?? sysAppearance.scheme }
 
+    init() {
+        let store = Store()
+        _store = StateObject(wrappedValue: store)
+        _startup = StateObject(wrappedValue: StartupSettings(directory: store.dir, stations: store.stations))
+    }
+
     var body: some Scene {
         // Normales App-Fenster (Standardmodus).
         WindowGroup("Mucke, Baby!") {
             ContentView()
                 .environmentObject(store)
+                .environmentObject(startup)
                 .environmentObject(player)
                 .environmentObject(bookmarks)
                 .environmentObject(player.history)   // Wiedergabeverlauf
@@ -52,6 +60,11 @@ struct MacRadioApp: App {
                 // Theme und ColorScheme ins Environment injizieren
                 .environment(\.theme, theme)
                 .preferredColorScheme(effectiveScheme)
+                .alert("Startauswahl", isPresented: $startup.showNotice) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(startup.notice ?? "")
+                }
                 .alert("Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.",
                        isPresented: $store.persistenceFailed) {
                     Button("OK", role: .cancel) {}
@@ -109,6 +122,7 @@ struct MacRadioApp: App {
                      isInserted: $menuBarMode) {
             MenuBarView()
                 .environmentObject(store)
+                .environmentObject(startup)
                 .environmentObject(player)
                 .environmentObject(bookmarks)
                 .environment(\.uiFontScale, Self.scale(uiZoom))
@@ -259,15 +273,12 @@ private struct BrushedGoldSheen: View {
 // MARK: - Hauptansicht
 
 struct ContentView: View {
+    @EnvironmentObject var startup: StartupSettings
     @EnvironmentObject var store: Store
     @EnvironmentObject var player: RadioPlayer
     @EnvironmentObject var health: StationHealth
 
     @AppStorage("volume") private var volume: Double = 0.77
-    @AppStorage("autoplayOnLaunch") private var autoplay = true
-    // Zuletzt gespielter Sender (UUID-String) — beim Start wird DIESER wieder gestartet,
-    // nicht mehr blind der oberste/Favorit. Wird bei jedem Senderwechsel aktualisiert.
-    @AppStorage("lastStationID") private var lastStationID = ""
     @AppStorage("showHistory") private var showHistory = true
     @AppStorage("uiZoom") private var uiZoom = 0   // selber Key wie im App-Scope
     // Theme-Key: selber UserDefaults-Key wie im App-Struct — synchron automatisch.
@@ -368,7 +379,7 @@ struct ContentView: View {
         }
         // Zuletzt gespielten Sender merken (für „beim Start fortsetzen").
         .onChange(of: player.currentStation?.id) { _, id in
-            if let id { lastStationID = id.uuidString }
+            if let id { startup.rememberStation(id) }
         }
         // AudioTap ist URL-agnostisch; die laufende Stream-URL ist nur das Start/Stop-Signal.
         .onChange(of: player.currentStreamURL) { _, url in audioTap.setStream(url) }
@@ -401,13 +412,10 @@ struct ContentView: View {
         }
     }
 
-    // Beim ersten Erscheinen: Favorit (sonst ersten sichtbaren Sender) starten.
     private func autoplayIfNeeded() {
-        guard autoplay, !didAutoplay else { return }
+        guard !didAutoplay else { return }
         didAutoplay = true
-        // Zuletzt gespielten Sender bevorzugen; sonst Favorit, sonst erster.
-        let last = store.enabledStations.first { $0.id.uuidString == lastStationID }
-        if let target = last ?? store.favorite ?? store.enabledStations.first {
+        if let target = startup.configuration.target(in: store.stations) {
             player.play(target)
         }
     }
@@ -964,14 +972,7 @@ struct EditRow: View {
             }
             Spacer()
 
-            Button {
-                store.setFavorite(station)
-            } label: {
-                Image(systemName: station.favorite ? "star.fill" : "star")
-                    .foregroundStyle(station.favorite ? .yellow : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Als Favorit/Autostart setzen")
+            StationFavoriteButton(station: station)
 
             Button(action: onEdit) { Image(systemName: "pencil") }
                 .buttonStyle(.plain)

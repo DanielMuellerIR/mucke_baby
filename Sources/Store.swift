@@ -38,8 +38,7 @@ final class Store: ObservableObject {
     // Nur sichtbare Sender (fuer die normale Ansicht).
     var enabledStations: [Station] { stations.filter { $0.enabled } }
 
-    // Der Favorit (Autostart). Maximal einer.
-    var favorite: Station? { stations.first { $0.favorite } }
+    var favorites: [Station] { enabledStations.filter { $0.favorite } }
 
     // MARK: - Laden / Speichern
 
@@ -80,15 +79,6 @@ final class Store: ObservableObject {
         }
     }
 
-    private func withExclusiveFavorite(_ next: [Station], station: Station) -> [Station] {
-        guard station.favorite else { return next }
-        return next.map { item in
-            var item = item
-            item.favorite = item.id == station.id
-            return item
-        }
-    }
-
     // MARK: - Seed (Erstbefuellung)
 
     // Liest seed-stations.json aus dem App-Bundle. Faellt auf eine
@@ -104,12 +94,8 @@ final class Store: ObservableObject {
         } else {
             seeds = Self.builtinDefaults
         }
-        var hasFavorite = false
         return seeds.compactMap { seed in
-            guard var station = try? validatedStation(seed.toStation()) else { return nil }
-            station.favorite = station.favorite && !hasFavorite
-            hasFavorite = hasFavorite || station.favorite
-            return station
+            try? validatedStation(seed.toStation())
         }
     }
 
@@ -139,7 +125,7 @@ final class Store: ObservableObject {
 
     func add(_ station: Station) throws {
         let validated = try validatedStation(station)
-        try commitStations(withExclusiveFavorite(stations + [validated], station: validated))
+        try commitStations(stations + [validated])
     }
 
     func update(_ station: Station) throws {
@@ -149,7 +135,7 @@ final class Store: ObservableObject {
         }
         var next = stations
         next[i] = validated
-        try commitStations(withExclusiveFavorite(next, station: validated))
+        try commitStations(next)
     }
 
     @discardableResult
@@ -176,10 +162,10 @@ final class Store: ObservableObject {
         _ = attemptCommit(next)
     }
 
-    // Genau einen Favoriten setzen (alle anderen verlieren das Flag).
-    func setFavorite(_ station: Station) {
+    func toggleFavorite(_ station: Station) {
+        guard let index = stations.firstIndex(where: { $0.id == station.id }) else { return }
         var next = stations
-        for i in next.indices { next[i].favorite = (next[i].id == station.id) }
+        next[index].favorite.toggle()
         _ = attemptCommit(next)
     }
 

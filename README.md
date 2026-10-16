@@ -68,7 +68,7 @@ open "build/Mucke, Baby!.app"                    # launch
 - **Separate deletion actions** — clearing history preserves all recordings. “Delete all recordings” requires confirmation and removes only completed recordings, preserving history and any recording in progress.
 - **Optional stream recording** (off by default) — records the playing stream to `~/Music/MuckeBaby/Aufnahmen/`, with per‑song extraction; auto‑stops when less than 10 GB is free.
 - **One‑click links** from the history to look a track up on Apple Music or Spotify.
-- Station list with play/stop, per‑station show/hide and reordering; one **favorite** that auto‑plays on launch.
+- Station list with play/stop, per‑station show/hide and reordering; multiple **favorites** independent of startup playback. Settings offer no automatic playback, the last station, or a specific station. Missing or hidden startup targets leave playback off. Existing startup preferences are migrated once.
 - Add / edit / delete stations; **curated genre lists** to import in one click.
 - Playlist resolution for `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
 - **Station catalog** with over 50,000 stations from the open [radio‑browser.info](https://www.radio-browser.info) API — browse by genre, search by name, **preview** a station and add it to your list in one click.
