@@ -371,3 +371,13 @@
 "Vorhören stoppen" = "Vorhören stoppen";
 "Aufnahmeordner öffnen" = "Aufnahmeordner öffnen";
 "Der beschädigte Aufnahmeindex wurde gesichert. Vorhandene Dateien können im Aufnahmeordner geprüft werden." = "Der beschädigte Aufnahmeindex wurde gesichert. Vorhandene Dateien können im Aufnahmeordner geprüft werden.";
+
+/* Miniplayer */
+"Miniplayer" = "Miniplayer";
+"Hauptfenster anzeigen" = "Hauptfenster anzeigen";
+"Noch kein Titel" = "Noch kein Titel";
+"Nicht im Vordergrund halten" = "Nicht im Vordergrund halten";
+"Im Vordergrund halten" = "Im Vordergrund halten";
+"Ein" = "Ein";
+"Keine Sender" = "Keine Sender";
+"Sender auswählen" = "Sender auswählen";

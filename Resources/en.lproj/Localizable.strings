@@ -371,3 +371,13 @@
 "Vorhören stoppen" = "Stop preview";
 "Aufnahmeordner öffnen" = "Open recording folder";
 "Der beschädigte Aufnahmeindex wurde gesichert. Vorhandene Dateien können im Aufnahmeordner geprüft werden." = "The damaged recording index was backed up. Existing files can be checked in the recording folder.";
+
+/* Miniplayer */
+"Miniplayer" = "Mini player";
+"Hauptfenster anzeigen" = "Show main window";
+"Noch kein Titel" = "No track yet";
+"Nicht im Vordergrund halten" = "Stop keeping on top";
+"Im Vordergrund halten" = "Keep on top";
+"Ein" = "On";
+"Keine Sender" = "No stations";
+"Sender auswählen" = "Select station";

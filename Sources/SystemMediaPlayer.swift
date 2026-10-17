@@ -106,5 +106,14 @@ final class RadioServices: ObservableObject {
         systemMedia = SystemMediaBinding(player: player, store: store)
         Publishers.Merge3(store.objectWillChange, startup.objectWillChange, player.objectWillChange)
             .sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
+        // Auch ohne offenes Hauptfenster müssen Empfang, Dateien und Verlauf vor Quit schließen.
+        NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.player.stop()
+                self.player.recorder.flush()
+                self.player.history.pruneOnLaunchOrQuit()
+                SongExporter.cleanupTemporaryExports()
+            }.store(in: &subscriptions)
     }
 }

@@ -9,6 +9,17 @@ extension FocusedValues {
     }
 }
 
+struct RecordingLibraryCommands: Commands {
+    @FocusedValue(\.openRecordingLibrary) private var openLibrary
+    var body: some Commands {
+        CommandMenu("Aufnahmen") {
+            Button("Aufnahmebibliothek …") { openLibrary?() }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(openLibrary == nil)
+        }
+    }
+}
+
 struct RecordingLibraryView: View {
     @EnvironmentObject private var player: RadioPlayer
     @Environment(\.dismiss) private var dismiss

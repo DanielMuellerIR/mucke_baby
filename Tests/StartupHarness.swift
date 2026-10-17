@@ -32,6 +32,7 @@ enum StartupHarness {
               "Migration ohne Favorit muss ersten sichtbaren Sender erhalten")
         defaults.set(false, forKey: "autoplayOnLaunch")
         let off = settings("off")
+        check(off.claimAutoplay() && !off.claimAutoplay(), "Fensterwechsel darf Autostart nicht erneut beanspruchen")
         check(off.configuration.mode == .none && off.configuration.target(in: stations) == nil,
               "Deaktiviertes Autoplay muss deaktiviert bleiben")
         off.selectStation(favorite.id)
@@ -40,6 +41,7 @@ enum StartupHarness {
         check(off.configuration.target(in: stations) == favorite, "Letzter Sender darf feste Auswahl nicht ändern")
         defaults.set(true, forKey: "autoplayOnLaunch")
         let restarted = settings("off")
+        check(restarted.claimAutoplay(), "Ein neuer App-Start darf seine Startauswahl einmal prüfen")
         check(restarted.configuration == off.configuration, "Neustart darf alte Präferenzen nicht erneut migrieren")
         restarted.setMode(.lastStation)
         check(restarted.configuration.target(in: stations) == first, "Letzter Sender muss auch im festen Modus gemerkt werden")

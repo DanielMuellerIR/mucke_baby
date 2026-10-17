@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.14 — 2026-10-18
+
+- Add a compact player window with shared playback, station selection, volume, bookmarks and recording controls. Keep it optionally above other windows and restore its visible position.
+- Keep playback running when the main window closes, prevent window reopening from repeating autoplay, and close recordings on quit even when no main window is open.
+
 ## 1.9.13 — 2026-10-18
 
 - Browse recordings independently of history, with station, date, duration, file size, local preview and Finder actions. Confirm stopping live radio before preview; protect active recordings and confirm removal of a selected completed recording.
