@@ -7,6 +7,7 @@ root = Path(__file__).resolve().parents[1]
 build = root / 'build/tests'
 fixture = (root / 'Tests/PlayerFixture.swift').read_text()
 vlc = fixture[:fixture.index('struct Station')]
+vlc = vlc.replace('final class VLCMediaPlayer {', 'struct VLCTime { var intValue: Int32 = 0 }\nfinal class VLCMediaPlayer {\n    var time = VLCTime()')
 radio = (root / 'Sources/RadioPlayer.swift').read_text()
 shim = radio[radio.index('final class PlayerDelegateShim'):radio.index('// Kapselt VLCMediaPlayer')]
 source = build / 'RecordingPreviewCombined.swift'
@@ -22,6 +23,9 @@ source.write_text(vlc + '\n' + shim + '\n' +
         let oldDelegate = first.delegate!
         check(preview.currentID == a && preview.isLoading && first.audio?.volume == 20, "Lokale Vorschau startet nicht")
         first.timeEvent()
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        check(preview.isLoading, "Zeitereignis ohne Fortschritt bestätigt Audio")
+        first.time.intValue = 250; first.timeEvent()
         try? await Task.sleep(nanoseconds: 10_000_000)
         check(!preview.isLoading, "Erstes Zeitereignis beendet Laden nicht")
         preview.play(id: b, url: file, volume: 0.8)
@@ -46,6 +50,15 @@ source.write_text(vlc + '\n' + shim + '\n' +
         check(preview.currentID == nil && !preview.isLoading && VLCMediaPlayer.latest?.delegate == nil, "Stop bereinigt Vorschau nicht")
         preview.play(id: a, url: URL(string: "https://fixture.invalid/stream")!, volume: 1)
         check(preview.currentID == nil, "Lokale Vorschau öffnet Netzwerkadresse")
+        let stalled = RecordingPreview(startDeadlineNanoseconds: 50_000_000)
+        stalled.play(id: a, url: file, volume: 0.2)
+        VLCMediaPlayer.latest.timeEvent()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        check(stalled.currentID == nil && stalled.error != nil && VLCMediaPlayer.latest.delegate == nil, "Vorschau ohne Audiofortschritt bleibt aktiv")
+        stalled.play(id: a, url: file, volume: 0.2)
+        stalled.stop()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        check(stalled.error == nil, "Abgebrochene Startprüfung meldet später Fehler")
         print("RecordingPreviewHarness: Start, Wechsel, alte Ereignisse, Dateiende, Fehler und Stop OK")
     }
 }
