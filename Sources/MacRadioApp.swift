@@ -32,6 +32,7 @@ struct MacRadioApp: App {
     // „Standard dark-Inhalt + helle Toolbar" nach Wechsel von Black MIDI). Loesung: IMMER
     // einen expliziten Scheme uebergeben (nie nil), fuer `schlicht` den echten System-Scheme.
     @StateObject private var sysAppearance = SystemAppearance()
+    @FocusedValue(\.openRecordingLibrary) private var openRecordingLibrary
 
     /// Aktuelles Theme-Objekt aus dem gespeicherten Rohwert.
     private var theme: Theme { Theme.theme(raw: selectedThemeRaw) }
@@ -75,6 +76,11 @@ struct MacRadioApp: App {
         .defaultSize(width: 940, height: 620)        // Startgroesse: Platz fuer 3-Spalten-Themes
         .commands {
             StationCommands(store: store, player: player)
+            CommandMenu("Aufnahmen") {
+                Button("Aufnahmebibliothek …") { openRecordingLibrary?() }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+                    .disabled(openRecordingLibrary == nil)
+            }
             // „Nach Updates suchen …" im App-Menue (direkt unter „Über …").
             // Deaktiviert, solange Sparkle nicht suchen kann (laufende Suche/Installation).
             CommandGroup(after: .appInfo) {
@@ -292,6 +298,7 @@ struct ContentView: View {
     @State private var browserWidth: CGFloat = 780
     @State private var showingGenres = false
     @State private var showingBookmarks = false
+    @State private var showingRecordings = false
     @State private var editStation: Station?
     @State private var didAutoplay = false
     // Startwert der Lautstaerke beim Beginn eines Knopf-Drags (knob-Themes). nil = kein Drag aktiv.
@@ -390,6 +397,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingGroups) { StationGroupsView() }
         .sheet(isPresented: $showingQuickSelection) { StationQuickSelectionView() }
         .focusedSceneValue(\.openStationQuickSelection, quickSelectionAction)
+        .focusedSceneValue(\.openRecordingLibrary, { showingRecordings = true })
         .background {
             GeometryReader { geometry in
                 Color.clear.onAppear { browserWidth = geometry.size.width - 32 }
@@ -399,6 +407,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingSearch) { StationBrowserView(availableWidth: browserWidth) }
         .sheet(isPresented: $showingGenres) { GenreListsView() }
         .sheet(isPresented: $showingBookmarks) { BookmarkLibrary(onClose: { showingBookmarks = false }) }
+        .sheet(isPresented: $showingRecordings) { RecordingLibraryView(availableWidth: browserWidth) }
         .sheet(isPresented: $showingWelcome, onDismiss: { autoplayIfNeeded() }) { WelcomeView() }
         // Cmd+"=" als zweite Zoom-in-Taste (Layout-unabhaengig), unsichtbar verdrahtet.
         .background {
@@ -723,7 +732,7 @@ struct ContentView: View {
                 }
                 if showHist {
                     Rectangle().fill(theme.palette.divider).frame(width: 1)
-                    HistoryPanel(onClose: { withAnimation { showHistory = false } })
+                    HistoryPanel(onClose: { withAnimation { showHistory = false } }, onOpenRecordings: { showingRecordings = true })
                         .frame(width: histW)
                 }
             }

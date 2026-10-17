@@ -81,6 +81,11 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift Sources/SongHistory.swift \
   Sources/ICYMetadataReader.swift Tests/CaptureHarness.swift -o "$BUILD/capture-harness"
 "$BUILD/capture-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift Sources/SongHistory.swift \
+  Tests/RecordingLibraryHarness.swift -o "$BUILD/recording-library-harness"
+"$BUILD/recording-library-harness"
 bash Tests/fleet-rules.sh
 
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
@@ -103,6 +108,7 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 
 python3 Tests/player-events.py
 python3 Tests/player-rollover.py
+python3 Tests/recording-preview.py
 
 cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \

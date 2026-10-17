@@ -1,6 +1,89 @@
 import Foundation
 import AVFAudio
 import os
+import Darwin
+
+enum RecordingFileStatus: Equatable, Sendable {
+    case available, missing, unreadable, empty
+}
+
+struct RecordingLibraryItem: Identifiable, Sendable {
+    let clip: Recorder.Clip
+    let status: RecordingFileStatus
+    let bytes: Int64
+    var id: UUID { clip.id }
+    var isActive: Bool { clip.end == nil }
+    var canPreview: Bool { !isActive && status == .available }
+}
+
+struct RecordedAudioSource: Sendable {
+    let clipID: UUID
+    let url: URL
+    let offset: Double
+    let duration: Double
+}
+
+struct RecordedAudioAvailability: Sendable {
+    enum Status: Equatable, Sendable { case complete, partial, recording, missing, unreadable, none }
+    let status: Status
+    let source: RecordedAudioSource?
+    var label: String {
+        switch status {
+        case .complete: return String(localized: "Audio vollständig vorhanden")
+        case .partial: return String(localized: "Audio teilweise vorhanden")
+        case .recording: return String(localized: "Audio wird aufgenommen")
+        case .missing: return String(localized: "Aufnahmedatei fehlt")
+        case .unreadable: return String(localized: "Aufnahme nicht lesbar")
+        case .none: return String(localized: "Keine Aufnahme")
+        }
+    }
+}
+
+struct RecordingLibrarySnapshot: Sendable {
+    var items: [RecordingLibraryItem] = []
+    var indexWritable = true
+    var indexRecovered = false
+    var directory: URL
+
+    func audio(for entry: SongEntry, now: Date = Date()) -> RecordedAudioAvailability {
+        let end = entry.end ?? now
+        let candidates = items.filter {
+            guard $0.clip.station == entry.station else { return false }
+            if let id = entry.sessionID {
+                return $0.clip.sessionID == id && $0.clip.start < end && ($0.clip.end ?? now) > entry.start
+            }
+            return $0.clip.start < end && ($0.clip.receivedEnd ?? $0.clip.end ?? now) > entry.start
+        }
+        guard let item = candidates.max(by: { $0.clip.start < $1.clip.start }) else {
+            return RecordedAudioAvailability(status: .none, source: nil)
+        }
+        guard item.status == .available else {
+            return RecordedAudioAvailability(status: item.status == .missing ? .missing : .unreadable, source: nil)
+        }
+        let start = max(entry.start, item.clip.start)
+        let availableEnd = min(end, item.clip.end ?? now)
+        let duration = availableEnd.timeIntervalSince(start)
+        guard duration > 0.5 else { return RecordedAudioAvailability(status: .none, source: nil) }
+        let source = RecordedAudioSource(clipID: item.id, url: directory.appendingPathComponent(item.clip.file),
+                                         offset: start.timeIntervalSince(item.clip.start), duration: duration)
+        let partial = start > entry.start || availableEnd < end
+        return RecordedAudioAvailability(status: item.isActive ? .recording : partial ? .partial : .complete, source: source)
+    }
+}
+
+enum RecordingLibraryError: LocalizedError {
+    case missing, active, unreadable, indexUnavailable, removalFailed, indexRestoreFailed
+    var errorDescription: String? {
+        switch self {
+        case .missing: return String(localized: "Diese Aufnahme ist nicht mehr vorhanden. Bitte die Liste aktualisieren.")
+        case .active: return String(localized: "Eine laufende Aufnahme kann weder gelöscht noch vorgehört werden.")
+        case .unreadable: return String(localized: "Die Aufnahme ist keine lesbare, reguläre Audiodatei.")
+        case .indexUnavailable: return String(localized: "Der Aufnahmeindex konnte nicht gespeichert werden. Es wurde keine Datei gelöscht.")
+        case .removalFailed: return String(localized: "Die Aufnahmedatei konnte nicht gelöscht werden. Sie bleibt in der Bibliothek.")
+        case .indexRestoreFailed: return String(localized: "Die Datei wurde nicht gelöscht, aber der Aufnahmeindex konnte nicht wiederhergestellt werden. Bitte den Aufnahmeordner im Finder prüfen.")
+        }
+    }
+}
 
 private let log = Logger(subsystem: "de.danielmuller.macradio", category: "recorder")
 
@@ -18,7 +101,7 @@ private let log = Logger(subsystem: "de.danielmuller.macradio", category: "recor
 final class Recorder: @unchecked Sendable {
 
     // Ein aufgenommenes Stueck (Datei).
-    struct Clip: Codable, Identifiable {
+    struct Clip: Codable, Identifiable, Sendable {
         var id = UUID()
         var file: String
         var station: String
@@ -58,8 +141,10 @@ final class Recorder: @unchecked Sendable {
     private var capacityTimer: DispatchSourceTimer?
     private let capacityCheckInterval: TimeInterval
     private let writeAudio: @Sendable (FileHandle, Data) throws -> Void
+    private let removeAudio: @Sendable (URL) throws -> Void
 
     private let indexURL: URL
+    private let removalURL: URL
     private let minimumFreeBytes: Int64
     private let availableCapacity: (@Sendable () -> Int64?)?
     private let q = DispatchQueue(label: "de.danielmuller.macradio.recorder")
@@ -68,10 +153,14 @@ final class Recorder: @unchecked Sendable {
     private var bytesSinceCheck = 0
     private var clips: [Clip] = []
     private var indexWritable = true
+    private var indexRecovered = false
 
     init(directory: URL? = nil, minimumFreeBytes: Int64 = Recorder.minFreeBytes,
          availableCapacity: (@Sendable () -> Int64?)? = nil, capacityCheckInterval: TimeInterval = 15,
-         writeAudio: @escaping @Sendable (FileHandle, Data) throws -> Void = { try $0.write(contentsOf: $1) }) {
+         writeAudio: @escaping @Sendable (FileHandle, Data) throws -> Void = { try $0.write(contentsOf: $1) },
+         removeAudio: @escaping @Sendable (URL) throws -> Void = {
+             guard unlink($0.path) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+         }) {
         if let directory {
             // Expliziter Pfad ist fuer Headless-Tests/isolierte Werkzeuge; dabei
             // niemals reale Musikordner migrieren oder beruehren.
@@ -82,12 +171,14 @@ final class Recorder: @unchecked Sendable {
             dir = music.appendingPathComponent("MuckeBaby/Aufnahmen", isDirectory: true)
         }
         self.writeAudio = writeAudio
+        self.removeAudio = removeAudio
         self.capacityCheckInterval = max(0.01, capacityCheckInterval)
         self.minimumFreeBytes = minimumFreeBytes
         self.availableCapacity = availableCapacity
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         indexURL = dir.appendingPathComponent("recordings-index.json")
-        q.sync { loadIndex(); closeDangling() }
+        removalURL = dir.appendingPathComponent(".recording-removal.json")
+        q.sync { loadIndex(); recoverPendingRemoval(); closeDangling() }
     }
 
     // Empfangsreihenfolge nutzt die monotone Uhr; Datum bleibt für Dateinamen und Verlauf.
@@ -274,6 +365,111 @@ final class Recorder: @unchecked Sendable {
     // Snapshot des Index (fuer Export-UI), synchron.
     func snapshot() -> [Clip] { q.sync { clips } }
 
+    // Datei- und Indexzugriffe bleiben auf der Recorder-Queue, nie im SwiftUI-Renderpfad.
+    func librarySnapshot() async -> RecordingLibrarySnapshot {
+        await withCheckedContinuation { continuation in
+            q.async { continuation.resume(returning: self.makeLibrarySnapshot()) }
+        }
+    }
+
+    func previewURL(id: UUID) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            q.async {
+                guard let item = self.makeLibrarySnapshot().items.first(where: { $0.id == id }) else {
+                    continuation.resume(throwing: RecordingLibraryError.missing); return
+                }
+                guard !item.isActive else { continuation.resume(throwing: RecordingLibraryError.active); return }
+                guard item.canPreview else { continuation.resume(throwing: RecordingLibraryError.unreadable); return }
+                continuation.resume(returning: self.dir.appendingPathComponent(item.clip.file))
+            }
+        }
+    }
+
+    func removeCompleted(id: UUID) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            q.async {
+                do { try self.removeCompletedOnQueue(id: id); continuation.resume() }
+                catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
+    private func makeLibrarySnapshot() -> RecordingLibrarySnapshot {
+        let items = clips.map { clip -> RecordingLibraryItem in
+            let url = dir.appendingPathComponent(clip.file)
+            guard Self.isSafeClipFileName(clip.file) else {
+                return RecordingLibraryItem(clip: clip, status: .unreadable, bytes: 0)
+            }
+            let found: [FileAttributeKey: Any]?
+            do { found = try recordingAttributes(url) }
+            catch { return RecordingLibraryItem(clip: clip, status: .unreadable, bytes: 0) }
+            guard let attributes = found else {
+                return RecordingLibraryItem(clip: clip, status: .missing, bytes: 0)
+            }
+            let bytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            guard attributes[.type] as? FileAttributeType == .typeRegular,
+                  FileManager.default.isReadableFile(atPath: url.path) else {
+                return RecordingLibraryItem(clip: clip, status: .unreadable, bytes: bytes)
+            }
+            return RecordingLibraryItem(clip: clip, status: bytes > 0 ? .available : .empty, bytes: bytes)
+        }
+        return RecordingLibrarySnapshot(items: items.sorted { $0.clip.start > $1.clip.start },
+                                        indexWritable: indexWritable, indexRecovered: indexRecovered, directory: dir)
+    }
+
+    private func removeCompletedOnQueue(id: UUID) throws {
+        guard indexWritable, !FileManager.default.fileExists(atPath: removalURL.path) else { throw RecordingLibraryError.indexUnavailable }
+        guard let clip = clips.first(where: { $0.id == id }) else { throw RecordingLibraryError.missing }
+        guard clip.end != nil else { throw RecordingLibraryError.active }
+        let url = dir.appendingPathComponent(clip.file)
+        guard Self.isSafeClipFileName(clip.file) else { throw RecordingLibraryError.unreadable }
+        let attributes: [FileAttributeKey: Any]?
+        do { attributes = try recordingAttributes(url) }
+        catch { throw RecordingLibraryError.unreadable }
+        if let attributes, attributes[.type] as? FileAttributeType != .typeRegular { throw RecordingLibraryError.unreadable }
+        let next = clips.filter { $0.id != id }
+        // Ein Index-Schreibfehler muss vor der unwiderruflichen Dateientfernung auffallen.
+        // Das Journal bewahrt die Zuordnung, falls die App zwischen Index und unlink endet.
+        do {
+            try JSONEncoder.isoPretty.encode(clip).write(to: removalURL, options: .atomic)
+            try JSONEncoder.isoPretty.encode(next).write(to: indexURL, options: .atomic)
+        } catch {
+            try? FileManager.default.removeItem(at: removalURL)
+            throw RecordingLibraryError.indexUnavailable
+        }
+        do {
+            if attributes != nil { try removeAudio(url) }
+        } catch {
+            // unlink entfernt niemals Verzeichnisse rekursiv, auch bei einem externen Pfadtausch.
+            if !saveIndex() { indexWritable = false; throw RecordingLibraryError.indexRestoreFailed }
+            try? FileManager.default.removeItem(at: removalURL)
+            throw RecordingLibraryError.removalFailed
+        }
+        clips = next
+        try? FileManager.default.removeItem(at: removalURL)
+    }
+
+    private func recoverPendingRemoval() {
+        guard FileManager.default.fileExists(atPath: removalURL.path), indexWritable else { return }
+        do {
+            let clip = try JSONDecoder.iso.decode(Clip.self, from: Data(contentsOf: removalURL))
+            guard Self.isSafeClipFileName(clip.file), clip.end != nil else { throw RecordingLibraryError.unreadable }
+            let attributes = try recordingAttributes(dir.appendingPathComponent(clip.file))
+            if attributes != nil, !clips.contains(where: { $0.id == clip.id }) {
+                guard attributes?[.type] as? FileAttributeType == .typeRegular,
+                      !clips.contains(where: { $0.file == clip.file }) else { throw RecordingLibraryError.unreadable }
+                clips.append(clip)
+                guard saveIndex() else { throw RecordingLibraryError.indexUnavailable }
+            }
+            try FileManager.default.removeItem(at: removalURL)
+        } catch { indexWritable = false }
+    }
+
+    private func recordingAttributes(_ url: URL) throws -> [FileAttributeKey: Any]? {
+        do { return try FileManager.default.attributesOfItem(atPath: url.path) }
+        catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile { return nil }
+    }
+
     // Die Medienlänge darf keinen späteren Empfangszeitpunkt einer anderen
     // Wiedergabe abdecken. Alte Indexeinträge haben nur die bisherige Endzeit.
     func clip(covering date: Date) -> Clip? {
@@ -283,18 +479,8 @@ final class Recorder: @unchecked Sendable {
     // Verlauf kann nach Aufnahmeabbruch oder Crash länger als die Datei laufen.
     // Dateiexport und Drag verwenden deshalb dieselbe begrenzte Zeitspanne.
     func exportSource(for entry: SongEntry, now: Date = Date()) -> (url: URL, offset: Double, duration: Double)? {
-        let clip = q.sync {
-            clips.last {
-                guard $0.station == entry.station, $0.start <= entry.start else { return false }
-                if let sessionID = entry.sessionID { return $0.sessionID == sessionID }
-                return ($0.receivedEnd ?? $0.end ?? Date.distantFuture) > entry.start
-            }
-        }
-        guard let clip else { return nil }
-        let end = min(entry.end ?? now, clip.end ?? now)
-        let duration = end.timeIntervalSince(entry.start)
-        guard duration > 0.5 else { return nil }
-        return (dir.appendingPathComponent(clip.file), entry.start.timeIntervalSince(clip.start), duration)
+        guard let source = q.sync(execute: { makeLibrarySnapshot().audio(for: entry, now: now).source }) else { return nil }
+        return (source.url, source.offset, source.duration)
     }
 
     // MARK: - intern (immer auf q)
@@ -399,7 +585,8 @@ final class Recorder: @unchecked Sendable {
     // Fallback für vom System nicht unterstützte oder unvollständige Codecs.
     private func recordingEnd(for clip: Clip, receivedEnd: Date) -> Date {
         let url = dir.appendingPathComponent(clip.file)
-        if let audio = try? AVAudioFile(forReading: url), audio.processingFormat.sampleRate > 0 {
+        if let attributes = try? recordingAttributes(url), attributes[.type] as? FileAttributeType == .typeRegular,
+           let audio = try? AVAudioFile(forReading: url), audio.processingFormat.sampleRate > 0 {
             let duration = Double(audio.length) / audio.processingFormat.sampleRate
             if duration.isFinite, duration > 0 { return clip.start.addingTimeInterval(duration) }
         }
@@ -447,7 +634,10 @@ final class Recorder: @unchecked Sendable {
 
     private func loadIndex() {
         do {
-            let list = try JSONFileRecovery.load([Clip].self, from: indexURL, decoder: .iso) ?? []
+            let existed = FileManager.default.fileExists(atPath: indexURL.path)
+            let loaded = try JSONFileRecovery.load([Clip].self, from: indexURL, decoder: .iso)
+            indexRecovered = existed && loaded == nil
+            let list = loaded ?? []
             // Unsichere Dateinamen sofort verwerfen (siehe isSafeClipFileName).
             clips = list.filter { Self.isSafeClipFileName($0.file) }
         } catch {

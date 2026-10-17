@@ -1,5 +1,7 @@
 # Kernprüfungen
 
+Der `RecordingLibraryHarness` prüft Audioverfügbarkeit und Zeitgrenzen, aktive/fehlende/manipulierte Dateien, getrennte Verlaufsdaten, Schreib-/Löschfehler und die Wiederherstellung unterbrochener Entfernungen. `recording-preview.py` prüft den lokalen VLC-Vorschaupfad einschließlich alter Ereignisse, Dateiende und Stop.
+
 `bash Tests/run-tests.sh` kompiliert und startet die vorhandenen Swift-Harnesses,
 prüft Fleet-Regeln und Wiedergabeereignisse. Es startet keine App und nutzt keine
 Nutzerdaten. Der Export-Harness erzeugt seine eigene PCM-Tonfixture; AVFoundation

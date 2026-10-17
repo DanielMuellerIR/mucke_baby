@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.13 — 2026-10-18
+
+- Browse recordings independently of history, with station, date, duration, file size, local preview and Finder actions. Confirm stopping live radio before preview; protect active recordings and confirm removal of a selected completed recording.
+- Show complete, partial, missing and unreadable audio in history. Reject manipulated file paths and recover interrupted recording removals without losing an existing file's index entry.
+
 ## 1.9.12 — 2026-10-17
 
 - Preserve the received track title when a recording longer than 24 hours starts a new container file. Close the previous history entry at the received track boundary and associate the new recording section with the correct title while playback continues.

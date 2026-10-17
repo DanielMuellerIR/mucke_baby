@@ -10,6 +10,7 @@ struct HistoryPanel: View {
     @EnvironmentObject var history: SongHistory
     @EnvironmentObject var player: RadioPlayer
     var onClose: () -> Void
+    var onOpenRecordings: () -> Void = {}
 
     // Theme liefert Farben/Fonts/Texturen. `schlicht` (classic) loest exakt auf das
     // bisherige native Aussehen auf — alle Tokens sind dort semantisch
@@ -34,6 +35,7 @@ struct HistoryPanel: View {
     @State private var filterRevision = 0
     @State private var isRestoringFilter = false
     @State private var displayedEntries: [SongEntry] = []
+    @State private var recordings: RecordingLibrarySnapshot?
 
     // Verlauf-Tinte: auf der hellen Pergament-Textur (retro) waere der dunkle
     // Theme-Text unlesbar -> dort eine dunkle Tinte erzwingen. Sonst der normale
@@ -102,6 +104,10 @@ struct HistoryPanel: View {
                         .foregroundColor(theme.palette.textPrimary)
                 }
                 Spacer()
+                Button(action: onOpenRecordings) { Image(systemName: "waveform") }
+                    .buttonStyle(.plain).help("Aufnahmebibliothek")
+                    .accessibilityLabel("Aufnahmebibliothek")
+                    .accessibilityIdentifier("recordings-open")
                 Menu {
                     // Erster Satz: Verlauf-Eintraege UND die zugehoerigen Aufnahmen
                     // bis zum Cutoff loeschen (bisheriges Verhalten, cleanupHistory).
@@ -203,6 +209,14 @@ struct HistoryPanel: View {
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
             if filter.period != .all { filterNow = date }
         }
+        .task {
+            while !Task.isCancelled {
+                let next = await player.recorder.librarySnapshot()
+                guard !Task.isCancelled else { return }
+                recordings = next
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
     }
 
     private var filterBinding: Binding<HistoryFilter> {
@@ -302,7 +316,7 @@ struct HistoryPanel: View {
                         VStack(spacing: 0) {
                             HStack(spacing: 0) {
                                 Button { selection = entry.id } label: {
-                                    SongRow(entry: entry)
+                                    SongRow(entry: entry, audioLabel: recordings?.audio(for: entry).label)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 3)
                                         .contentShape(Rectangle())
@@ -560,6 +574,7 @@ private struct ParchmentBackground: View {
 struct SongRow: View {
     let entry: SongEntry
     var showsInterval = true
+    var audioLabel: String? = nil
 
     // Theme + Schriftfaktor wie im Panel. SongRow liest beide selbst aus dem
     // Environment (kein Durchreichen noetig).
@@ -607,6 +622,12 @@ struct SongRow: View {
             Text(entry.station)
                 .themedFont(theme, .body, size: 10 * uiFontScale)
                 .foregroundColor(inkDim)
+            if let audioLabel {
+                Text(audioLabel)
+                    .themedFont(theme, .label, size: 10 * uiFontScale)
+                    .foregroundStyle(inkDim)
+                    .accessibilityIdentifier("history-audio-" + entry.id.uuidString)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 3)
