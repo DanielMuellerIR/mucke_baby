@@ -176,8 +176,9 @@ final class Recorder: @unchecked Sendable {
                               segmentID: capture?.segmentID, startedAt: fileStart, bytes: captureBytes)
     }
 
-    private func publishCapture() {
-        let state = currentCaptureState(); publishedBytes = captureBytes
+    private func publishCapture(rollover: RecordingState.Rollover? = nil) {
+        var state = currentCaptureState(); publishedBytes = captureBytes
+        state.rollover = rollover
         DispatchQueue.main.async { self.onCaptureState?(state) }
     }
 
@@ -195,7 +196,7 @@ final class Recorder: @unchecked Sendable {
     }
 
     // Songwechsel: Rollover, falls die laufende Datei aelter als 24 h ist.
-    func songBoundary(at date: Date = Date()) {
+    func songBoundary(title: String? = nil, at date: Date = Date()) {
         q.async {
             guard let start = self.fileStart, let last = self.clips.last, last.end == nil else { return }
             if date.timeIntervalSince(start) > 24 * 3600 {
@@ -206,7 +207,9 @@ final class Recorder: @unchecked Sendable {
                 } else {
                     self._begin(station: station, ext: ext, at: date, sessionID: last.sessionID)
                 }
-                if self.capture != nil { self.publishCapture() }
+                if self.capture != nil {
+                    self.publishCapture(rollover: title.map { RecordingState.Rollover(title: $0, receivedAt: date) })
+                }
             }
         }
     }

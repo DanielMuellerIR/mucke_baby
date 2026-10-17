@@ -150,6 +150,13 @@ final class RadioPlayer: ObservableObject {
         guard state.revision == recordingRevision else { return }
         guard state.streamID == nil || state.streamID == recordingSessionID else { return }
         recordingState = state
+        if let rollover = state.rollover {
+            // Der Status kann den normalen Titelcallback überholen. Die erkannte
+            // Grenze gehört noch zum alten Abschnitt; erst danach ICY erneuern.
+            history.closeCurrent(at: rollover.receivedAt)
+            recordingSegmentID = nil
+            setNowPlaying(rollover.title, at: rollover.receivedAt)
+        }
         if state.phase == .needsStreamHeader, recordingRequested, state.streamID == recordingSessionID,
            let url = currentStreamURL {
             startMetadata(url: url)
@@ -275,7 +282,7 @@ final class RadioPlayer: ObservableObject {
                                   enabled: recordingRequested, revision: recordingRevision, preserveFailure: retry)
         icy.start(url: url, allowAudioOnly: true,
                   onStart: { contentType, _ in recorder.captureFormat(contentType, streamID: streamID) },
-                  onBoundary: { _, boundary in recorder.songBoundary(at: boundary) },
+                  onBoundary: { title, boundary in recorder.songBoundary(title: title, at: boundary) },
                   onAudioAt: { [weak self] data, date, uptime in
                       recorder.captureAudio(data, at: date, receivedUptime: uptime, streamID: streamID)
                       DispatchQueue.main.async { self?.metadataActivity(ticket: ticket, uptime: uptime) }
@@ -463,9 +470,12 @@ final class RadioPlayer: ObservableObject {
     // Neuer ICY-Live-Titel -> Anzeige + Verlauf.
     private func setNowPlaying(_ title: String, at boundary: Date) {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, t != nowPlayingTitle else { return }
-        nowPlayingTitle = t
+        guard !t.isEmpty else { return }
+        let changed = t != nowPlayingTitle
+        if changed { nowPlayingTitle = t }
+        // Beim Rollover kann der Titel schon angekommen sein, seine Zuordnung
+        // zum geschlossenen Aufnahmeabschnitt muss trotzdem wechseln.
         if let st = currentStation { history.note(station: st.name, raw: t, at: boundary, sessionID: recordingSegmentID ?? recordingSessionID) }
-        log.notice("nowplaying \(t, privacy: .public)")
+        if changed { log.notice("nowplaying \(t, privacy: .public)") }
     }
 }

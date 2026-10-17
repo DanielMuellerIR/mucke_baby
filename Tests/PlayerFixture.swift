@@ -51,7 +51,7 @@ final class Recorder {
     func begin(station: String, contentType: String?, at: Date, sessionID: UUID) {}
     func write(_ data: Data) {}
     func prune(olderThan: Date) {}
-    func songBoundary(at: Date) {}
+    func songBoundary(title: String? = nil, at: Date) {}
 }
 final class ICYMetadataReader {
     static var latest: ICYMetadataReader!

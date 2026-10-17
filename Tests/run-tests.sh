@@ -102,6 +102,7 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/system-media-harness"
 
 python3 Tests/player-events.py
+python3 Tests/player-rollover.py
 
 cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \

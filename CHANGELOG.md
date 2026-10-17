@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.12 — 2026-10-17
+
+- Preserve the received track title when a recording longer than 24 hours starts a new container file. Close the previous history entry at the received track boundary and associate the new recording section with the correct title while playback continues.
+
 ## 1.9.11 — 2026-10-16
 
 - Keep optional Radio-Browser station IDs when adding catalog stations and exchanging station JSON. Existing and manually added stations remain independent.
