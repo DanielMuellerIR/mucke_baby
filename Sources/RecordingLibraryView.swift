@@ -25,6 +25,7 @@ struct RecordingLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
+    @Environment(\.controlActiveState) private var controlActiveState
     @AppStorage("volume") private var volume = 0.77
     @StateObject private var preview = RecordingPreview()
     @State private var inventory: RecordingLibrarySnapshot?
@@ -151,7 +152,11 @@ struct RecordingLibraryView: View {
     }
 
     private func row(_ item: RecordingLibraryItem) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        let selectedInk = Color(nsColor: controlActiveState == .key
+                                ? .alternateSelectedControlTextColor : .unemphasizedSelectedTextColor)
+        let rowInk = selection == item.id ? selectedInk : ink
+        let rowDim = selection == item.id ? selectedInk : dim
+        return VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(item.clip.station).font(theme.font(.body, size: 13 * scale, weight: .semibold)).lineLimit(1)
                 Spacer()
@@ -164,9 +169,9 @@ struct RecordingLibraryView: View {
                 Text(duration(item))
                 Text(ByteCountFormatter.string(fromByteCount: item.bytes, countStyle: .file))
                     .frame(minWidth: 65, alignment: .trailing)
-            }.font(theme.font(.label, size: 11 * scale)).foregroundStyle(dim)
+            }.font(theme.font(.label, size: 11 * scale)).foregroundStyle(rowDim)
         }
-        .foregroundStyle(ink).padding(.vertical, 6)
+        .foregroundStyle(rowInk).padding(.vertical, 6)
         .accessibilityIdentifier("recording-row-" + item.id.uuidString)
     }
 
