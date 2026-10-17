@@ -39,6 +39,8 @@ source.write_text(vlc + '\n' + shim + '\n' +
         active.state = .error; active.stateEvent()
         try? await Task.sleep(nanoseconds: 10_000_000)
         check(preview.currentID == nil && preview.error != nil, "Lesefehler bleibt unsichtbar")
+        preview.stop()
+        check(preview.error == nil, "Stop erhält alte Fehlermeldung")
         preview.play(id: b, url: file, volume: 0)
         preview.stop()
         check(preview.currentID == nil && !preview.isLoading && VLCMediaPlayer.latest?.delegate == nil, "Stop bereinigt Vorschau nicht")

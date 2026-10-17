@@ -39,7 +39,7 @@ final class RecordingPreview: ObservableObject {
         generation &+= 1
         let previous = player
         player = nil; previous?.delegate = nil; delegate = nil
-        currentID = nil; isLoading = false
+        currentID = nil; isLoading = false; error = nil
         previous?.stop()
     }
 }

@@ -89,7 +89,7 @@ struct RecordingLibraryView: View {
             .background(ink.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
             if let selected {
                 Text(selected.clip.file).font(theme.font(.label, size: 11 * scale))
-                    .foregroundStyle(dim).textSelection(.enabled)
+                    .foregroundStyle(dim).textSelection(.enabled).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let text = message ?? preview.error {
@@ -116,7 +116,7 @@ struct RecordingLibraryView: View {
                     .disabled(busy || selected == nil || selected?.isActive == true || selected?.status == .unreadable || inventory?.indexWritable != true)
                     .accessibilityIdentifier("recordings-delete")
             }
-            Text("Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Indexeintrag; der Verlauf bleibt erhalten.")
+            Text("Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Eintrag in der Bibliothek; der Verlauf bleibt erhalten.")
                 .font(theme.font(.label, size: 11 * scale)).foregroundStyle(dim)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -129,7 +129,7 @@ struct RecordingLibraryView: View {
                 .accessibilityIdentifier("recordings-confirm-preview")
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Live-Radio und eine laufende Aufnahme werden beendet. Nach dem Vorhören startet das Radio nicht automatisch erneut.")
+            Text("Live-Radio wird beendet. Falls eine Aufnahme läuft, endet sie ebenfalls. Nach dem Vorhören startet das Radio nicht automatisch erneut.")
         }
         .confirmationDialog("Ausgewählte Aufnahme endgültig löschen?", isPresented: $confirmRemoval, titleVisibility: .visible) {
             Button("Aufnahme endgültig löschen", role: .destructive) { removeSelected() }
@@ -146,6 +146,7 @@ struct RecordingLibraryView: View {
         }
         .onChange(of: player.isLoading) { _, value in if value { cancelPreview() } }
         .onChange(of: player.isPlaying) { _, value in if value { cancelPreview() } }
+        .onChange(of: selection) { _, _ in cancelPreview(); message = nil }
         .onDisappear { cancelPreview() }
     }
 
