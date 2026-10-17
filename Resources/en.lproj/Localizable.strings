@@ -359,8 +359,8 @@
 "Diese Aufnahme ist nicht mehr vorhanden. Bitte die Liste aktualisieren." = "This recording is no longer available. Please refresh the list.";
 "Eine laufende Aufnahme kann weder gelöscht noch vorgehört werden." = "An active recording cannot be deleted or previewed.";
 "Keine Aufnahme" = "No recording";
-"Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Indexeintrag; der Verlauf bleibt erhalten." = "Active recordings are protected. Deleting removes only the selected recording file and its index entry; history is preserved.";
-"Live-Radio und eine laufende Aufnahme werden beendet. Nach dem Vorhören startet das Radio nicht automatisch erneut." = "Live radio and any active recording will stop. Radio will not restart automatically after preview.";
+"Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Eintrag in der Bibliothek; der Verlauf bleibt erhalten." = "Active recordings are protected. Deleting removes only the selected recording file and its entry in the library; history is preserved.";
+"Live-Radio wird beendet. Falls eine Aufnahme läuft, endet sie ebenfalls. Nach dem Vorhören startet das Radio nicht automatisch erneut." = "Live radio will stop. Any active recording will also end. Radio will not restart automatically after preview.";
 "Live-Radio zum Vorhören beenden?" = "Stop live radio to preview?";
 "Löschen …" = "Delete…";
 "Nicht lesbar" = "Not readable";

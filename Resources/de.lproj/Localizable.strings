@@ -359,8 +359,8 @@
 "Diese Aufnahme ist nicht mehr vorhanden. Bitte die Liste aktualisieren." = "Diese Aufnahme ist nicht mehr vorhanden. Bitte die Liste aktualisieren.";
 "Eine laufende Aufnahme kann weder gelöscht noch vorgehört werden." = "Eine laufende Aufnahme kann weder gelöscht noch vorgehört werden.";
 "Keine Aufnahme" = "Keine Aufnahme";
-"Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Indexeintrag; der Verlauf bleibt erhalten." = "Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Indexeintrag; der Verlauf bleibt erhalten.";
-"Live-Radio und eine laufende Aufnahme werden beendet. Nach dem Vorhören startet das Radio nicht automatisch erneut." = "Live-Radio und eine laufende Aufnahme werden beendet. Nach dem Vorhören startet das Radio nicht automatisch erneut.";
+"Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Eintrag in der Bibliothek; der Verlauf bleibt erhalten." = "Laufende Aufnahmen sind geschützt. Löschen entfernt nur die ausgewählte Aufnahme-Datei und ihren Eintrag in der Bibliothek; der Verlauf bleibt erhalten.";
+"Live-Radio wird beendet. Falls eine Aufnahme läuft, endet sie ebenfalls. Nach dem Vorhören startet das Radio nicht automatisch erneut." = "Live-Radio wird beendet. Falls eine Aufnahme läuft, endet sie ebenfalls. Nach dem Vorhören startet das Radio nicht automatisch erneut.";
 "Live-Radio zum Vorhören beenden?" = "Live-Radio zum Vorhören beenden?";
 "Löschen …" = "Löschen …";
 "Nicht lesbar" = "Nicht lesbar";
