@@ -32,7 +32,6 @@ struct MacRadioApp: App {
     // „Standard dark-Inhalt + helle Toolbar" nach Wechsel von Black MIDI). Loesung: IMMER
     // einen expliziten Scheme uebergeben (nie nil), fuer `schlicht` den echten System-Scheme.
     @StateObject private var sysAppearance = SystemAppearance()
-    @FocusedValue(\.openRecordingLibrary) private var openRecordingLibrary
 
     /// Aktuelles Theme-Objekt aus dem gespeicherten Rohwert.
     private var theme: Theme { Theme.theme(raw: selectedThemeRaw) }
@@ -76,11 +75,7 @@ struct MacRadioApp: App {
         .defaultSize(width: 940, height: 620)        // Startgroesse: Platz fuer 3-Spalten-Themes
         .commands {
             StationCommands(store: store, player: player)
-            CommandMenu("Aufnahmen") {
-                Button("Aufnahmebibliothek …") { openRecordingLibrary?() }
-                    .keyboardShortcut("r", modifiers: [.command, .shift])
-                    .disabled(openRecordingLibrary == nil)
-            }
+            RecordingLibraryCommands()
             // „Nach Updates suchen …" im App-Menue (direkt unter „Über …").
             // Deaktiviert, solange Sparkle nicht suchen kann (laufende Suche/Installation).
             CommandGroup(after: .appInfo) {
