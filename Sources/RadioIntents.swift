@@ -78,9 +78,9 @@ extension RadioServices: RadioCommandTarget {
     var commandStations: [Station] { store.stations }
     var commandStationID: UUID? { player.currentStation?.id }
     var commandStationURL: String? { player.currentStation?.url }
-    var commandIsActive: Bool { player.isPlaying || player.isLoading }
+    var commandIsActive: Bool { player.hasPlaybackIntent }
     var commandRecordingRequested: Bool { player.recordingRequested }
-    var commandSong: SongEntry? { player.isPlaying || player.isLoading ? player.currentSong : nil }
+    var commandSong: SongEntry? { player.hasPlaybackIntent ? player.currentSong : nil }
     func commandPlay(_ station: Station) {
         // Verhindert späteren Autostart beim ersten Öffnen eines Fensters.
         _ = startup.claimAutoplay()

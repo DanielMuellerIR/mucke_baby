@@ -237,7 +237,7 @@ struct VisualizerWindowView: View {
     private var reduceMotion: Bool { systemReduceMotion || motionFixture }
     @AppStorage("volume") private var volume = 0.77
     @State private var controlsVisible = true
-    private var active: Bool { player.isPlaying || player.isLoading }
+    private var active: Bool { player.hasPlaybackIntent }
     private var current: Station? { store.enabledStations.first { $0.id == player.currentStation?.id } }
     private var title: String {
         if let result = recognition.currentAdoption {

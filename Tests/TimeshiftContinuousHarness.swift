@@ -14,36 +14,44 @@ import VLCKit
             frames.append(source.subdata(in: offset..<offset + header.bytes)); offset += header.bytes
         }
         let firstHeader = MP3FrameHeader(Array(frames[0].prefix(4)))!
-        let expectedBytes = 44 + frames.count * Int((firstHeader.duration * Double(firstHeader.format / 10)).rounded()) * 4
+        let samplesPerFrame = Int((firstHeader.duration * Double(firstHeader.format / 10)).rounded())
+        let expectedBytes = 44 + frames.count * samplesPerFrame * 4
         let buffer = try TimeshiftSegments(root: root.appendingPathComponent("buffers"),
             limits: TimeshiftSegmentLimits(duration: 30, segmentDuration: 0.5), freeBytes: { _ in Int64.max })
         try buffer.accept(contentType: "audio/mpeg")
-        for frame in frames.prefix(125) { try buffer.append(frame) }
-        let reader = try buffer.makeReader(delay: 30)
+        let seeking = ProcessInfo.processInfo.environment["MUCKE_DECODER_SEEK"] == "1"
+        let initialFrames = seeking ? 250 : 125
+        for frame in frames.prefix(initialFrames) { try buffer.append(frame) }
+        let reader = try buffer.makeReader(delay: seeking ? 3 : 30)
+        let startFrame = Int((reader.playbackStart / firstHeader.duration).rounded())
+        let localExpectedBytes = expectedBytes - startFrame * samplesPerFrame * 4
+        try JSONSerialization.data(withJSONObject: ["start": reader.start, "playbackStart": reader.playbackStart, "startFrame": startFrame,
+            "samplesPerFrame": samplesPerFrame, "decoderPreroll": reader.decoderPreroll,
+            "reserve": buffer.metrics.live - reader.start]).write(to: root.appendingPathComponent("reader.json"))
         let output = root.appendingPathComponent("continuous.wav")
         let library = VLCLibrary(options: ["--aout=afile", "--audiofile-file=" + output.path,
             "--audiofile-format=float32", "--audiofile-wav", "--audiofile-channels=1", "--quiet"])
         let player = VLCMediaPlayer(library: library)
         let media = VLCMedia(stream: reader)
-        media.addOption(":demux=mpga"); media.addOption(":file-caching=1000")
+        for option in reader.mediaOptions { media.addOption(option) }
         player.media = media; player.play()
         // Der Leser erreicht mehrfach das gerade wachsende Ende. Er darf dort
         // keinen EOF liefern und beim Segmentwechsel keine Frames verdoppeln.
-        for (index, frame) in frames.dropFirst(125).enumerated() {
+        for (index, frame) in frames.dropFirst(initialFrames).enumerated() {
             try buffer.append(frame)
             if index % 10 == 0 { try await Task.sleep(nanoseconds: 200_000_000) }
         }
         try buffer.finishReception()
         for _ in 0..<200 {
             try await Task.sleep(nanoseconds: 100_000_000)
-            if (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0 >= expectedBytes { break }
+            if (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0 >= localExpectedBytes { break }
         }
         let entries = buffer.index
         try JSONEncoder().encode(entries).write(to: root.appendingPathComponent("segments.json"))
         let export = root.appendingPathComponent("segments")
         try FileManager.default.createDirectory(at: export, withIntermediateDirectories: false)
         for segment in entries { try FileManager.default.copyItem(at: buffer.directory.appendingPathComponent(segment.file), to: export.appendingPathComponent(segment.file)) }
-        buffer.cancelReaders(); reader.close(); player.stop(); try buffer.close()
+        buffer.cancelReaders(); player.stop(); reader.close(); try buffer.close()
         precondition(!FileManager.default.fileExists(atPath: buffer.directory.path), "Leser hält Puffer nach Stop")
         let control = root.appendingPathComponent("control.wav")
         let controlLibrary = VLCLibrary(options: ["--aout=afile", "--audiofile-file=" + control.path,

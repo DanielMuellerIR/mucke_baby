@@ -388,6 +388,7 @@ struct ContentView: View {
             // 3-Spalten-Layout (Stations | Stage+Visualizer | Verlauf). Standard = minimalste
             // Skin. Spalten werden responsiv ein-/ausgeblendet (s. consoleBody).
             consoleBody
+            TimeshiftControlsView()
             // Fuß: aktueller Titel groß und kopierbar, Merkliste, Laufzeit und Lautstärke.
             Rectangle().fill(theme.palette.divider).frame(height: 1)
             nowPlayingFooter
@@ -527,14 +528,14 @@ struct ContentView: View {
             } label: {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 5) {
-                        Image(systemName: (player.isPlaying || player.isLoading) ? "stop.fill" : "play.fill")
+                        Image(systemName: (player.hasPlaybackIntent) ? "stop.fill" : "play.fill")
                             .font(.system(size: 13, weight: .semibold))
-                        Text((player.isPlaying || player.isLoading) ? String(localized: "Stopp") : String(localized: "Abspielen"))
+                        Text((player.hasPlaybackIntent) ? String(localized: "Stopp") : String(localized: "Abspielen"))
                             .font(theme.font(.label, size: 11 * uiFontScale, weight: .semibold))
                             .lineLimit(1)         // kein .fixedSize() — verhindert künstliches Aufblähen
                     }
                     // Fallback: nacktes Icon (Tooltip via .help unten gibt den Kontext)
-                    Image(systemName: (player.isPlaying || player.isLoading) ? "stop.fill" : "play.fill")
+                    Image(systemName: (player.hasPlaybackIntent) ? "stop.fill" : "play.fill")
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .foregroundStyle(onGoldHeader ? headerInkStrong : theme.palette.playActive)
@@ -543,7 +544,7 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .disabled(player.currentStation == nil)
-            .help((player.isPlaying || player.isLoading) ? String(localized: "Stopp") : String(localized: "Abspielen"))
+            .help((player.hasPlaybackIntent) ? String(localized: "Stopp") : String(localized: "Abspielen"))
 
             // Laufzeit + Lautstaerke sitzen jetzt im Fuß (neben der Zeit) — in der Titelregion
             // der Kopfleiste fing der native Fenster-Drag den Knopf-Mouse-Down ab.

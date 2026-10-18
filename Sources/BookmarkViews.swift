@@ -173,10 +173,15 @@ struct BookmarkLibrary: View {
 extension RadioPlayer {
     var currentSong: SongEntry? {
         guard let station = currentStation, !nowPlayingTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        if let entry = history.entries.last, !entry.isPlaceholder,
+        let receivedAt = timeshiftTransport.timeline.anchor(at: timeshiftTransport.position)?.receivedAt
+        if let receivedAt,
+           let entry = history.entries.last(where: { $0.station == station.name && $0.raw == nowPlayingTitle && abs($0.start.timeIntervalSince(receivedAt)) < 0.01 }) {
+            return entry
+        }
+        if receivedAt == nil, let entry = history.entries.last, !entry.isPlaceholder,
            entry.station == station.name, entry.raw == nowPlayingTitle { return entry }
         let (artist, title) = SongEntry.split(nowPlayingTitle)
         return SongEntry(station: station.name, raw: nowPlayingTitle, artist: artist, title: title,
-                         start: Date())
+                         start: receivedAt ?? Date())
     }
 }

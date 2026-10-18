@@ -26,7 +26,7 @@ struct MiniPlayerView: View {
     @State private var quickSelection = false
     @State private var showingRecognition = false
     @State private var recognitionWidth: CGFloat = 388
-    private var active: Bool { player.isPlaying || player.isLoading }
+    private var active: Bool { player.hasPlaybackIntent }
     private var current: Station? { store.enabledStations.first { $0.id == player.currentStation?.id } }
     private var normalizedVolume: Double { volume.isFinite ? min(1, max(0, volume)) : 0.77 }
     private var volumeBinding: Binding<Double> {
@@ -90,6 +90,7 @@ struct MiniPlayerView: View {
                         .accessibilityLabel("Titel merken").accessibilityIdentifier("mini-bookmark-unavailable")
                 }
             }
+            TimeshiftControlsView(compact: true)
             HStack {
                 RecordingControl(identifier: "mini-recording")
                 Spacer()

@@ -2,8 +2,37 @@
 
 The settings switch enables temporary MP3 storage for the current app session.
 It requires confirmation of automatic cleanup and is off after restarting the
-app. It does not yet change live playback. Delayed playback controls and the
-heard-title timeline remain separate work.
+app. Once three seconds are available, playback switches to the continuous local
+VLC reader. Main and mini player share pause/resume, a position slider, 15-second jumps, a title timeline and Live. Live selects the newest safe segment,
+with at least three seconds of reserve; the displayed delay includes that reserve.
+
+Received titles continue to describe permanent recording and history. The player,
+bookmarks and system media information show the title at the listening position.
+Seeking never appends a history entry or moves a recording boundary. Timeline
+anchors retain the reception date for matching existing history entries.
+
+Seeking selects a complete MP3 frame at or immediately before the requested
+position (at most one frame, about 24–72 ms, depending on sample rate). The reader starts earlier to feed the
+decoder its preroll. `playbackStart` identifies the first output frame; VLC time is
+relative to this output start. The available timeline begins at the first unique
+segment frame, keeping its decoder preroll outside the selectable range. The
+first received second is reserved for a cold MP3 decoder; it is never offered as
+a production listening target. Initial handoff therefore also waits for this
+warmup in addition to the three-second output reserve.
+
+For the pinned VLCKit, `audio-desync` discards decoded preroll from the output.
+Two extra MP3 frames compensate its measured startup clock offset; millisecond
+quantization rounds down to preserve the selected frame. This behavior requires
+the native seek PCM gate when changing VLCKit. `start-time` instead caused about
+50 ms of decoder startup silence and must not replace it. File caching remains
+1000 ms, clock jitter tolerance stays enabled and at least three seconds must
+remain after the selected frame.
+
+Pausing keeps the same VLC instance and reader. If the listening position falls
+outside the retained window, playback stops visibly and requires Live to continue.
+A metadata reconnect also invalidates a local listening position without silently
+resuming it. System Play resumes a valid pause; Stop still ends reception. Disabling
+the buffer explicitly returns to the direct live stream.
 
 The buffer receives the same metadata-free bytes as the permanent recorder from
 the existing ICY connection. It creates no stream connection. Its private cache
@@ -61,7 +90,7 @@ a separate directory name and contains no audio. Startup removes only recognized
 abandoned directories after acquiring their lock; active sessions, unknown
 entries and symlinks are preserved. Old audio is discarded rather than resumed.
 
-`Tests/run-tests.sh` covers resource bounds, protected readers, cancellation,
+`Tests/run-tests.sh` covers the shared transport, heard titles, resource bounds, protected readers, cancellation,
 low disk, crash restart, incomplete initialization and capture generations.
 `Tests/timeshift-segments.py` prepares an isolated continuous VLC decoder and a
 native settings probe without installation. Run native tests in an isolated macOS test account with exclusive
@@ -69,3 +98,15 @@ access to the app’s UI. The settings runner takes its existing authorized acce
 helper from `MUCKE_AX_TOOL`. The `verify` mode independently compares PCM and
 compressed bytes and decodes every segment. These checks do not replace human
 listening or a real run on macOS 14.2.
+
+`Tests/timeshift-transport.py prepare ROOT` builds an isolated test host with the
+actual main and mini player views. Its `run` mode exercises controls, the full
+300-second pause limit, system media information, recording/history protection
+and quit cleanup. Run it only through the resource FIFO with the existing
+`MUCKE_AX_TOOL` helper. `cleanup` terminates only recorded test-owned processes.
+
+`Tests/timeshift-seek.py prepare ROOT` creates fresh CBR, VBR, MPEG-2 and MPEG-2.5 fixtures from 8 to 48 kHz.
+Run its native `run` mode through the resource FIFO. `verify` compares 24
+frame positions against direct VLC file decoding, including every first output
+sample, duration and segment preroll. This gate is required for changes to the
+VLC clock correction and the pinned VLCKit.

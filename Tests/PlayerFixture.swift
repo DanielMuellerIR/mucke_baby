@@ -14,18 +14,21 @@ final class VLCAudioEqualizer {
     var preAmplification: Float = 0
 }
 final class VLCAudio { var volume: Int32 = 0 }
-final class VLCMedia { init(url: URL) {}; func addOption(_ option: String) {} }
+final class VLCTime { var intValue: Int32 = 0 }
+final class VLCMedia { init(stream: InputStream) {}; init(url: URL) {}; func addOption(_ option: String) {} }
 final class VLCMediaPlayer {
     static var latest: VLCMediaPlayer!
     weak var delegate: VLCMediaPlayerDelegate?
     var audio: VLCAudio? = VLCAudio()
     var equalizer: VLCAudioEqualizer?
+    var time = VLCTime()
     var media: VLCMedia?
     var state = VLCMediaPlayerState.stopped
     var isPlaying = false
     init() { Self.latest = self }
     func play() { state = .playing }
     func stop() { state = .stopped }
+    func pause() { state = .paused }
     func timeEvent() { delegate?.mediaPlayerTimeChanged(Notification(name: Notification.Name("time"))) }
     func stateEvent() { delegate?.mediaPlayerStateChanged(Notification(name: Notification.Name("state"), object: self)) }
 }
@@ -62,6 +65,8 @@ final class Recorder {
 final class ICYMetadataReader {
     static var latest: ICYMetadataReader!
     var startCount = 0
+    var format: ((String?, Date) -> Void)?
+    var boundary: ((String, Date) -> Void)?
     var audioAt: ((Data, Date, TimeInterval) -> Void)?
     var completion: ((Date) -> Void)?
     var lastAudioAt: Date?
@@ -69,7 +74,7 @@ final class ICYMetadataReader {
     var onTitle: ((String, Date) -> Void)?
     @discardableResult func stop() -> Date? { let end = lastAudioAt; lastAudioAt = nil; return end }
     func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
-               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date, TimeInterval) -> Void, onCompletion: @escaping (Date) -> Void) { startCount += 1; audioAt = onAudioAt; completion = onCompletion }
+               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date, TimeInterval) -> Void, onCompletion: @escaping (Date) -> Void) { startCount += 1; format = onStart; boundary = onBoundary; audioAt = onAudioAt; completion = onCompletion }
 }
 enum TestEvents {
     static let queue = DispatchQueue(label: "fixture.events", target: .main)

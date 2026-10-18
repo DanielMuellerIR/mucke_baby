@@ -613,7 +613,6 @@
 /* Temporärer Audiopuffer */
 "Aktivieren und alte Puffersegmente entfernen" = "Aktivieren und alte Puffersegmente entfernen";
 "Der temporäre MP3-Puffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht." = "Der temporäre MP3-Puffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht.";
-"Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Diese Einstellung puffert Audio; die Live-Wiedergabe läuft weiter." = "Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Diese Einstellung puffert Audio; die Live-Wiedergabe läuft weiter.";
 "Temporären Audiopuffer aktivieren" = "Temporären Audiopuffer aktivieren";
 "Temporärer MP3-Puffer aktiv." = "Temporärer MP3-Puffer aktiv.";
 "Zeitversatz aktivieren?" = "Zeitversatz aktivieren?";
@@ -625,3 +624,20 @@
 "Zeitversatz-Puffer" = "Zeitversatz-Puffer";
 "Zeitversatz: Der Puffer unterstützt derzeit nur MP3." = "Zeitversatz: Der Puffer unterstützt derzeit nur MP3.";
 "Zeitversatz wartet auf das Schließen des vorherigen Lesers." = "Zeitversatz wartet auf das Schließen des vorherigen Lesers.";
+
+"Pausiert" = "Pausiert";
+"Fortsetzen" = "Fortsetzen";
+"Pause" = "Pause";
+"15 Sekunden zurück" = "15 Sekunden zurück";
+"15 Sekunden vor" = "15 Sekunden vor";
+"Hörposition im Puffer" = "Hörposition im Puffer";
+"Verzögerung" = "Verzögerung";
+"Live" = "Live";
+"Live: mindestens 3 s Reserve" = "Live: mindestens 3 s Reserve";
+"Titelzeitleiste" = "Titelzeitleiste";
+"Pufferposition nicht mehr verfügbar. Mit Live fortsetzen." = "Pufferposition nicht mehr verfügbar. Mit Live fortsetzen.";
+"Puffer: −%@" = "Puffer: −%@";
+"−%@" = "−%@";
+"−%@ · %@" = "−%@ · %@";
+
+"Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition." = "Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition.";

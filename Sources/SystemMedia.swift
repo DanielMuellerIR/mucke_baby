@@ -2,7 +2,7 @@ import Foundation
 
 // Betriebssystem-Befehle und ihre Gültigkeit bleiben unabhängig vom MediaPlayer-SDK testbar.
 enum SystemMediaAction: Sendable { case play, pause, stop, toggle, previous, next }
-enum SystemMediaPlaybackState: Equatable { case playing, loading }
+enum SystemMediaPlaybackState: Equatable { case playing, loading, paused }
 struct SystemMediaInfo: Equatable {
     var title: String
     var artist: String?
@@ -13,6 +13,8 @@ struct SystemMediaSnapshot {
     var station: Station?
     var playing = false
     var loading = false
+    var paused = false
+    var canPause = false
     var title = ""
     var status = ""
     var stations: [Station] = []
@@ -62,7 +64,7 @@ final class SystemMediaCoordinator {
     func invalidatePendingCommands() { gate.invalidate() }
     func apply(_ snapshot: SystemMediaSnapshot) {
         self.snapshot = snapshot
-        guard let station = snapshot.station, snapshot.playing || snapshot.loading else { deactivate(); return }
+        guard let station = snapshot.station, snapshot.playing || snapshot.loading || snapshot.paused else { deactivate(); return }
         if !active {
             active = true
             gate = SystemMediaGate()
@@ -78,7 +80,7 @@ final class SystemMediaCoordinator {
             ? (snapshot.playing ? station.name : snapshot.status) : (split.title ?? snapshot.title)
         let info = SystemMediaInfo(title: title, artist: split.artist, station: station.name, playing: snapshot.playing)
         if lastInfo != info { backend.publish(info); lastInfo = info }
-        let state: SystemMediaPlaybackState = snapshot.playing ? .playing : .loading
+        let state: SystemMediaPlaybackState = snapshot.playing ? .playing : (snapshot.paused ? .paused : .loading)
         // Titeländerungen senden keine erneute Play-Anforderung an die Systemsteuerung.
         if lastState != state { backend.setPlaybackState(state); lastState = state }
         backend.setNavigationEnabled(eligibleStations.count > 1)
@@ -96,8 +98,11 @@ final class SystemMediaCoordinator {
     private func handle(_ action: SystemMediaAction, lease: SystemMediaGate.Lease) {
         guard gate.accepts(lease), active, snapshot.station?.id == lease.stationID else { return }
         switch action {
-        case .pause, .stop, .toggle:
+        case .stop:
             deactivate(); perform(action, nil)
+        case .pause, .toggle:
+            if !snapshot.canPause && !snapshot.paused { deactivate() }
+            perform(action, nil)
         case .play:
             if !snapshot.playing { perform(.play, snapshot.station) }
         case .previous, .next:

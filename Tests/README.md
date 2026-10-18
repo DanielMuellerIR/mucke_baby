@@ -39,3 +39,17 @@ Der `MiniWindowHarness` prüft gespeicherte Fenstergeometrie mit negativen und v
 ## Experimenteller Zeitversatz
 
 `TimeshiftHarness` prüft Frame-/Bytezeit, fragmentierte Pakete, Grenzen, Titel, aktive Ausschnitte, Disk-Gate und den Erhalt dauerhafter Dateien. Die isolierte native MP3-Probe und die frühe Codecprüfung sind in [docs/timeshift-experiment.md](../docs/timeshift-experiment.md) beschrieben. Der normale Player aktiviert sie nicht.
+
+## Zeitversatz im Player
+
+`Tests/timeshift-player.py` prüft die Produktklasse mit steuerbaren VLC-Ereignissen
+und echtem MP3-Puffer: Startreserve, gehörte statt empfangene Titel, Seek in Pause,
+Live, alte Ausgangsereignisse und Überlauf. `Tests/timeshift-transport.py` baut
+einen isolierten nativen Prüfhost mit echten Produktansichten; der Lauf gehört
+in die Ressourcen-FIFO. Details und Grenzen: [Audiopuffer](../docs/timeshift-buffer.md).
+
+`python3 Tests/timeshift-seek.py prepare ROOT` bereitet das native Seek-Gate vor.
+`run ROOT` gehört in den exklusiven nativen Prüfblock. `verify ROOT` vergleicht
+24 Framepositionen in CBR, VBR, MPEG-2 und MPEG-2.5 (8–48 kHz) mit direkter VLC-Dateidecodierung,
+einschließlich der ersten Samples. Bei VLCKit-Wechsel oder einer Änderung der
+Ausgabezeitkorrektur muss dieses Gate erneut bestehen.

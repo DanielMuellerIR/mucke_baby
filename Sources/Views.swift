@@ -355,7 +355,7 @@ struct MenuBarView: View {
                                     player.toggle(st)
                                 } label: {
                                     HStack {
-                                        Image(systemName: player.currentStation?.id == st.id && (player.isPlaying || player.isLoading)
+                                        Image(systemName: player.currentStation?.id == st.id && (player.hasPlaybackIntent)
                                               ? "stop.fill" : "play.fill")
                                             .font(.caption).frame(width: 14)
                                         Text(st.name).lineLimit(1)
@@ -379,7 +379,7 @@ struct MenuBarView: View {
                 SleepTimerButton(identifier: "menu-sleep-timer")
             }
             HStack {
-                Button((player.isPlaying || player.isLoading) ? "Stop" : "Play") {
+                Button((player.hasPlaybackIntent) ? "Stop" : "Play") {
                     if let s = player.currentStation {
                         player.toggle(store.stations.first(where: { $0.id == s.id }) ?? s)
                     }

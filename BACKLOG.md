@@ -45,8 +45,9 @@
 
 13. Seit v1.9.27 ist ein bewusst aktivierbarer, begrenzter temporärer MP3-Puffer
     in den Einstellungen erreichbar. Er verwendet den vorhandenen ICY-Empfang,
-    schützt aktive Leser und räumt verwaiste Sitzungen auf. Die Bedienung für
-    verzögerte Wiedergabe, präzises Suchen und gehörte Titel bleibt offen.
+    schützt aktive Leser und räumt verwaiste Sitzungen auf. Seit v1.9.28 teilen Hauptfenster und Miniplayer Pause/Fortsetzen,
+    framebezogene Sprünge, Live und eine gehörte Titelzeitleiste.
+    Der native Seek-PCM-Test bindet die Ausgabezeitkorrektur an das gepinnte VLCKit.
     Der durchgehende lokale VLC-Leser benötigt Startreserve und Decoder-Vorlauf;
     reale Hör-/Mindest-macOS-Abnahme der Produktionsfunktion bleibt erforderlich.
     AAC benötigt ADTS-Framegrenzen; Ogg/Vorbis und Ogg/Opus benötigen eine eigene

@@ -35,7 +35,7 @@ private final class MediaPlayerBackend: SystemMediaBackend {
         center.nowPlayingInfo = values
     }
     func setPlaybackState(_ state: SystemMediaPlaybackState) {
-        center.playbackState = state == .playing ? .playing : .interrupted
+        center.playbackState = state == .playing ? .playing : (state == .paused ? .paused : .interrupted)
     }
     func setNavigationEnabled(_ enabled: Bool) {
         commands.previousTrackCommand.isEnabled = enabled; commands.nextTrackCommand.isEnabled = enabled
@@ -56,8 +56,19 @@ final class SystemMediaBinding {
         coordinator = SystemMediaCoordinator(backend: MediaPlayerBackend()) { [weak player, weak store] action, station in
             guard let player else { return }
             switch action {
-            case .pause, .stop, .toggle: player.stop()
-            case .play, .previous, .next:
+            case .stop: player.stop()
+            case .pause:
+                if player.canPause { player.pause() } else if !player.isPaused { player.stop() }
+            case .toggle:
+                if player.isPaused { player.resume() }
+                else if player.timeshiftTransport.phase == .expired { player.returnToLive() }
+                else if player.canPause { player.pause() }
+                else { player.stop() }
+            case .play:
+                if player.isPaused { player.resume() }
+                else if player.timeshiftTransport.phase == .expired { player.returnToLive() }
+                else if let station { player.play(station) }
+            case .previous, .next:
                 if let station { player.play(store?.stations.first(where: { $0.id == station.id }) ?? station) }
             }
         }
@@ -67,6 +78,7 @@ final class SystemMediaBinding {
             player.$isLoading.map { _ in () }.eraseToAnyPublisher(),
             player.$nowPlayingTitle.map { _ in () }.eraseToAnyPublisher(),
             player.$statusText.map { _ in () }.eraseToAnyPublisher(),
+            player.$timeshiftTransport.map(\.phase).removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
             store.$stations.map { _ in () }.eraseToAnyPublisher()]
         Publishers.MergeMany(changes).sink { [weak self] in self?.schedule() }.store(in: &subscriptions)
         NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
@@ -84,6 +96,7 @@ final class SystemMediaBinding {
             self.pending = false
             self.coordinator.apply(SystemMediaSnapshot(station: self.player.currentStation,
                 playing: self.player.isPlaying, loading: self.player.isLoading,
+                paused: self.player.timeshiftTransport.holdsPlayback, canPause: self.player.canPause,
                 title: self.player.nowPlayingTitle, status: self.player.statusText, stations: self.store.stations))
         }
     }

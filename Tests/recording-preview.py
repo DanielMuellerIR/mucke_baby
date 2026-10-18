@@ -7,7 +7,6 @@ root = Path(__file__).resolve().parents[1]
 build = root / 'build/tests'
 fixture = (root / 'Tests/PlayerFixture.swift').read_text()
 vlc = fixture[:fixture.index('struct Station')]
-vlc = vlc.replace('final class VLCMediaPlayer {', 'struct VLCTime { var intValue: Int32 = 0 }\nfinal class VLCMediaPlayer {\n    var time = VLCTime()')
 radio = (root / 'Sources/RadioPlayer.swift').read_text()
 shim = radio[radio.index('final class PlayerDelegateShim'):radio.index('// Kapselt VLCMediaPlayer')]
 source = build / 'RecordingPreviewCombined.swift'

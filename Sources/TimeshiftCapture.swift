@@ -41,8 +41,8 @@ final class TimeshiftCapture {
             if enabled { startBuffer() }
         }
     }
-    func noteTitle(_ title: String, session id: UUID) {
-        locked { if session == id { buffer?.noteTitle(title) } }
+    func noteTitle(_ title: String, at date: Date? = nil, session id: UUID) {
+        locked { if session == id { buffer?.noteTitle(title, at: date) } }
     }
     func append(_ bytes: Data, session id: UUID) {
         locked {
@@ -65,6 +65,15 @@ final class TimeshiftCapture {
         }
     }
     var metrics: TimeshiftSegments.Metrics? { locked { buffer?.metrics } }
+    var timeline: MetadataTimeline { locked { buffer?.timeline ?? MetadataTimeline() } }
+    var currentState: State { locked { state } }
+    func makeReader(at position: TimeInterval) throws -> TimeshiftSegmentStream {
+        try locked {
+            guard let buffer else { throw TimeshiftFailure.notReady }
+            return try buffer.makeReader(at: position)
+        }
+    }
+    func cancelReaders() { locked { buffer?.cancelReaders(); retired?.cancelReaders() } }
 
     private func startBuffer() {
         guard session != nil, responseReceived else { publish(.waiting); return }

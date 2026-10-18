@@ -613,7 +613,6 @@
 /* Temporärer Audiopuffer */
 "Aktivieren und alte Puffersegmente entfernen" = "Enable and remove old buffer segments";
 "Der temporäre MP3-Puffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht." = "The temporary MP3 buffer automatically removes its oldest segments within the stated limits. Disabling it, changing stations and quitting discard the buffer. Existing recordings and history are kept.";
-"Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Diese Einstellung puffert Audio; die Live-Wiedergabe läuft weiter." = "OFF by default. MP3 only; up to 5 minutes and 32 MiB of audio plus a bounded index. Old buffer segments are removed automatically. Stops below 10 GiB of free space. Disabling it, changing stations and quitting discard the buffer. Permanent recordings and history are kept. This setting buffers audio while live playback continues.";
 "Temporären Audiopuffer aktivieren" = "Enable temporary audio buffer";
 "Temporärer MP3-Puffer aktiv." = "Temporary MP3 buffer active.";
 "Zeitversatz aktivieren?" = "Enable timeshift?";
@@ -625,3 +624,20 @@
 "Zeitversatz-Puffer" = "Timeshift buffer";
 "Zeitversatz: Der Puffer unterstützt derzeit nur MP3." = "Timeshift: the buffer currently supports MP3 only.";
 "Zeitversatz wartet auf das Schließen des vorherigen Lesers." = "Timeshift is waiting for the previous reader to close.";
+
+"Pausiert" = "Paused";
+"Fortsetzen" = "Resume";
+"Pause" = "Pause";
+"15 Sekunden zurück" = "15 seconds back";
+"15 Sekunden vor" = "15 seconds forward";
+"Hörposition im Puffer" = "Listening position in buffer";
+"Verzögerung" = "Delay";
+"Live" = "Live";
+"Live: mindestens 3 s Reserve" = "Live: at least 3 s reserve";
+"Titelzeitleiste" = "Track timeline";
+"Pufferposition nicht mehr verfügbar. Mit Live fortsetzen." = "Buffer position is no longer available. Select Live to continue.";
+"Puffer: −%@" = "Buffer: −%@";
+"−%@" = "−%@";
+"−%@ · %@" = "−%@ · %@";
+
+"Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition." = "OFF by default. MP3 only; at most 5 minutes and 32 MiB of audio plus a bounded index. Old buffer segments are removed automatically. Stops below 10 GiB of free disk space. Disabling, changing stations and quitting discard the buffer. Permanent recordings and history are preserved. Playback switches to the buffer after at least 3 s of reserve. Pause, jumps and Live are then available in the player. Jumps and titles follow the listening position.";

@@ -69,6 +69,20 @@ enum SystemMediaHarness {
         check(backend.handler?(.next) == true, "Navigation nach gelöschtem Sender fehlt"); await wait { actions.count == 5 }
         check(actions.last?.1?.id == a.id, "Entfernter aktueller Sender findet keinen gültigen Nachfolger")
         media.deactivate()
+        snapshot.station = a; snapshot.playing = true; snapshot.canPause = true
+        media.apply(snapshot)
+        let pausedHandler = backend.handler!
+        let beforePause = actions.count
+        check(pausedHandler(.pause), "Zeitversatz-Pause fehlt")
+        await wait { actions.count == beforePause + 1 }
+        check(backend.handler != nil, "Zeitversatz-Pause entfernt Fortsetzen-Handler")
+        snapshot.playing = false; snapshot.paused = true; snapshot.title = "Heard - Earlier"
+        media.invalidatePendingCommands(); media.apply(snapshot)
+        check(backend.states.last == .paused && backend.info.last?.title == "Earlier", "Gehörter Titel/Pausenzustand fehlt")
+        check(backend.handler?(.play) == true, "Fortsetzen fehlt")
+        await wait { actions.count == beforePause + 2 }
+        check(actions.last?.0 == .play && actions.last?.1?.id == a.id, "Fortsetzen wählt anderen Sender")
+        media.deactivate()
         print("SystemMediaHarness: Metadaten, globale Reihenfolge, Live-Stopp, Registrierungen, alte Befehle und Zustandsfreigabe OK")
     }
 }

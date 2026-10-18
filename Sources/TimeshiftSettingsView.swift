@@ -10,7 +10,7 @@ struct TimeshiftSettingsView: View {
                 get: { player.timeshiftRequested },
                 set: { if $0 { confirm = true } else { player.setTimeshiftRequested(false) } }))
                 .accessibilityIdentifier("timeshift-enable")
-            Text("Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Diese Einstellung puffert Audio; die Live-Wiedergabe läuft weiter.")
+            Text("Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition.")
                 .font(.caption).foregroundStyle(.secondary)
             Text(player.timeshiftStatus).font(.caption).foregroundStyle(.secondary)
                 .accessibilityIdentifier("timeshift-status")

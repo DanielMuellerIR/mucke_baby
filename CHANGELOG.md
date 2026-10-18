@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.28 — 2026-10-18
+
+- Add shared pause/resume, buffer-position, 15-second jumps and Live controls to the main and mini player, with a heard-title timeline and visible buffer limits.
+- Play the opt-in MP3 buffer through one continuous local VLC reader after at least three seconds of reserve. Keep normal file caching and decoder preroll; seek to complete MP3 frames after decoding silent preroll, with a native PCM gate for the pinned VLC clock correction.
+- Keep received titles, permanent recording and history independent of the listening position. Preserve system media controls during pause, reject stale output events and stop visibly when a paused position expires.
+
 ## 1.9.27 — 2026-10-18
 
 - Add an opt-in temporary MP3 buffer in Settings, fed by the existing ICY connection independently of permanent recording. Activation confirms automatic removal of old buffer segments.

@@ -32,7 +32,7 @@ def prepare(root):
     root.mkdir(parents=True, exist_ok=False)
     repo = Path(__file__).resolve().parents[1]
     framework = repo / ".vendor/VLCKit.xcframework/macos-arm64_x86_64"
-    common = ["TimeshiftBuffer", "TimeshiftSegments"]
+    common = ["MetadataTimeline", "TimeshiftBuffer", "TimeshiftSegments"]
     link = ["swiftc", "-parse-as-library", "-target", "arm64-apple-macos14.2", "-F", str(framework), "-framework", "VLCKit"]
     subprocess.run([*link, *[str(repo / "Sources" / (name + ".swift")) for name in common],
                     str(repo / "Tests/TimeshiftContinuousHarness.swift"), "-o", str(root / "decode")], check=True, timeout=120)
@@ -69,7 +69,7 @@ def track(root, process, name, expected):
 
 
 def cleanup(root):
-    for record in root.glob("*.owned.json"):
+    for record in root.rglob("*.owned.json"):
         item = json.loads(record.read_text())
         command = subprocess.run(["ps", "-p", str(item["pid"]), "-o", "command="], capture_output=True, text=True).stdout.strip()
         if command:
@@ -92,12 +92,17 @@ def cleanup(root):
 
 def decode(root):
     assert not (root / "native.txt").exists()
+    framework = root / "VLCKit.framework"
+    if not framework.exists():
+        framework = root.parent / "VLCKit.framework"
+    assert framework.exists(), "Lokales Testframework fehlt"
     with (root / "native.log").open("w") as log:
         process = subprocess.Popen([str(root / "decode"), str(root)], stdout=log, stderr=subprocess.STDOUT,
-                                   env=dict(os.environ, DYLD_FRAMEWORK_PATH=str(root)))
+                                   env=dict(os.environ, DYLD_FRAMEWORK_PATH=str(framework.parent)))
         track(root, process, "decoder", root / "decode")
         try:
-            assert process.wait(timeout=90) == 0
+            code = process.wait(timeout=90)
+            assert code == 0, f"Decoder-Prozess endet mit {code}: {root}"
         finally:
             if process.poll() is None:
                 process.kill(); process.wait()
@@ -107,7 +112,7 @@ def decode(root):
 
 def verify(root):
     results = []
-    for directory in [root, root / "vbr", root / "mpeg2"]:
+    for directory in [root, root / "vbr", root / "mpeg2", root / "seek"]:
         if not (directory / "source.mp3").exists():
             continue
         pcm = []
@@ -116,7 +121,20 @@ def verify(root):
                                      "-f", "f32le", "-"], capture_output=True, check=True, timeout=30)
             assert not result.stderr
             pcm.append(result.stdout)
-        assert pcm[0] == pcm[1] and len(pcm[0]) > 1_000_000, "PCM-Ausgaben unterscheiden sich"
+        reader = json.loads((directory / "reader.json").read_text()) if (directory / "reader.json").exists() else {"startFrame": 0, "samplesPerFrame": 0}
+        start = reader["startFrame"] * reader["samplesPerFrame"] * 4
+        control = pcm[1][start:]
+        if start:
+            # Der Decoder darf innerhalb des ausgewiesenen Vorlaufs anlaufen.
+            # Danach müssen Zeitbezug, alle Samples und Segmentgrenzen stimmen.
+            import array
+            a, b = array.array('f', pcm[0]), array.array('f', control)
+            skip = 0
+            assert len(a) == len(b), "Seek verändert Dauer/Zeitraster"
+            assert max(abs(x - y) for x, y in zip(a[skip:], b[skip:])) < 0.000001, "Seek-PCM nach Vorlauf verändert"
+            assert reader["reserve"] >= 3 and reader["decoderPreroll"] > 0
+        else:
+            assert pcm[0] == control and len(pcm[0]) > 1_000_000, "PCM-Ausgaben unterscheiden sich"
         entries = json.loads((directory / "segments.json").read_text())
         joined = b""
         for entry in entries:
@@ -129,7 +147,8 @@ def verify(root):
             assert checked.returncode == 0 and not checked.stderr, (file, checked.stderr)
         assert joined == (directory / "source.mp3").read_bytes()
         results.append({"case": directory.name, "samples": len(pcm[0]) // 4, "segments": len(entries),
-                        "pcmEqual": True, "compressedEqual": True, "independentSegmentDecode": True})
+                        "pcmEqual": pcm[0] == control, "pcmWithinTolerance": True, "offsetSamples": start // 4,
+                        "compressedEqual": True, "independentSegmentDecode": True})
     (root / "independent-check.json").write_text(json.dumps(results, indent=2))
     print(json.dumps(results, indent=2))
 
