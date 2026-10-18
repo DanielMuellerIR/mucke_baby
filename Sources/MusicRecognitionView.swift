@@ -35,7 +35,6 @@ struct MusicRecognitionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     status
-                        .accessibilityIdentifier("recognition-status")
                     if !recognition.phase.isBusy, let reason = unavailable {
                         Text(reason.localizedDescription).font(theme.font(.body, size: 13 * scale))
                             .accessibilityIdentifier("recognition-unavailable")
@@ -72,6 +71,7 @@ struct MusicRecognitionView: View {
         case .idle:
             Text("Erkenne die Musik des laufenden Senders.")
                 .font(theme.font(.body, size: 14 * scale))
+                .accessibilityIdentifier("recognition-status")
         case .listening:
             progress(String(localized: "Höre den laufenden Sender …"))
         case .matching:
@@ -79,6 +79,7 @@ struct MusicRecognitionView: View {
         case .matched(let track):
             VStack(alignment: .leading, spacing: 8) {
                 Text("Erkannt").font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
+                    .accessibilityIdentifier("recognition-status")
                 Text(track.title).font(theme.font(.title, size: 20 * scale, weight: .semibold))
                     .textSelection(.enabled).accessibilityIdentifier("recognition-title")
                 if !track.artist.isEmpty {
@@ -93,11 +94,14 @@ struct MusicRecognitionView: View {
         case .noMatch:
             Text("Kein passender Titel gefunden. Versuche einen anderen Ausschnitt.")
                 .font(theme.font(.body, size: 14 * scale))
+                .accessibilityIdentifier("recognition-status")
         case .cancelled:
             Text("Erkennung abgebrochen.").font(theme.font(.body, size: 14 * scale))
+                .accessibilityIdentifier("recognition-status")
         case .failed(let reason):
             Text(reason.localizedDescription).font(theme.font(.body, size: 14 * scale))
                 .textSelection(.enabled)
+                .accessibilityIdentifier("recognition-status")
         }
     }
 
@@ -105,6 +109,7 @@ struct MusicRecognitionView: View {
         HStack(alignment: .top, spacing: 12) {
             ProgressView().controlSize(.small)
             Text(message).font(theme.font(.body, size: 14 * scale))
+                .accessibilityIdentifier("recognition-status")
         }
     }
 }
