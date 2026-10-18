@@ -21,6 +21,7 @@ private struct SleepTimerControl: View {
                 Image(systemName: timer.remaining == nil ? "moon.zzz" : "moon.zzz.fill")
                 if let remaining = timer.remaining {
                     Text(timerTime(remaining)).monospacedDigit()
+                        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
                         .accessibilityIdentifier(identifier + "-remaining")
                 }
             }
@@ -52,7 +53,9 @@ private struct SleepTimerPanel: View {
             HStack {
                 Text("Einschlaftimer").font(theme.font(.title, size: 18 * scale, weight: .semibold))
                 Spacer()
-                Button(action: close) { Image(systemName: "xmark") }.buttonStyle(.plain)
+                Button(action: close) {
+                    Image(systemName: "xmark").frame(width: 28, height: 28).contentShape(Rectangle())
+                }.buttonStyle(.plain)
                     .help("Schließen").accessibilityLabel("Schließen").accessibilityIdentifier("sleep-timer-close")
             }
             Text("Blendet die Wiedergabe am Ende sanft aus und stoppt sie. Deine persönliche Lautstärke bleibt erhalten.")
