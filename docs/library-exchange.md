@@ -37,6 +37,8 @@ Using an imported record retains the matched local ID. Keeping both assigns a fr
 
 No existing record is deleted by import. Local quick slots remain attached to local station IDs. Changing a saved station URL does not replace a running stream; the next manual start uses the saved address.
 
+An existing local legacy list keeps the IDs already assigned in memory throughout preview and confirmation. Confirmation makes those IDs persistent. A local entry that cannot be represented by the portable format blocks exchange with a visible message; the original data remains unchanged and normal local editing is still available.
+
 ## Saving and recovery
 
 Preview and cancellation do not write the library. A stale in-memory or on-disk snapshot prevents applying the preview. A failure before the local transaction is committed preserves both existing files and their visible contents.

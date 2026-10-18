@@ -8,7 +8,7 @@ struct ExchangeLibrary: Equatable {
 }
 
 enum ExchangeFormatError: LocalizedError {
-    case unsupportedVersion, invalidData, limitExceeded, invalidURL, duplicateID, missingReference
+    case unsupportedVersion, invalidData, limitExceeded, invalidURL, duplicateID, missingReference, invalidLocalData
     var errorDescription: String? {
         switch self {
         case .unsupportedVersion: String(localized: "Diese Austauschdatei verwendet ein unbekanntes Format oder eine neuere Version.")
@@ -17,6 +17,7 @@ enum ExchangeFormatError: LocalizedError {
         case .invalidURL: String(localized: "Die Austauschdatei enthält eine unsichere oder ungültige Stream-URL.")
         case .duplicateID: String(localized: "Die Austauschdatei enthält doppelte IDs. Es wurde nichts übernommen.")
         case .missingReference: String(localized: "Eine importierte Gruppe verweist auf einen fehlenden oder mehrfach zugeordneten Sender.")
+        case .invalidLocalData: String(localized: "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen.")
         }
     }
 }

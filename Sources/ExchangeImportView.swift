@@ -123,7 +123,7 @@ struct ExchangeImportView: View {
                             .tag(ExchangeMergePlan.Choice.useIncoming)
                         if row.state == .conflict { Text("Beide behalten").tag(ExchangeMergePlan.Choice.keepBoth) }
                     }.labelsHidden().frame(width: 190)
-                        .accessibilityLabel(row.title + ": " + String(localized: "Entscheidung"))
+                        .accessibilityLabel(row.title)
                         .accessibilityIdentifier("exchange-choice-" + row.id.kind.rawValue + "-" + row.id.id.uuidString)
                         .disabled(saved)
                 }

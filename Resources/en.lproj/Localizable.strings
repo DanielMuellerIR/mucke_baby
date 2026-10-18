@@ -488,3 +488,5 @@
 "Sender: %@" = "Station: %@";
 "Gehört: %@" = "Heard: %@";
 "Gemerkt: %@" = "Bookmarked: %@";
+
+"Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen." = "The local library contains entries that do not fit the exchange format. It is preserved. Check names, station URLs and group references.";

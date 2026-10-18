@@ -8,6 +8,7 @@ enum StationSaveError: Error {
     case invalidGroupName
     case stationChanged
 }
+private enum StationLoadVersionError: Error { case unsupported }
 
 // Haelt die Senderliste und kuemmert sich um Laden/Speichern.
 // Speicherort: ~/Library/Application Support/MuckeBaby/stations.json
@@ -28,6 +29,7 @@ final class Store: ObservableObject {
     let stationsURL: URL
     private let seedURL: URL?
     private var canPersist = false
+    private(set) var diskData: Data?
     var isReadOnly: Bool { !canPersist }
 
     init(directory: URL? = nil,
@@ -54,6 +56,7 @@ final class Store: ObservableObject {
 
     func loadStations() {
         canPersist = false
+        diskData = nil
         loadNotice = nil
         let collection: StationCollection?
         struct Header: Decodable { let formatVersion: Int }
@@ -61,16 +64,19 @@ final class Store: ObservableObject {
             if let recovery = try LibraryExchangeStorage.recover(in: dir) {
                 guard let data = recovery.values["stations.json"] else { throw ExchangeDiskError.invalidJournal }
                 let imported = try JSONDecoder().decode(StationCollection.self, from: data)
-                adoptImport(imported, pending: recovery.pending, notice: recovery.notice)
+                adoptImport(imported, data: data, pending: recovery.pending, notice: recovery.notice)
                 return
             }
-            if let data = try? Data(contentsOf: stationsURL),
-               let header = try? JSONDecoder().decode(Header.self, from: data), header.formatVersion != 2 {
-                loadNotice = String(localized: "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden.")
-                persistenceFailed = true
-                return
+            let loaded = try JSONFileRecovery.loadSnapshot(StationCollection.self, from: stationsURL) { data in
+                if let header = try? JSONDecoder().decode(Header.self, from: data), header.formatVersion != 2 {
+                    throw StationLoadVersionError.unsupported
+                }
             }
-            collection = try JSONFileRecovery.load(StationCollection.self, from: stationsURL)
+            collection = loaded?.value; diskData = loaded?.data
+        }
+        catch StationLoadVersionError.unsupported {
+            loadNotice = String(localized: "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden.")
+            persistenceFailed = true; return
         }
         catch { loadNotice = error.localizedDescription; persistenceFailed = true; return }
         canPersist = true
@@ -89,7 +95,9 @@ final class Store: ObservableObject {
             guard try ExchangeTransaction.read(dir.appendingPathComponent(ExchangeTransaction.journalName)) == nil else {
                 throw ExchangeDiskError.pending
             }
-            try enc.encode(next).write(to: stationsURL, options: .atomic)
+            let data = try enc.encode(next)
+            try data.write(to: stationsURL, options: .atomic)
+            diskData = data
         } catch {
             throw StationSaveError.persistenceFailed
         }
@@ -98,8 +106,9 @@ final class Store: ObservableObject {
         quickSlots = next.quickSlots
     }
 
-    func adoptImport(_ collection: StationCollection, pending: Bool, notice: String?) {
+    func adoptImport(_ collection: StationCollection, data: Data, pending: Bool, notice: String?) {
         stations = collection.stations; groups = collection.groups; quickSlots = collection.quickSlots
+        diskData = data
         canPersist = !pending; persistenceFailed = pending; loadNotice = notice
     }
 

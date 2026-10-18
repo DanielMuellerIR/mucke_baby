@@ -29,6 +29,7 @@ struct BookmarkDocument: Codable {
         }
     }
 }
+private enum BookmarkLoadVersionError: Error { case unsupported }
 
 struct BookmarkIdentity: Hashable {
     let artist: String
@@ -55,6 +56,7 @@ final class BookmarkStore: ObservableObject {
     @Published private(set) var entries: [SongBookmark] = []
     @Published private(set) var notice: String?
     private(set) var isReadOnly = false
+    private(set) var diskData: Data?
     let fileURL: URL
 
     private struct Header: Decodable { let formatVersion: Int }
@@ -80,26 +82,24 @@ final class BookmarkStore: ObservableObject {
             if let recovery = try LibraryExchangeStorage.recover(in: directory) {
                 guard let data = recovery.values["bookmarks.json"] else { throw ExchangeDiskError.invalidJournal }
                 let imported = try ExchangeCodec.dateDecoder().decode(BookmarkDocument.self, from: data)
-                adoptImport(imported.entries, pending: recovery.pending, notice: recovery.notice)
+                adoptImport(imported.entries, data: data, pending: recovery.pending, notice: recovery.notice)
                 return
             }
             let existed = FileManager.default.fileExists(atPath: fileURL.path)
-            if let header = try JSONFileRecovery.load(Header.self, from: fileURL) {
-                // Neuere Versionen sind keine beschädigten Dateien. Unverändert
-                // liegen lassen, damit eine passende App sie später lesen kann.
-                guard header.formatVersion == 1 else {
-                    isReadOnly = true
-                    notice = String(localized: "Diese Merkliste verwendet eine unbekannte Dateiversion. Die Datei bleibt unverändert.")
-                    return
+            if let loaded = try JSONFileRecovery.loadSnapshot(BookmarkDocument.self, from: fileURL,
+                                                              decoder: ExchangeCodec.dateDecoder(), validate: { data in
+                if let header = try? JSONDecoder().decode(Header.self, from: data), header.formatVersion != 1 {
+                    throw BookmarkLoadVersionError.unsupported
                 }
-                if let document = try JSONFileRecovery.load(BookmarkDocument.self, from: fileURL, decoder: ExchangeCodec.dateDecoder()) {
-                    guard document.formatVersion == 1 else { throw StoreError.readOnly }
-                    entries = document.entries
-                }
+            }) {
+                entries = loaded.value.entries; diskData = loaded.data
             }
             if existed, !FileManager.default.fileExists(atPath: fileURL.path) {
                 notice = String(localized: "Die beschädigte Merkliste wurde separat gesichert. Eine neue Liste kann angelegt werden.")
             }
+        } catch BookmarkLoadVersionError.unsupported {
+            isReadOnly = true
+            notice = String(localized: "Diese Merkliste verwendet eine unbekannte Dateiversion. Die Datei bleibt unverändert.")
         } catch {
             isReadOnly = true
             notice = String(localized: "Die Merkliste konnte nicht geladen werden. Die Datei bleibt geschützt.")
@@ -143,12 +143,13 @@ final class BookmarkStore: ObservableObject {
         let data = try ExchangeCodec.dateEncoder().encode(BookmarkDocument(entries: value))
         let stored = try ExchangeCodec.dateDecoder().decode(BookmarkDocument.self, from: data)
         try data.write(to: fileURL, options: .atomic)
+        diskData = data
         // Erst nach erfolgreichem Schreiben darf das Herz Erfolg anzeigen.
         entries = stored.entries
     }
 
-    func adoptImport(_ value: [SongBookmark], pending: Bool, notice: String?) {
-        entries = value; isReadOnly = pending; self.notice = notice
+    func adoptImport(_ value: [SongBookmark], data: Data, pending: Bool, notice: String?) {
+        entries = value; diskData = data; isReadOnly = pending; self.notice = notice
     }
 
     enum ExportFormat { case text, csv }

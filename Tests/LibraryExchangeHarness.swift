@@ -73,6 +73,28 @@ enum LibraryExchangeHarness {
             try check(Data(contentsOf: restoredStore.stationsURL) == externalData, "Externe Änderung zerstört")
             expectFailure("Schon vor Vorschau geänderte Datei als aktuell übernommen") { _ = try LibraryExchange.prepare(bytes, store: restoredStore, bookmarks: restoredBookmarks) }
         }
+        let legacyDirectory = root.appendingPathComponent("legacy-no-ids")
+        try fm.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        let legacyFile = legacyDirectory.appendingPathComponent("stations.json")
+        let legacyBytes = Data("[{\"name\":\"Existing legacy name\",\"url\":\"https://radio.example.org/legacy\",\"favorite\":true}]".utf8)
+        try legacyBytes.write(to: legacyFile)
+        let legacyStore = Store(directory: legacyDirectory, seedURL: seed), legacyBookmarks = BookmarkStore(directory: legacyDirectory)
+        let localID = legacyStore.stations[0].id
+        let addition = try ExchangeCodec.encode(ExchangeLibrary(stations: [Station(name: "New", url: "https://radio.example.org/addition")], groups: [], bookmarks: []))
+        let legacyPreview = try LibraryExchange.prepare(addition, store: legacyStore, bookmarks: legacyBookmarks)
+        try check(Data(contentsOf: legacyFile) == legacyBytes, "Legacy-Vorschau schreibt IDs vor Bestätigung")
+        try LibraryExchange.apply(legacyPreview, choices: [:], store: legacyStore, bookmarks: legacyBookmarks)
+        check(legacyStore.stations[0].id == localID && legacyStore.stations[0].name == "Existing legacy name" && legacyStore.stations[0].favorite,
+              "Legacy-Import ersetzt vorhandene lokale Identität oder Favoriten")
+        check(Store(directory: legacyDirectory, seedURL: seed).stations == legacyStore.stations, "Bestätigte Legacy-IDs nicht dauerhaft stabil")
+        let unsafeDirectory = root.appendingPathComponent("unsafe-local")
+        try fm.createDirectory(at: unsafeDirectory, withIntermediateDirectories: true)
+        let unsafeFile = unsafeDirectory.appendingPathComponent("stations.json"), unsafeData = Data("[{\"name\":\"Old local entry\",\"url\":\"file:///old/audio.mp3\"}]".utf8)
+        try unsafeData.write(to: unsafeFile)
+        let unsafeStore = Store(directory: unsafeDirectory, seedURL: seed), unsafeBookmarks = BookmarkStore(directory: unsafeDirectory)
+        do { _ = try LibraryExchange.prepare(addition, store: unsafeStore, bookmarks: unsafeBookmarks); fatalError("Nicht portable Alteinträge still verändert") }
+        catch ExchangeFormatError.invalidLocalData {}
+        try check(Data(contentsOf: unsafeFile) == unsafeData, "Nicht portable Alteinträge werden beim Austausch umgeschrieben")
         let damaged = root.appendingPathComponent("damaged"); try fm.createDirectory(at: damaged, withIntermediateDirectories: true)
         let journal = damaged.appendingPathComponent(ExchangeTransaction.journalName), sentinel = Data("broken journal".utf8)
         try sentinel.write(to: journal)

@@ -19,7 +19,9 @@ struct ExchangeMergePlan {
     private let duplicateIDs: [Key: UUID]
 
     init(local: ExchangeLibrary, incoming: ExchangeLibrary) throws {
-        try ExchangeCodec.validate(local); try ExchangeCodec.validate(incoming)
+        do { try ExchangeCodec.validate(local) }
+        catch { throw ExchangeFormatError.invalidLocalData }
+        try ExchangeCodec.validate(incoming)
         self.local = local; self.incoming = incoming
         var rows: [Row] = []
         var stationMap: [UUID: UUID] = [:]

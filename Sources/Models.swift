@@ -69,14 +69,21 @@ enum JSONFileRecovery {
     // jeder Neubefüllung gesichert sein; Lese-/Sicherungsfehler sperren Schreiben.
     static func load<Value: Decodable>(_ type: Value.Type, from url: URL,
                                        decoder: JSONDecoder = JSONDecoder()) throws -> Value? {
+        try loadSnapshot(type, from: url, decoder: decoder)?.value
+    }
+
+    static func loadSnapshot<Value: Decodable>(_ type: Value.Type, from url: URL,
+                                               decoder: JSONDecoder = JSONDecoder(),
+                                               validate: (Data) throws -> Void = { _ in }) throws -> (value: Value, data: Data)? {
         let data: Data
         do {
             data = try Data(contentsOf: url)
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
             return nil
         }
+        try validate(data)
         do {
-            return try decoder.decode(type, from: data)
+            return (try decoder.decode(type, from: data), data)
         } catch {
             let date = ISO8601DateFormatter().string(from: Date()).prefix(10)
             let backup = url.appendingPathExtension("broken-\(date)-\(UUID().uuidString)")

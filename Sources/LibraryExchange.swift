@@ -19,11 +19,7 @@ enum LibraryExchange {
         let plan = try ExchangeMergePlan(local: snapshot(store: store, bookmarks: bookmarks), incoming: incoming)
         let stationBytes = try ExchangeTransaction.read(store.stationsURL)
         let bookmarkBytes = try ExchangeTransaction.read(bookmarks.fileURL)
-        guard let stationBytes else { throw ExchangeDiskError.changed }
-        let collection = try JSONDecoder().decode(StationCollection.self, from: stationBytes)
-        let entries = try bookmarkBytes.map { try ExchangeCodec.dateDecoder().decode(BookmarkDocument.self, from: $0).entries } ?? []
-        guard collection.stations == store.stations, collection.groups == store.groups,
-              collection.quickSlots == store.quickSlots, entries == bookmarks.entries else { throw ExchangeDiskError.changed }
+        guard stationBytes == store.diskData, bookmarkBytes == bookmarks.diskData else { throw ExchangeDiskError.changed }
         return ExchangeImportRequest(plan: plan, quickSlots: store.quickSlots, stationBytes: stationBytes, bookmarkBytes: bookmarkBytes)
     }
     @discardableResult
@@ -45,8 +41,8 @@ enum LibraryExchange {
             .init(name: "stations.json", before: request.stationBytes, after: stationData),
             .init(name: "bookmarks.json", before: request.bookmarkBytes, after: bookmarkData)
         ], in: store.dir, validate: LibraryExchangeStorage.validate, phase: phase)
-        store.adoptImport(collection, pending: result.pending, notice: result.notice)
-        bookmarks.adoptImport(storedBookmarks.entries, pending: result.pending, notice: result.notice)
+        store.adoptImport(collection, data: stationData, pending: result.pending, notice: result.notice)
+        bookmarks.adoptImport(storedBookmarks.entries, data: bookmarkData, pending: result.pending, notice: result.notice)
         return result.notice
     }
     private static func writable(store: Store, bookmarks: BookmarkStore) throws {

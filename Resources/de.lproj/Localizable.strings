@@ -488,3 +488,5 @@
 "Sender: %@" = "Sender: %@";
 "Gehört: %@" = "Gehört: %@";
 "Gemerkt: %@" = "Gemerkt: %@";
+
+"Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen." = "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen.";
