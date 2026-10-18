@@ -14,6 +14,6 @@ preview = browser[browser.index('@MainActor\nfinal class PreviewPlayer'):browser
 fixture = (root / 'Tests/PlayerFixture.swift').read_text()
 source = build / 'PlayerFixtureCombined.swift'
 source.write_text(fixture + '\n' + radio + '\n' + preview)
-subprocess.run(['swiftc', '-parse-as-library', str(root / 'Sources/SongRecognition.swift'), str(root / 'Sources/RecognitionModels.swift'), str(root / 'Sources/AudioSettings.swift'), str(root / 'Sources/SleepTimer.swift'), str(root / 'Sources/SleepTimerController.swift'), str(root / 'Sources/Safety.swift'), str(root / 'Sources/PlaybackReconnect.swift'), str(root / 'Sources/RecordingState.swift'), str(root / 'Tests/ReconnectClock.swift'), str(source),
+subprocess.run(['swiftc', '-parse-as-library', *[str(root / 'Sources' / (name + '.swift')) for name in ['TimeshiftBuffer', 'TimeshiftSegments', 'TimeshiftCapture']], str(root / 'Sources/SongRecognition.swift'), str(root / 'Sources/RecognitionModels.swift'), str(root / 'Sources/AudioSettings.swift'), str(root / 'Sources/SleepTimer.swift'), str(root / 'Sources/SleepTimerController.swift'), str(root / 'Sources/Safety.swift'), str(root / 'Sources/PlaybackReconnect.swift'), str(root / 'Sources/RecordingState.swift'), str(root / 'Tests/ReconnectClock.swift'), str(source),
                 '-o', str(build / 'player-harness')], check=True)
 subprocess.run([str(build / 'player-harness')], check=True)

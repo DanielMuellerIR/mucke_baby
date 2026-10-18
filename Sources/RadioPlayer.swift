@@ -54,9 +54,23 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var audioNotice: String?
 
     let sleepTimer: SleepTimerController
-    let history = SongHistory()
+    let history: SongHistory
     let recorder: Recorder
     @Published private(set) var recordingRequested: Bool
+    @Published private(set) var timeshiftRequested = false
+    @Published private(set) var timeshiftStatus = String(localized: "Zeitversatz ist aus.")
+    private let timeshiftRoot: URL
+    private lazy var timeshift = TimeshiftCapture(makeBuffer: { [timeshiftRoot] in try TimeshiftSegments(root: timeshiftRoot) }, onState: { [weak self] state in
+        DispatchQueue.main.async {
+            guard let self else { return }
+            switch state {
+            case .off: self.timeshiftStatus = String(localized: "Zeitversatz ist aus.")
+            case .waiting: self.timeshiftStatus = String(localized: "Zeitversatz wartet auf einen MP3-Stream.")
+            case .buffering: self.timeshiftStatus = String(localized: "Temporärer MP3-Puffer aktiv.")
+            case .failed(let message): self.timeshiftStatus = message
+            }
+        }
+    })
     private let preferences: UserDefaults
     @Published private(set) var recordingState = RecordingState()
     private var recordingRevision: UInt64 = 0
@@ -91,7 +105,8 @@ final class RadioPlayer: ObservableObject {
         return RecognitionContext(generation: requests.current, stationID: station.id, title: nowPlayingTitle)
     }
 
-    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil, sleepTimer: SleepTimerController? = nil) {
+    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil, sleepTimer: SleepTimerController? = nil, history: SongHistory? = nil, timeshiftRoot: URL = TimeshiftSegments.defaultRoot) {
+        self.history = history ?? SongHistory(); self.timeshiftRoot = timeshiftRoot
         self.sleepTimer = sleepTimer ?? SleepTimerController()
         self.preferences = preferences
         self.recordingRequested = preferences.object(forKey: "recordStreams") as? Bool ?? false
@@ -146,6 +161,12 @@ final class RadioPlayer: ObservableObject {
         sleepTimer.refresh()
         guard let station = desiredStation, station.id == id else { return }
         play(station)
+    }
+
+    func setTimeshiftRequested(_ enabled: Bool) {
+        guard enabled != timeshiftRequested else { return }
+        timeshiftRequested = enabled
+        timeshift.setEnabled(enabled)
     }
 
     func setRecordingRequested(_ enabled: Bool) {
@@ -329,17 +350,26 @@ final class RadioPlayer: ObservableObject {
         // Die vorhandene ICY-Verbindung bleibt auch ohne Metadaten erhalten.
         // MP3/AAC schalten nur die Dateisenke; Containerheader erneuern bei Bedarf diesen Reader.
         let recorder = self.recorder
+        let timeshift = self.timeshift
         let stationName = currentStation?.name ?? "Sender"
         // Auch bei gleichbleibendem VLC gehört jede ICY-Verbindung zu einer eigenen Aufnahme-Session.
         recordingSessionID = UUID()
         let streamID = recordingSessionID
+        timeshift.begin(streamID)
         recorder.configureCapture(station: stationName, streamID: streamID,
                                   enabled: recordingRequested, revision: recordingRevision, preserveFailure: retry)
         icy.start(url: url, allowAudioOnly: true,
-                  onStart: { contentType, _ in recorder.captureFormat(contentType, streamID: streamID) },
-                  onBoundary: { title, boundary in recorder.songBoundary(title: title, at: boundary) },
+                  onStart: { contentType, _ in
+                      recorder.captureFormat(contentType, streamID: streamID)
+                      timeshift.accept(contentType, session: streamID)
+                  },
+                  onBoundary: { title, boundary in
+                      recorder.songBoundary(title: title, at: boundary)
+                      timeshift.noteTitle(title, session: streamID)
+                  },
                   onAudioAt: { [weak self] data, date, uptime in
                       recorder.captureAudio(data, at: date, receivedUptime: uptime, streamID: streamID)
+                      timeshift.append(data, session: streamID)
                       DispatchQueue.main.async { self?.metadataActivity(ticket: ticket, uptime: uptime) }
                   },
                   onCompletion: { [weak self] date in
@@ -348,12 +378,15 @@ final class RadioPlayer: ObservableObject {
                           self.metadataEnded(at: date)
                       }
                       recorder.finishCapture(streamID: streamID, at: date)
+                      timeshift.end(streamID)
                   })
     }
 
     private func stopMetadata() -> Date? {
         metadataGeneration &+= 1; metadataReconnect.cancel(); metadataStatus = nil
-        return icy.stop()
+        let ended = icy.stop()
+        timeshift.end()
+        return ended
     }
 
     private func metadataActivity(ticket: UInt64, uptime: TimeInterval) {
@@ -368,6 +401,7 @@ final class RadioPlayer: ObservableObject {
         guard desiredStation != nil, currentStreamURL != nil, metadataReconnect.desiredStationID != nil else { return }
         metadataGeneration &+= 1
         let endedAt = icy.stop() ?? date
+        timeshift.end()
         recorder.finishCapture(streamID: recordingSessionID, at: endedAt)
         history.closeCurrent(at: endedAt); nowPlayingTitle = ""
         metadataReconnect.failed()

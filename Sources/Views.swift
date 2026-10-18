@@ -199,6 +199,7 @@ struct PreferencesView: View {
                         NSWorkspace.shared.activateFileViewerSelecting([recordingsDir])
                     }
                 }
+                TimeshiftSettingsView()
                 Section("Bibliothek austauschen (JSON)") {
                     HStack {
                         Button("Exportieren …") { exportStations() }.accessibilityIdentifier("exchange-export")

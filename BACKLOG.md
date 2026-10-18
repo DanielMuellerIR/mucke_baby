@@ -43,13 +43,14 @@
     geprüft, derselbe Testschritt lokal bestanden. Ausführung auf GitHub bleibt
     bis zur separaten Veröffentlichung ungeprüft.
 
-13. Experimenteller MP3-Zeitversatz ist ausschließlich im isolierten Testbundle
-    erreichbar. Vor allgemeiner Freigabe bleiben fortlaufender Segmentleser,
-    Decoder-Vorlauf/Seek, Crash-Cleanup, gemeinsame Recorder-Anbindung und die
-    reale Hör-/Mindest-macOS-Abnahme der Produktionsfunktion erforderlich. Der
-    endliche MP3-Versuch wurde unter macOS 26.7.1 ohne Aussetzer gehört; sein
-    EOF-Schutz ersetzt keine nahtlosen Segmentübergänge. AAC benötigt ADTS-Framegrenzen;
-    Ogg/Vorbis und Ogg/Opus benötigen eine eigene Containerstrategie.
+13. Seit v1.9.27 ist ein bewusst aktivierbarer, begrenzter temporärer MP3-Puffer
+    in den Einstellungen erreichbar. Er verwendet den vorhandenen ICY-Empfang,
+    schützt aktive Leser und räumt verwaiste Sitzungen auf. Die Bedienung für
+    verzögerte Wiedergabe, präzises Suchen und gehörte Titel bleibt offen.
+    Der durchgehende lokale VLC-Leser benötigt Startreserve und Decoder-Vorlauf;
+    reale Hör-/Mindest-macOS-Abnahme der Produktionsfunktion bleibt erforderlich.
+    AAC benötigt ADTS-Framegrenzen; Ogg/Vorbis und Ogg/Opus benötigen eine eigene
+    Containerstrategie und bleiben für den Puffer gesperrt.
 
 Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
 Theme-Entwürfe sind kein Backlog.

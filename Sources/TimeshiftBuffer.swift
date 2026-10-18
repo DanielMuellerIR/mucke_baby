@@ -225,9 +225,10 @@ final class TimeshiftBuffer {
     }
 }
 
-private struct MP3FrameHeader {
+struct MP3FrameHeader {
     let bytes: Int
     let duration: TimeInterval
+    let format: Int
 
     init?(_ header: [UInt8]) {
         guard header.count == 4, header[0] == 0xff, header[1] & 0xe0 == 0xe0,
@@ -243,5 +244,6 @@ private struct MP3FrameHeader {
         let bitrate = (version == 3 ? mpeg1 : mpeg2)[bitrateIndex] * 1000
         bytes = (version == 3 ? 144 : 72) * bitrate / rate + Int((header[2] >> 1) & 1)
         duration = Double(version == 3 ? 1152 : 576) / Double(rate)
+        format = rate * 10 + version * 2 + (header[3] >> 6 == 3 ? 1 : 0)
     }
 }

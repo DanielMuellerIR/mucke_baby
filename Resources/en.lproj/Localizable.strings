@@ -609,3 +609,19 @@
 "Starte zuerst einen Sender." = "Start a station first.";
 "Minuten" = "Minutes";
 "1 bis 1440 Minuten" = "1 to 1440 minutes";
+
+/* Temporärer Audiopuffer */
+"Aktivieren und alte Puffersegmente entfernen" = "Enable and remove old buffer segments";
+"Der temporäre MP3-Puffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht." = "The temporary MP3 buffer automatically removes its oldest segments within the stated limits. Disabling it, changing stations and quitting discard the buffer. Existing recordings and history are kept.";
+"Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Diese Einstellung puffert Audio; die Live-Wiedergabe läuft weiter." = "OFF by default. MP3 only; up to 5 minutes and 32 MiB of audio plus a bounded index. Old buffer segments are removed automatically. Stops below 10 GiB of free space. Disabling it, changing stations and quitting discard the buffer. Permanent recordings and history are kept. This setting buffers audio while live playback continues.";
+"Temporären Audiopuffer aktivieren" = "Enable temporary audio buffer";
+"Temporärer MP3-Puffer aktiv." = "Temporary MP3 buffer active.";
+"Zeitversatz aktivieren?" = "Enable timeshift?";
+"Zeitversatz gestoppt: Audio oder Pufferspeicher nicht verfügbar." = "Timeshift stopped: audio or buffer storage unavailable.";
+"Zeitversatz gestoppt: Der Leser hat die Puffergrenze erreicht." = "Timeshift stopped: the reader has reached the buffer limit.";
+"Zeitversatz gestoppt: weniger als 10 GiB frei." = "Timeshift stopped: less than 10 GiB free.";
+"Zeitversatz ist aus." = "Timeshift is off.";
+"Zeitversatz wartet auf einen MP3-Stream." = "Timeshift is waiting for an MP3 stream.";
+"Zeitversatz-Puffer" = "Timeshift buffer";
+"Zeitversatz: Der Puffer unterstützt derzeit nur MP3." = "Timeshift: the buffer currently supports MP3 only.";
+"Zeitversatz wartet auf das Schließen des vorherigen Lesers." = "Timeshift is waiting for the previous reader to close.";

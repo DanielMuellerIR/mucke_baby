@@ -79,6 +79,10 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -o "$BUILD/timeshift-harness"
 "$BUILD/timeshift-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/TimeshiftBuffer.swift Sources/TimeshiftSegments.swift Sources/TimeshiftCapture.swift Tests/TimeshiftSegmentsHarness.swift \
+  -o "$BUILD/timeshift-segments-harness"
+"$BUILD/timeshift-segments-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
   Sources/ExportRange.swift Sources/ExportMetadata.swift Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift \
   Sources/Models.swift Sources/SongRecognition.swift Sources/SongHistory.swift Tests/ExportHarness.swift \

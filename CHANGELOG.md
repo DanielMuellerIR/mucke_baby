@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.27 — 2026-10-18
+
+- Add an opt-in temporary MP3 buffer in Settings, fed by the existing ICY connection independently of permanent recording. Activation confirms automatic removal of old buffer segments.
+- Bound compressed segments to five minutes and 32 MiB, with a bounded index and a 10 GiB free-space gate. Protect active readers, stop at reader overrun and discard the buffer on disabling, station changes and quit. Clean up abandoned sessions on launch.
+- Add a continuous local VLC input stream with decoder preroll and a minimum start reserve. Delayed playback controls and the heard-title timeline remain pending; AAC and Ogg/Opus buffering remain unavailable.
+
 ## 1.9.26 — 2026-10-18
 
 - Add an isolated experimental MP3 timeshift path with bounded compressed audio, a protected local playback excerpt, pause/resume, an ICY title timeline and return to live playback. The normal player does not enable the experiment.
