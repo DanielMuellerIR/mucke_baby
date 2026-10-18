@@ -5,29 +5,35 @@ final class PlayerWindowState: ObservableObject {
     @Published private(set) var isVisible = false
     @Published private(set) var isFullScreen = false
     private weak var window: NSWindow?
-    private weak var closedWindow: NSWindow?
     private var observers: [NSObjectProtocol] = []
     private var wantsFullScreen = false
     private var returnAction: (() -> Void)?
 
     func attach(_ window: NSWindow?) {
-        guard let window, window !== closedWindow else { return }
-        guard self.window !== window else { refresh(); return }
+        guard let window else { return }
+        guard self.window !== window else {
+            refresh()
+            if wantsFullScreen && window.isVisible { enterFullScreen() }
+            return
+        }
         detach(); self.window = window
         let center = NotificationCenter.default
         for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification,
-                     NSWindow.didDeminiaturizeNotification, NSWindow.didEnterFullScreenNotification,
+                     NSWindow.didDeminiaturizeNotification, NSWindow.didBecomeKeyNotification, NSWindow.didEnterFullScreenNotification,
                      NSWindow.didExitFullScreenNotification, NSWindow.willCloseNotification] {
             observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] note in
                 guard let self else { return }
                 if note.name == NSWindow.willCloseNotification {
+                    // SwiftUI kann dasselbe NSWindow erneut öffnen; dessen Beobachter bleiben erhalten.
                     VisualizerRenderTrace.window(self.window, visible: false, fullScreen: false)
-                    self.closedWindow = self.window; self.detach()
+                    self.isVisible = false; self.isFullScreen = false
+                    self.returnAction = nil; self.wantsFullScreen = false
                 } else {
                     self.refresh()
                     if note.name == NSWindow.didExitFullScreenNotification, let action = self.returnAction {
                         self.returnAction = nil; self.window?.close(); action()
                     }
+                    if self.wantsFullScreen && self.window?.isVisible == true { self.enterFullScreen() }
                 }
             })
         }
@@ -40,9 +46,10 @@ final class PlayerWindowState: ObservableObject {
 
     func showFullScreen(open: OpenWindowAction) {
         wantsFullScreen = true
-        if let window {
+        open(id: "visualizer")
+        if let window, window.isVisible || window.isMiniaturized {
             window.deminiaturize(nil); window.makeKeyAndOrderFront(nil); enterFullScreen()
-        } else { open(id: "visualizer") }
+        }
     }
 
     func toggleFullScreen() { window?.toggleFullScreen(nil) }
@@ -59,6 +66,7 @@ final class PlayerWindowState: ObservableObject {
     }
 
     private func enterFullScreen() {
+        guard wantsFullScreen else { return }
         wantsFullScreen = false
         if window?.styleMask.contains(.fullScreen) == false { window?.toggleFullScreen(nil) }
     }
@@ -174,6 +182,7 @@ struct VisualizerOpenButton: View {
 struct VisualizerWindowView: View {
     @EnvironmentObject private var player: RadioPlayer
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var startup: StartupSettings
     @EnvironmentObject private var recognition: MusicRecognitionService
     @EnvironmentObject private var presentation: PlayerWindowState
     @Environment(\.theme) private var theme
@@ -211,6 +220,7 @@ struct VisualizerWindowView: View {
         .frame(minWidth: 440, minHeight: controlsVisible ? max(360, 300 * scale) : 240)
         .background(PlayerWindowObserver(state: presentation, visualizer: true).frame(width: 0, height: 0))
         .onExitCommand { presentation.escape { PlayerWindowRouter.showMain(open: openWindow) } }
+        .onChange(of: player.currentStation?.id) { _, id in if let id { startup.rememberStation(id) } }
         .background {
             Button("") { togglePlayback() }.keyboardShortcut(.space, modifiers: [])
                 .opacity(0).accessibilityHidden(true)

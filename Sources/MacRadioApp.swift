@@ -139,6 +139,7 @@ struct MacRadioApp: App {
             VisualizerWindowView()
                 .modifier(VisualizerMotionFixture())
                 .environmentObject(store)
+                .environmentObject(startup)
                 .environmentObject(player)
                 .environmentObject(audioTap)
                 .environmentObject(services.recognition)
