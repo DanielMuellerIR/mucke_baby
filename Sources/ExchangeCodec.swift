@@ -62,6 +62,7 @@ enum ExchangeCodec {
             }
             guard let components = URLComponents(string: url.trimmingCharacters(in: .whitespacesAndNewlines)),
                   components.user == nil, components.password == nil,
+                  components.port.map({ (1...65535).contains($0) }) ?? true,
                   let validated = StreamURLPolicy.validatedURL(url) else { throw ExchangeFormatError.invalidURL }
             return Station(id: id ?? UUID(), name: name, url: validated.absoluteString,
                            enabled: enabled, favorite: favorite, radioBrowserID: radioBrowserID)

@@ -35,6 +35,8 @@ enum ExchangeCodecHarness {
         try rejected("Doppelte ID akzeptiert") { var s = $0["stations"] as! [[String: Any]]; s[1]["id"] = s[0]["id"]; $0["stations"] = s }
         try rejected("Fehlende neue ID akzeptiert") { var s = $0["stations"] as! [[String: Any]]; s[0].removeValue(forKey: "id"); $0["stations"] = s }
         try stationChange("url", "file:///etc/passwd")
+        try stationChange("url", "https://radio.example.org:0/live")
+        try stationChange("url", "https://radio.example.org:65536/live")
         var credentialFixture = URLComponents(string: "https://radio.example.org/a")!
         credentialFixture.user = "fixture-user"; credentialFixture.password = "fixture-password"
         try stationChange("url", credentialFixture.string!)

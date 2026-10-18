@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## 1.9.17 — 2026-10-18
 
-- Exchange stations, favorites, catalog identity, groups and bookmarks through a documented versioned JSON format. Continue reading legacy station files.
+- Exchange stations, favorites, catalog identity, groups and bookmarks through a documented versioned JSON format. Continue reading legacy station files and reject stream ports outside 1–65535.
 - Preview new, unchanged and conflicting records before import, with explicit choices that preserve local identity and never delete existing entries.
 - Commit stations and bookmarks together, reject stale previews and protect incomplete import recovery. Keep recordings, history, quick slots and device settings local.
 
