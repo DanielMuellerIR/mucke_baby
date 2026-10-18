@@ -230,8 +230,8 @@ struct PreferencesView: View {
         .padding(18)
         .frame(width: 460)
         .sheet(item: $importRequest) { request in
-            ExchangeImportView(request: request, availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
-                               availableHeight: (NSApp.keyWindow?.frame.height ?? 780) - 80)
+            ExchangeImportView(request: request, availableWidth: (PlayerWindowRouter.mainWindow?.frame.width ?? 840) - 80,
+                               availableHeight: (PlayerWindowRouter.mainWindow?.frame.height ?? 780) - 80)
         }
     }
 

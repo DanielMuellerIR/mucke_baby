@@ -482,3 +482,9 @@
 "Stopp" = "Stop";
 
 "Song exportieren" = "Export track";
+
+"Interpret: %@" = "Artist: %@";
+"Titel: %@" = "Title: %@";
+"Sender: %@" = "Station: %@";
+"Gehört: %@" = "Heard: %@";
+"Gemerkt: %@" = "Bookmarked: %@";

@@ -179,8 +179,13 @@ struct ExchangeMergePlan {
     }
     private static func describe(_ entry: SongBookmark) -> String {
         let date = ISO8601DateFormatter()
-        return [entry.raw, entry.artist ?? "", entry.title ?? "", entry.station,
-                date.string(from: entry.heardAt), date.string(from: entry.savedAt)]
-            .filter { !$0.isEmpty }.joined(separator: "\n")
+        date.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var lines = [entry.raw]
+        if let artist = entry.artist { lines.append(String(localized: "Interpret: \(artist)")) }
+        if let title = entry.title { lines.append(String(localized: "Titel: \(title)")) }
+        lines.append(String(localized: "Sender: \(entry.station)"))
+        lines.append(String(localized: "Gehört: \(date.string(from: entry.heardAt))"))
+        lines.append(String(localized: "Gemerkt: \(date.string(from: entry.savedAt))"))
+        return lines.joined(separator: "\n")
     }
 }

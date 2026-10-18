@@ -482,3 +482,9 @@
 "Stopp" = "Stopp";
 
 "Song exportieren" = "Song exportieren";
+
+"Interpret: %@" = "Interpret: %@";
+"Titel: %@" = "Titel: %@";
+"Sender: %@" = "Sender: %@";
+"Gehört: %@" = "Gehört: %@";
+"Gemerkt: %@" = "Gemerkt: %@";

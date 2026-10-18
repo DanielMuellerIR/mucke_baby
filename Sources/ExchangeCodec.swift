@@ -181,7 +181,9 @@ enum ExchangeCodec {
             let calendarCheck = ISO8601DateFormatter()
             calendarCheck.formatOptions = [.withInternetDateTime]
             calendarCheck.timeZone = TimeZone(secondsFromGMT: offset)
-            guard calendarCheck.string(from: date).prefix(19) == text.prefix(19) else { throw ExchangeFormatError.invalidData }
+            let secondText = String(text.prefix(19)) + (text.hasSuffix("Z") ? "Z" : String(text.suffix(6)))
+            guard let secondDate = calendarCheck.date(from: secondText),
+                  calendarCheck.string(from: secondDate).prefix(19) == text.prefix(19) else { throw ExchangeFormatError.invalidData }
             return date
         }
         return decoder

@@ -2,8 +2,11 @@ import SwiftUI
 import AppKit
 
 enum PlayerWindowRouter {
+    @MainActor static var mainWindow: NSWindow? {
+        NSApp.windows.first { $0.identifier?.rawValue == "MuckeBabyMain" && ($0.isVisible || $0.isMiniaturized) }
+    }
     @MainActor static func showMain(open: OpenWindowAction) {
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "MuckeBabyMain" && ($0.isVisible || $0.isMiniaturized) }) {
+        if let window = mainWindow {
             window.deminiaturize(nil)
             window.makeKeyAndOrderFront(nil)
         } else { open(id: "main-player") }

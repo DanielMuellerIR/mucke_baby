@@ -46,6 +46,12 @@ enum ExchangeCodecHarness {
         try rejected("Doppelte Bookmark-ID akzeptiert") { let b = $0["bookmarks"] as! [[String: Any]]; $0["bookmarks"] = b + b }
         try rejected("Falsches Datum akzeptiert") { var b = $0["bookmarks"] as! [[String: Any]]; b[0]["heardAt"] = "2026-10-18T12:00:00Z trailing"; $0["bookmarks"] = b }
         try rejected("Kalenderfehler still normalisiert") { var b = $0["bookmarks"] as! [[String: Any]]; b[0]["heardAt"] = "2026-02-30T12:00:00Z"; $0["bookmarks"] = b }
+        var precisionInput = object
+        var precisionBookmarks = precisionInput["bookmarks"] as! [[String: Any]]
+        precisionBookmarks[0]["heardAt"] = "2026-10-18T12:00:00.999999999+02:00"
+        precisionInput["bookmarks"] = precisionBookmarks
+        let preciseInput = try ExchangeCodec.decode(JSONSerialization.data(withJSONObject: precisionInput))
+        check(preciseInput.bookmarks[0].heardAt.timeIntervalSince1970.isFinite, "Gültige Bruchteile werden als Kalenderfehler verworfen")
         try rejected("Leerer Titel akzeptiert") { var b = $0["bookmarks"] as! [[String: Any]]; b[0]["raw"] = " \n "; $0["bookmarks"] = b }
         expectFailure("Größenlimit fehlt") { _ = try ExchangeCodec.decode(Data(repeating: 32, count: ExchangeCodec.byteLimit + 1)) }
         expectFailure("Kaputtes JSON akzeptiert") { _ = try ExchangeCodec.decode(Data("{broken".utf8)) }

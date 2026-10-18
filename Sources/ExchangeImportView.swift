@@ -107,6 +107,7 @@ struct ExchangeImportView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(row.title).font(theme.font(.body, size: 13 * scale, weight: .semibold))
                         .lineLimit(2).help(row.title)
+                        .accessibilityIdentifier("exchange-row-" + row.id.kind.rawValue + "-" + row.id.id.uuidString)
                     Text(kind(row.id.kind) + " · " + state(row.state))
                         .font(theme.font(.label, size: 11 * scale)).foregroundStyle(dim)
                 }.frame(maxWidth: .infinity, alignment: .leading)
@@ -141,7 +142,6 @@ struct ExchangeImportView: View {
             }.font(theme.font(.body, size: 12 * scale))
         }
         .padding(12).background(dim.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityIdentifier("exchange-row-" + row.id.kind.rawValue + "-" + row.id.id.uuidString)
     }
     private func description(_ title: LocalizedStringKey, _ text: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
