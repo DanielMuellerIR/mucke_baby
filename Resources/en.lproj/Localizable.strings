@@ -511,3 +511,5 @@
 "Bitte zuerst die Aufnahme in Mucke, Baby! ausschalten. Dieser Kurzbefehl startet keine Aufnahme." = "Please turn off recording in Mucke, Baby! first. This shortcut does not start a recording.";
 "Die Lautstärke muss eine Zahl zwischen 0 und 100 sein." = "Volume must be a number between 0 and 100.";
 "Aktuell ist kein Songtitel verfügbar." = "No track title is currently available.";
+
+"Alle" = "All";
