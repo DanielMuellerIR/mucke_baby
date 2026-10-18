@@ -58,13 +58,19 @@ def main():
         for mode in ["hard", "faded"]:
             destination = root / f"export-{ext}-{mode}.m4a"
             probe = json.loads(run([ffprobe, "-v", "error", "-show_entries",
-                                   "stream=codec_name:format=duration", "-of", "json", str(destination)], capture=True))
+                                   "stream=codec_name:format=duration:format_tags", "-of", "json", str(destination)], capture=True))
             assert probe["streams"][0]["codec_name"] == "aac", probe
             assert abs(float(probe["format"]["duration"]) - 5) < 0.15, probe
+            tags = probe["format"]["tags"]
+            assert tags["artist"] == "Björk", tags
+            assert tags["title"] == "Grüße (Live Remix)", tags
+            assert tags["album"] == "Fixture 東京", tags
+            assert tags["comment"] == ("Station: Fixture 東京\nOriginal ICY: Björk - Grüße (Live Remix)"
+                                       "\nRecorded: 2023-11-14T22:13:20Z"), tags
             run([ffmpeg, "-v", "error", "-i", str(destination), "-f", "null", "-"])
             results.append({"source": ext, "mode": mode, "probe": probe})
     (root / "results.json").write_text(json.dumps({"sourceSHA256": hashes, "exports": results}, indent=2))
-    print("Codecgate: 8 M4A-Dateien mit ffmpeg decodiert; 4 Quellen bytegleich.")
+    print("Codecgate: 8 M4A-Dateien mit ffmpeg decodiert und Unicode-Metadaten geprüft; 4 Quellen bytegleich.")
 
 
 if __name__ == "__main__":

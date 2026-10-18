@@ -25,6 +25,9 @@ struct HistoryPanel: View {
     @State private var lyricsFor: SongEntry?
     @State private var exportMsg = ""
     @State private var exportRequest: ExportEditorRequest?
+    @State private var batchRequest: ExportBatchRequest?
+    @State private var selectingMultiple = false
+    @State private var batchSelection = Set<UUID>()
     @State private var showDeleteAllRecordingsConfirmation = false
     @State private var filter = HistoryFilter()
     @State private var filterNow = Date()
@@ -143,6 +146,21 @@ struct HistoryPanel: View {
             historyList(visible)
 
             Divider()
+            if selectingMultiple {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(batchSelection.count) ausgewählt · maximal 100")
+                        .font(theme.font(.label, size: 10 * uiFontScale)).foregroundStyle(historyInkDim)
+                    HStack {
+                        Button("Exportieren …") { openBatchExport() }.disabled(batchSelection.isEmpty)
+                            .accessibilityIdentifier("history-batch-export")
+                        Spacer(minLength: 0)
+                        Button { selectingMultiple = false; batchSelection.removeAll() } label: { Image(systemName: "xmark.circle") }
+                            .buttonStyle(.plain).help("Mehrfachauswahl beenden")
+                            .accessibilityLabel("Mehrfachauswahl beenden").accessibilityIdentifier("history-batch-end")
+                    }
+                }.padding(8)
+                Divider()
+            }
             // Aktionen fuer den ausgewaehlten Titel — Icon UND Text.
             // Vertikal (Icon oben, Label unten) bleibt schmal genug fuer die enge Spalte.
             // .bottom: alle Labels liegen unten buendig (Icon-Box gleicht Glyphenhoehen aus).
@@ -165,6 +183,18 @@ struct HistoryPanel: View {
                 .help(canExportSelection ? String(localized: "Song vorhören, Schnittgrenzen korrigieren und exportieren")
                       : String(localized: "Für diesen Titel ist kein verfügbares Audio vorhanden."))
                 .disabled(!canExportSelection).accessibilityIdentifier("history-export")
+                Menu {
+                    Toggle("Mehrere Titel auswählen", isOn: $selectingMultiple)
+                    Button(visible.count > ExportQueue.limit ? String(localized: "Erste 100 Treffer auswählen")
+                           : String(localized: "Alle Treffer auswählen")) {
+                        selectingMultiple = true
+                        batchSelection = Set(visible.prefix(ExportQueue.limit).map(\.id))
+                    }.disabled(visible.isEmpty)
+                    Button("Auswahl aufheben") { batchSelection.removeAll() }.disabled(batchSelection.isEmpty)
+                    Button("Auswahl exportieren …") { openBatchExport() }.disabled(batchSelection.isEmpty)
+                } label: { Image(systemName: "chevron.down").foregroundStyle(historyActionInk) }
+                .menuStyle(.borderlessButton).fixedSize().help("Exportoptionen")
+                .accessibilityLabel("Exportoptionen").accessibilityIdentifier("history-export-options")
                 Spacer(minLength: 0)
                 if !exportMsg.isEmpty {
                     Text(exportMsg)
@@ -172,7 +202,6 @@ struct HistoryPanel: View {
                         .foregroundColor(theme.palette.textSecondary).lineLimit(1)
                 }
             }
-            .disabled(selectedEntry == nil)
             .padding(8)
         }
         // Panel-Hintergrund aus dem Theme.
@@ -199,8 +228,11 @@ struct HistoryPanel: View {
             LyricsView(artist: e.artist ?? "", title: e.title ?? e.raw)
         }
         .sheet(item: $exportRequest) { request in ExportEditorView(request: request) }
+        .sheet(item: $batchRequest) { request in ExportBatchView(request: request) }
+        .onChange(of: selectingMultiple) { _, enabled in if !enabled { batchSelection.removeAll() } }
         .onChange(of: history.entries.map(\.id)) { _, ids in
             if let selection, !ids.contains(selection) { self.selection = nil }
+            batchSelection.formIntersection(ids)
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
             if filter.period != .all { filterNow = date }
@@ -311,6 +343,18 @@ struct HistoryPanel: View {
                     ForEach(visible) { entry in
                         VStack(spacing: 0) {
                             HStack(spacing: 0) {
+                                if selectingMultiple {
+                                    Toggle("Zum Stapelexport auswählen", isOn: Binding(get: { batchSelection.contains(entry.id) }, set: { selected in
+                                        if selected {
+                                            if batchSelection.count < ExportQueue.limit { batchSelection.insert(entry.id) }
+                                        } else { batchSelection.remove(entry.id) }
+                                    }))
+                                    .labelsHidden().toggleStyle(.checkbox)
+                                    .disabled(!batchSelection.contains(entry.id) && batchSelection.count >= ExportQueue.limit)
+                                    .accessibilityLabel("Zum Stapelexport auswählen: \(entry.artist ?? "") \(entry.title ?? entry.raw)")
+                                    .accessibilityIdentifier("history-batch-select-\(entry.id)")
+                                    .padding(.leading, 4)
+                                }
                                 Button { selection = entry.id } label: {
                                     SongRow(entry: entry, audioLabel: recordings?.audio(for: entry).label)
                                         .padding(.horizontal, 6)
@@ -429,10 +473,7 @@ struct HistoryPanel: View {
         return recordings?.audio(for: entry).source != nil
     }
 
-    // Dateiname aus untrustwuerdigem ICY-Titel: gleiche Whitelist wie Recorder.fileName.
-    // Reines "/"-Ersetzen liess NUL (bricht den Zielpfad), fuehrendes "." (versteckte
-    // Datei) und ":" (Finder zeigt es als "/") durch. Leeres/punkt-fuehrendes Ergebnis
-    // mit "Song_" praefixen.
+    // Gemeinsame Unicode- und Pfadgrenzen für Einzel-, Drag- und Stapelexport.
     static func safeFileBase(_ raw: String) -> String {
         SongExporter.safeFileBase(raw)
     }
@@ -448,6 +489,19 @@ struct HistoryPanel: View {
                                             partialRecording: availability.isPartial,
                                             availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
                                             availableHeight: (NSApp.keyWindow?.frame.height ?? 760) - 80)
+    }
+
+    private func openBatchExport() {
+        let jobs = history.entries.filter { batchSelection.contains($0.id) }.map { entry in
+            let audio = player.recorder.audioAvailability(for: entry).source
+            return ExportJob(id: entry.id,
+                             metadata: SongExportMetadata(raw: entry.raw, artist: entry.artist, title: entry.title,
+                                                          station: entry.station, recordedAt: entry.start),
+                             source: audio?.url, offset: audio?.offset ?? 0, duration: audio?.duration ?? 0)
+        }
+        guard !jobs.isEmpty, jobs.count <= ExportQueue.limit else { return }
+        batchRequest = ExportBatchRequest(jobs: jobs, availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
+                                          availableHeight: (NSApp.keyWindow?.frame.height ?? 760) - 80)
     }
 }
 
@@ -654,8 +708,12 @@ struct DraggableSong: Transferable {
     }
 
     private var fileBase: String {
-        let base = (entry.artist.map { "\($0) - " } ?? "") + (entry.title ?? entry.raw)
-        return HistoryPanel.safeFileBase(base)
+        metadata.fileBase
+    }
+
+    private var metadata: SongExportMetadata {
+        SongExportMetadata(raw: entry.raw, artist: entry.artist, title: entry.title,
+                           station: entry.station, recordedAt: entry.start)
     }
 
     static var transferRepresentation: some TransferRepresentation {
@@ -664,7 +722,8 @@ struct DraggableSong: Transferable {
                 throw SongExporter.ExportError.noSession
             }
             let tmp = try await SongExporter.exportTemporary(source: info.url, offset: info.offset,
-                                                            duration: info.duration, name: song.fileBase)
+                                                            duration: info.duration, name: song.fileBase,
+                                                            metadata: song.metadata)
             return SentTransferredFile(tmp)
         }
         .suggestedFileName { $0.fileName }

@@ -513,3 +513,29 @@
 "Aktuell ist kein Songtitel verfügbar." = "No track title is currently available.";
 
 "Alle" = "All";
+
+/* Audioexport und Warteschlange */
+"Mehrere Songs exportieren" = "Export multiple songs";
+"%lld Titel · höchstens 100 pro Stapel" = "%lld tracks · up to 100 per batch";
+"%lld von %lld verarbeitet" = "%lld of %lld processed";
+"%lld fertig · %lld fehlgeschlagen · %lld abgebrochen" = "%lld saved · %lld failed · %lld cancelled";
+"Der Sender steht im Album-Feld. Ursprünglicher Sendertext und Aufnahmezeit stehen im Kommentar. Vorhandene Dateien werden nicht ersetzt." = "The station appears in the album field. The original station text and recording time appear in the comment. Existing files are kept.";
+"Ein-/Ausblenden" = "Fade in/out";
+"Verbleibende abbrechen" = "Cancel remaining";
+"Zielordner wählen …" = "Choose destination folder…";
+"Diesen Export abbrechen" = "Cancel this export";
+"Diesen Titel überspringen" = "Skip this track";
+"Gespeichert: %@" = "Saved: %@";
+"Abgebrochen" = "Cancelled";
+"Ordner wählen" = "Choose folder";
+"%lld ausgewählt · maximal 100" = "%lld selected · up to 100";
+"Mehrfachauswahl beenden" = "End multiple selection";
+"Mehrere Titel auswählen" = "Select multiple tracks";
+"Erste 100 Treffer auswählen" = "Select first 100 results";
+"Alle Treffer auswählen" = "Select all results";
+"Auswahl aufheben" = "Clear selection";
+"Auswahl exportieren …" = "Export selection…";
+"Exportoptionen" = "Export options";
+"Zum Stapelexport auswählen" = "Select for batch export";
+"Zum Stapelexport auswählen: %@ %@" = "Select for batch export: %@ %@";
+"Kein freier Dateiname für diesen Export gefunden." = "No unused filename was found for this export.";

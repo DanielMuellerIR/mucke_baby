@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.21 — 2026-10-18
+
+- Add artist, track title including mix version, station and recording provenance to M4A exports. Single-file exports, preview and drag-and-drop share the same metadata.
+- Export multiple history tracks through a bounded serial queue with individual and batch cancellation, retained completed files and visible results for each track.
+- Preserve Unicode in export filenames and assign batch collision suffixes atomically without replacing existing files.
+
 ## 1.9.20 — 2026-10-18
 
 - Apply station gain in decibels to the actual macOS output amplitude while preserving the existing global volume curve. Normalize visualizers against the quantized output amplitude.

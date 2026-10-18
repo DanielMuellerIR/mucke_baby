@@ -40,7 +40,7 @@ def main():
         hashes[ext] = hashlib.sha256(source.read_bytes()).hexdigest()
     executable = root / "export-positions"
     run(["swiftc", "-parse-as-library", "-framework", "AVFoundation",
-         str(repo / "Sources/ExportRange.swift"), str(repo / "Sources/SongExporter.swift"),
+         str(repo / "Sources/ExportRange.swift"), str(repo / "Sources/ExportMetadata.swift"), str(repo / "Sources/SongExporter.swift"),
          str(repo / "Tests/ExportPositionHarness.swift"), "-o", str(executable)])
     run([str(executable), str(root)])
 

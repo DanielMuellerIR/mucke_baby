@@ -39,7 +39,8 @@ enum SongExporter {
     }
 
     static func export(source: URL, offset: Double, duration: Double,
-                       mode: Mode, to dest: URL) async throws {
+                       mode: Mode, metadata: SongExportMetadata? = nil,
+                       replaceExisting: Bool = true, to dest: URL) async throws {
         try Task.checkCancellation()
         guard duration.isFinite, offset.isFinite, duration > 0.5 else { throw ExportError.tooShort }
         try protectSource(source, destination: dest)
@@ -69,11 +70,14 @@ enum SongExporter {
         }
         // Erst im Zielordner fertigstellen, dann atomar ersetzen. Fehler und
         // Abbruch dürfen weder die Aufnahme noch ein vorhandenes Exportziel löschen.
-        let staged = dest.deletingLastPathComponent()
-            .appendingPathComponent(".mucke-export-\(UUID().uuidString).m4a")
-        defer { try? FileManager.default.removeItem(at: staged) }
+        let stagingDirectory = dest.deletingLastPathComponent()
+            .appendingPathComponent(".mucke-export-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: stagingDirectory) }
+        let staged = stagingDirectory.appendingPathComponent("audio.m4a")
         session.outputURL = staged
         session.outputFileType = .m4a
+        if let metadata { session.metadata = metadataItems(metadata) }
 
         session.timeRange = CMTimeRange(start: .zero, duration: dur)
 
@@ -103,7 +107,7 @@ enum SongExporter {
         try await withTaskCancellationHandler {
             try Task.checkCancellation()
             try protectSource(source, destination: dest)
-            try commit.install(staged, at: dest)
+            try commit.install(staged, at: dest, replaceExisting: replaceExisting)
         } onCancel: { commit.cancel() }
     }
 
@@ -160,20 +164,54 @@ enum SongExporter {
     }
 
     static func safeFileBase(_ raw: String) -> String {
-        var safe = raw.replacingOccurrences(of: #"[^A-Za-z0-9 _.-]"#, with: "_",
-                                            options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
-        if safe.isEmpty || safe.hasPrefix(".") { safe = "Song_" + safe }
-        // Ein einzelnes Pfadsegment bleibt auch bei sehr langen ICY-Titeln gültig.
-        return String(safe.prefix(180))
+        ExportFileNaming.safeBase(raw)
+    }
+
+    static func exportUnique(source: URL, offset: Double, duration: Double, mode: Mode,
+                             metadata: SongExportMetadata, directory: URL) async throws -> URL {
+        let prepared = directory.appendingPathComponent(".mucke-batch-\(UUID().uuidString).m4a")
+        var ownsPrepared = false
+        defer { if ownsPrepared { try? FileManager.default.removeItem(at: prepared) } }
+        try await export(source: source, offset: offset, duration: duration, mode: mode,
+                         metadata: metadata, replaceExisting: false, to: prepared)
+        ownsPrepared = true
+        let commit = PreparedExportCommit()
+        return try await withTaskCancellationHandler {
+            for number in 1...10_000 {
+                try Task.checkCancellation()
+                let suffix = number == 1 ? "" : " (\(number))"
+                let destination = directory.appendingPathComponent(metadata.fileBase + suffix + ".m4a")
+                do {
+                    try commit.install(prepared, at: destination, replaceExisting: false)
+                    return destination
+                } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EEXIST) {
+                    continue
+                }
+            }
+            throw ExportError.failed(String(localized: "Kein freier Dateiname für diesen Export gefunden."))
+        } onCancel: { commit.cancel() }
+    }
+
+    private static func metadataItems(_ metadata: SongExportMetadata) -> [AVMetadataItem] {
+        var values: [(AVMetadataIdentifier, String)] = [(.iTunesMetadataSongName, metadata.title),
+                                                       (.iTunesMetadataUserComment, metadata.comment)]
+        if let artist = metadata.artist { values.append((.iTunesMetadataArtist, artist)) }
+        if !metadata.station.isEmpty { values.append((.iTunesMetadataAlbum, metadata.station)) }
+        return values.map { key, value in
+            let item = AVMutableMetadataItem()
+            item.identifier = key; item.value = value as NSString
+            item.dataType = kCMMetadataBaseDataType_UTF8 as String
+            return item
+        }
     }
 
     static func exportTemporary(source: URL, offset: Double, duration: Double,
-                                name: String) async throws -> URL {
+                                name: String, metadata: SongExportMetadata? = nil) async throws -> URL {
         let directory = try temporaryExports.makeDirectory()
         let destination = directory.appendingPathComponent(safeFileBase(name) + ".m4a")
         do {
-            try await export(source: source, offset: offset, duration: duration, mode: .hardCut, to: destination)
+            try await export(source: source, offset: offset, duration: duration, mode: .hardCut,
+                             metadata: metadata, to: destination)
             return destination
         } catch {
             try? FileManager.default.removeItem(at: directory)
@@ -193,11 +231,13 @@ private final class PreparedExportCommit: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
     func cancel() { lock.lock(); cancelled = true; lock.unlock() }
-    func install(_ source: URL, at destination: URL) throws {
+    func install(_ source: URL, at destination: URL, replaceExisting: Bool = true) throws {
         lock.lock()
         defer { lock.unlock() }
         guard !cancelled else { throw CancellationError() }
-        guard rename(source.path, destination.path) == 0 else {
+        let result = replaceExisting ? rename(source.path, destination.path)
+            : renamex_np(source.path, destination.path, UInt32(RENAME_EXCL))
+        guard result == 0 else {
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
         }
     }

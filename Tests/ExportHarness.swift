@@ -239,8 +239,12 @@ enum ExportHarness {
                 let recording = recordingDirectory.appendingPathComponent(clip.file)
                 check(clip.ext == ext && clip.end != nil, "Codec/Abschluss im Recorder falsch")
                 check(try Data(contentsOf: recording) == bytes, "Recorder veränderte Audio")
+                let metadata = SongExportMetadata(raw: "Björk - Grüße (Live Remix)", artist: "Björk",
+                                                  title: "Grüße (Live Remix)", station: "Fixture 東京",
+                                                  recordedAt: Date(timeIntervalSince1970: 1_700_000_000))
                 for mode in [SongExporter.Mode.hardCut, .faded] {
-                    try await SongExporter.export(source: recording, offset: 2, duration: 5, mode: mode, to: target)
+                    try await SongExporter.export(source: recording, offset: 2, duration: 5,
+                                                  mode: mode, metadata: metadata, to: target)
                     _ = try decode(target, duration: 5)
                     let preparedTarget = root.appendingPathComponent("prepared-\(ext).m4a")
                     try await SongExporter.savePrepared(target, originalSource: recording, to: preparedTarget)

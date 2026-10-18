@@ -27,14 +27,15 @@ final class ExportEditorModel: ObservableObject {
     private var pending: Task<URL, Error>?
     private var workCount = 0
 
-    init(source: URL, offset: Double, duration: Double,
+    init(source: URL, offset: Double, duration: Double, metadata: SongExportMetadata? = nil,
          inspector: @escaping Inspector = { try await SongExporter.inspect(source: $0) },
-         renderer: @escaping Renderer = { source, cut, mode, destination in
-             try await SongExporter.export(source: source, offset: cut.start, duration: cut.duration,
-                                           mode: mode, to: destination)
-         }, temporaryRoot: URL = FileManager.default.temporaryDirectory) {
+         renderer: Renderer? = nil, temporaryRoot: URL = FileManager.default.temporaryDirectory) {
         self.source = source; self.offset = offset; self.duration = duration
-        self.inspector = inspector; self.renderer = renderer
+        self.inspector = inspector
+        self.renderer = renderer ?? { source, cut, mode, destination in
+            try await SongExporter.export(source: source, offset: cut.start, duration: cut.duration,
+                                          mode: mode, metadata: metadata, to: destination)
+        }
         temporaryDirectory = temporaryRoot.appendingPathComponent("MuckeBaby-ExportPreview-" + UUID().uuidString)
     }
 

@@ -513,3 +513,29 @@
 "Aktuell ist kein Songtitel verfügbar." = "Aktuell ist kein Songtitel verfügbar.";
 
 "Alle" = "Alle";
+
+/* Audioexport und Warteschlange */
+"Mehrere Songs exportieren" = "Mehrere Songs exportieren";
+"%lld Titel · höchstens 100 pro Stapel" = "%lld Titel · höchstens 100 pro Stapel";
+"%lld von %lld verarbeitet" = "%lld von %lld verarbeitet";
+"%lld fertig · %lld fehlgeschlagen · %lld abgebrochen" = "%lld fertig · %lld fehlgeschlagen · %lld abgebrochen";
+"Der Sender steht im Album-Feld. Ursprünglicher Sendertext und Aufnahmezeit stehen im Kommentar. Vorhandene Dateien werden nicht ersetzt." = "Der Sender steht im Album-Feld. Ursprünglicher Sendertext und Aufnahmezeit stehen im Kommentar. Vorhandene Dateien werden nicht ersetzt.";
+"Ein-/Ausblenden" = "Ein-/Ausblenden";
+"Verbleibende abbrechen" = "Verbleibende abbrechen";
+"Zielordner wählen …" = "Zielordner wählen …";
+"Diesen Export abbrechen" = "Diesen Export abbrechen";
+"Diesen Titel überspringen" = "Diesen Titel überspringen";
+"Gespeichert: %@" = "Gespeichert: %@";
+"Abgebrochen" = "Abgebrochen";
+"Ordner wählen" = "Ordner wählen";
+"%lld ausgewählt · maximal 100" = "%lld ausgewählt · maximal 100";
+"Mehrfachauswahl beenden" = "Mehrfachauswahl beenden";
+"Mehrere Titel auswählen" = "Mehrere Titel auswählen";
+"Erste 100 Treffer auswählen" = "Erste 100 Treffer auswählen";
+"Alle Treffer auswählen" = "Alle Treffer auswählen";
+"Auswahl aufheben" = "Auswahl aufheben";
+"Auswahl exportieren …" = "Auswahl exportieren …";
+"Exportoptionen" = "Exportoptionen";
+"Zum Stapelexport auswählen" = "Zum Stapelexport auswählen";
+"Zum Stapelexport auswählen: %@ %@" = "Zum Stapelexport auswählen: %@ %@";
+"Kein freier Dateiname für diesen Export gefunden." = "Kein freier Dateiname für diesen Export gefunden.";

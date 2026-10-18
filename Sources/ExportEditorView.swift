@@ -11,6 +11,10 @@ struct ExportEditorRequest: Identifiable {
     let partialRecording: Bool
     let availableWidth: CGFloat
     let availableHeight: CGFloat
+    var metadata: SongExportMetadata {
+        SongExportMetadata(raw: entry.raw, artist: entry.artist, title: entry.title,
+                           station: entry.station, recordedAt: entry.start)
+    }
 }
 
 struct ExportEditorView: View {
@@ -39,7 +43,8 @@ struct ExportEditorView: View {
     init(request: ExportEditorRequest) {
         self.request = request
         _model = StateObject(wrappedValue: ExportEditorModel(source: request.source,
-                                                            offset: request.offset, duration: request.duration))
+                                                            offset: request.offset, duration: request.duration,
+                                                            metadata: request.metadata))
     }
 
     private var ink: Color { theme.id == .retro ? Color(hex: "#2A2018") : theme.palette.textPrimary }
@@ -230,8 +235,7 @@ struct ExportEditorView: View {
                 try Task.checkCancellation()
                 let panel = NSSavePanel()
                 panel.allowedContentTypes = [.mpeg4Audio]
-                panel.nameFieldStringValue = SongExporter.safeFileBase((request.entry.artist.map { $0 + " - " } ?? "")
-                                                                      + (request.entry.title ?? request.entry.raw)) + ".m4a"
+                panel.nameFieldStringValue = request.metadata.fileBase + ".m4a"
                 guard panel.runModal() == .OK, let destination = panel.url else { return }
                 try await SongExporter.savePrepared(url, originalSource: request.source, to: destination)
                 if !model.isClosed { saved = true; message = String(localized: "Exportiert.") }

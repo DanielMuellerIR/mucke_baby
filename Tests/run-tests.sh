@@ -76,7 +76,7 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/icy-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/ExportRange.swift Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift \
+  Sources/ExportRange.swift Sources/ExportMetadata.swift Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift \
   Sources/Models.swift Sources/SongHistory.swift Tests/ExportHarness.swift \
   -o "$BUILD/export-harness"
 "$BUILD/export-harness"
@@ -86,7 +86,7 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/export-range-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/ExportRange.swift Sources/SongExporter.swift Sources/ExportEditorModel.swift \
+  Sources/Safety.swift Sources/ExportRange.swift Sources/ExportMetadata.swift Sources/SongExporter.swift Sources/ExportEditorModel.swift \
   Tests/ExportEditorHarness.swift -o "$BUILD/export-editor-harness"
 "$BUILD/export-editor-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
@@ -167,3 +167,8 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   Sources/RecordingState.swift Sources/Recorder.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
   Sources/RadioCommands.swift Tests/RadioCommandsHarness.swift -o "$BUILD/radio-commands-harness"
 "$BUILD/radio-commands-harness"
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/ExportMetadata.swift Sources/ExportRange.swift Sources/SongExporter.swift Sources/ExportQueue.swift Tests/ExportQueueHarness.swift \
+  -o "$BUILD/export-queue-harness"
+"$BUILD/export-queue-harness"
