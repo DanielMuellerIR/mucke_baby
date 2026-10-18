@@ -172,3 +172,8 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" Sources/ExportMetadata.swift Sources/ExportRange.swift Sources/SongExporter.swift Sources/ExportQueue.swift Tests/ExportQueueHarness.swift \
   -o "$BUILD/export-queue-harness"
 "$BUILD/export-queue-harness"
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/ExportMetadata.swift Sources/SongDragProvider.swift Tests/SongDragHarness.swift \
+  -o "$BUILD/song-drag-harness"
+"$BUILD/song-drag-harness"

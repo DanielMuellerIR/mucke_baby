@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Add artist, track title including mix version, station and recording provenance to M4A exports. Single-file exports, preview and drag-and-drop share the same metadata.
 - Export multiple history tracks through a bounded serial queue with individual and batch cancellation, retained completed files and visible results for each track.
 - Preserve Unicode in export filenames and assign batch collision suffixes atomically without replacing existing files.
+- Use the M4A file type for drag-and-drop so Finder keeps a single `.m4a` extension.
 
 ## 1.9.20 — 2026-10-18
 

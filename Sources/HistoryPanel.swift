@@ -1,7 +1,5 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
-import CoreTransferable
 
 // Rechtes Panel: "Verlauf" — gehoerte Titel mit Zeitspanne. Eintraege sind
 // selektierbar; darunter Buttons, die den Song in Apple Music / Spotify oeffnen
@@ -375,8 +373,8 @@ struct HistoryPanel: View {
                                 .buttonStyle(.plain)
                                 .accessibilityAddTraits(selection == entry.id ? [.isSelected] : [])
                                 .accessibilityIdentifier("history-song-\(entry.id)")
-                                // Der Export beginnt erst beim Drop und blockiert die Auswahl nicht.
-                                .draggable(DraggableSong(entry: entry, recorder: player.recorder))
+                                // Die Dateidarstellung rendert erst auf Abruf, außerhalb des Main-Threads.
+                                .onDrag { dragProvider(for: entry) }
                                 if !entry.isPlaceholder {
                                     BookmarkButton(song: entry, identifier: "bookmark-history-\(entry.id)",
                                                    tint: theme.id == .retro ? historyActionInk : nil)
@@ -502,6 +500,18 @@ struct HistoryPanel: View {
                                             partialRecording: availability.isPartial,
                                             availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
                                             availableHeight: (NSApp.keyWindow?.frame.height ?? 760) - 80)
+    }
+
+    private func dragProvider(for entry: SongEntry) -> NSItemProvider {
+        let recorder = player.recorder
+        let metadata = SongExportMetadata(raw: entry.raw, artist: entry.artist, title: entry.title,
+                                          station: entry.station, recordedAt: entry.start)
+        return SongDragProvider.make(fileBase: metadata.fileBase) {
+            guard let info = recorder.exportSource(for: entry) else { throw SongExporter.ExportError.noSession }
+            return try await SongExporter.exportTemporary(source: info.url, offset: info.offset,
+                                                          duration: info.duration, name: metadata.fileBase,
+                                                          metadata: metadata)
+        }
     }
 
     private func openBatchExport() {
@@ -706,39 +716,5 @@ private extension View {
     func themedFont(_ theme: Theme, _ slot: FontSlot, size: CGFloat,
                     weight: Font.Weight = .regular) -> some View {
         self.font(theme.font(slot, size: size, weight: weight))
-    }
-}
-
-// Drag&Drop-Export eines Verlauf-Eintrags als .m4a. Der Schnitt/Export laeuft erst
-// beim Drop in der (off-main) Transferable-Closure -> blockiert die Klick-Selektion
-// in der Liste NICHT (anders als das alte synchrone `.onDrag` mit q.sync auf Main).
-struct DraggableSong: Transferable {
-    let entry: SongEntry
-    let recorder: Recorder
-
-    var fileName: String {
-        fileBase + ".m4a"
-    }
-
-    private var fileBase: String {
-        metadata.fileBase
-    }
-
-    private var metadata: SongExportMetadata {
-        SongExportMetadata(raw: entry.raw, artist: entry.artist, title: entry.title,
-                           station: entry.station, recordedAt: entry.start)
-    }
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .mpeg4Audio) { song in
-            guard let info = song.recorder.exportSource(for: song.entry) else {
-                throw SongExporter.ExportError.noSession
-            }
-            let tmp = try await SongExporter.exportTemporary(source: info.url, offset: info.offset,
-                                                            duration: info.duration, name: song.fileBase,
-                                                            metadata: song.metadata)
-            return SentTransferredFile(tmp)
-        }
-        .suggestedFileName { $0.fileName }
     }
 }
