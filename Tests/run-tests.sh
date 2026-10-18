@@ -212,3 +212,9 @@ assert rows[1]['apple_music_url'] == 'https://music.apple.com/de/song/123'
 assert rows[1]['recognized_at'] and rows[1]['station_id']
 print('Erkennung CSV: unabhängiger Unicode-/Herkunfts-Roundtrip OK')
 CHECK_CSV
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/SleepTimer.swift Sources/SleepTimerController.swift Tests/SleepTimerHarness.swift \
+  -o "$BUILD/sleep-timer-harness"
+"$BUILD/sleep-timer-harness"

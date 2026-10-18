@@ -125,3 +125,5 @@ macOS **14.2+**, Apple Silicon, Xcode einschließlich der Werkzeuge für App-Int
 ---
 
 *Status: privates Projekt. Ursprünglich vom Linux-Mint-Applet „Radio++" angestoßen und inzwischen weit darüber hinausgewachsen — es wurde kein Code und kein Asset von Radio++ übernommen.*
+
+Der Einschlaftimer im Hauptfenster und in der Menüleiste bietet Vorgaben und eine eigene Dauer. Er lässt sich verlängern oder abbrechen; am Ende blendet die Wiedergabe aus. Die gespeicherte Lautstärke gilt beim nächsten Start weiter.

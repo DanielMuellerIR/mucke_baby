@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.25 — 2026-10-18
+
+- Add a shared sleep timer in the main player and menu bar, with presets, a custom duration, extension and cancellation.
+- Gently fade out and stop playback when time is up while preserving the saved volume. Cancel the timer on manual stop and prevent delayed retries after expiration.
+
 ## 1.9.24 — 2026-10-18
 
 - Open a shared theme visualizer in a dedicated window or native fullscreen, with track information, playback, volume, hideable controls and a clear return to the main player.

@@ -372,7 +372,11 @@ struct MenuBarView: View {
             }
 
             Divider()
-            RecordingControl(identifier: "menu-recording")
+            HStack {
+                RecordingControl(identifier: "menu-recording")
+                Spacer()
+                SleepTimerButton(identifier: "menu-sleep-timer")
+            }
             HStack {
                 Button((player.isPlaying || player.isLoading) ? "Stop" : "Play") {
                     if let s = player.currentStation {

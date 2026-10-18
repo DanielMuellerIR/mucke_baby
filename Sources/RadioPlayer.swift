@@ -53,6 +53,7 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var effectiveOutputVolume = AudioConfiguration.outputAmplitude(forVLCVolume: 77)
     @Published private(set) var audioNotice: String?
 
+    let sleepTimer: SleepTimerController
     let history = SongHistory()
     let recorder: Recorder
     @Published private(set) var recordingRequested: Bool
@@ -90,7 +91,8 @@ final class RadioPlayer: ObservableObject {
         return RecognitionContext(generation: requests.current, stationID: station.id, title: nowPlayingTitle)
     }
 
-    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil) {
+    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil, sleepTimer: SleepTimerController? = nil) {
+        self.sleepTimer = sleepTimer ?? SleepTimerController()
         self.preferences = preferences
         self.recordingRequested = preferences.object(forKey: "recordStreams") as? Bool ?? false
         self.recorder = recorder
@@ -103,6 +105,11 @@ final class RadioPlayer: ObservableObject {
         icy.onTitle  = { [weak self] title, boundary in self?.setNowPlaying(title, at: boundary) }
         recorder.onCaptureState = { [weak self] state in self?.captureStateChanged(state) }
         resetCapture()
+        self.sleepTimer.onFadeChange = { [weak self] _ in
+            guard let self, self.desiredStation != nil else { return }
+            self.applyOutputVolume()
+        }
+        self.sleepTimer.onExpire = { [weak self] in self?.stop() }
         reconnect.onRetry = { [weak self] id in
             guard let self, let station = self.desiredStation, station.id == id else { return }
             self.startAttempt(station)
@@ -136,6 +143,7 @@ final class RadioPlayer: ObservableObject {
     func resumeAfterWake() {
         guard let id = sleepingStationID else { return }
         sleepingStationID = nil
+        sleepTimer.refresh()
         guard let station = desiredStation, station.id == id else { return }
         play(station)
     }
@@ -201,7 +209,10 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func applyOutputVolume() {
-        let volume = audioConfiguration.quantizedOutputVolume(desiredVolume, stationID: installedStationID)
+        let base = audioConfiguration.quantizedOutputVolume(desiredVolume, stationID: installedStationID)
+        // VLC skaliert kubisch. Der flüchtige Faktor blendet die Amplitude aus,
+        // ohne die persönliche Reglerstellung oder Senderkorrektur zu speichern.
+        let volume = Int32((Double(base) * pow(sleepTimer.fadeFactor, 1.0 / 3.0)).rounded())
         player.audio?.volume = volume
         effectiveOutputVolume = AudioConfiguration.outputAmplitude(forVLCVolume: volume)
     }
@@ -229,6 +240,7 @@ final class RadioPlayer: ObservableObject {
     // Direkt-URL aufloesen — VLCMediaPlayer spielt Playlist-Container nicht
     // selbst ab. Codec/Redirect uebernimmt dann VLC.
     func play(_ station: Station) {
+        sleepTimer.refresh()
         sleepingStationID = nil
         desiredStation = station
         reconnect.beginIntent(stationID: station.id)
@@ -237,6 +249,8 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func startAttempt(_ station: Station) {
+        sleepTimer.refresh()
+        guard desiredStation?.id == station.id else { return }
         let capturedEnd = stopMetadata()
         history.closeCurrent(at: capturedEnd ?? Date())
         resetCapture(at: capturedEnd ?? Date())
@@ -379,6 +393,7 @@ final class RadioPlayer: ObservableObject {
         reconnect.cancel()
         stopMonitoringNetwork()
         stopAttempt()
+        sleepTimer.cancel()
         statusText = String(localized: "Gestoppt")
     }
 

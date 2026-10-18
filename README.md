@@ -127,3 +127,5 @@ macOS **14.2+**, Apple Silicon, Xcode (including the App Intents metadata tools)
 ---
 
 *Status: private / personal project. Originally sparked by the Linux Mint "Radio++" applet and since grown well beyond it — no code or assets were taken from Radio++.*
+
+The sleep timer in the main player and menu bar offers presets and a custom duration. Extend or cancel it at any time; playback fades out at the end and the saved volume is retained for the next start.

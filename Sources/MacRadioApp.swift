@@ -698,6 +698,7 @@ struct ContentView: View {
             .accessibilityIdentifier("bookmarks-open")
 
             RecordingControl()
+            SleepTimerButton()
 
             if let started = player.playStartedAt {
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in

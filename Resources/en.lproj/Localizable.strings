@@ -594,3 +594,18 @@
 "Kein Sender ausgewählt" = "No station selected";
 "Visualizer" = "Visualizer";
 "Darstellung" = "View";
+
+/* Einschlaftimer */
+"Einschlaftimer" = "Sleep timer";
+"Blendet die Wiedergabe am Ende sanft aus und stoppt sie. Deine persönliche Lautstärke bleibt erhalten." = "Gently fades out playback and stops it when time is up. Your personal volume is preserved.";
+"Restzeit: %@" = "Time remaining: %@";
+"Um 15 Minuten verlängern" = "Extend by 15 minutes";
+"Timer abbrechen" = "Cancel timer";
+"Dauer" = "Duration";
+"%lld Minuten" = "%lld minutes";
+"Eigene Dauer" = "Custom duration";
+"Timer starten" = "Start timer";
+"Timer neu setzen" = "Reset timer";
+"Starte zuerst einen Sender." = "Start a station first.";
+"Minuten" = "Minutes";
+"1 bis 1440 Minuten" = "1 to 1440 minutes";

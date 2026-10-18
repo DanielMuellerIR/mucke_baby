@@ -25,7 +25,7 @@ recorder.write_text(replace_once((root / 'Sources/Recorder.swift').read_text(),
     'RolloverFixture.states.async { self.onCaptureState?(state) }'))
 subprocess.run(['swiftc', '-parse-as-library', *[str(root / p) for p in [
     'Sources/SongRecognition.swift', 'Sources/RecognitionModels.swift', 'Sources/AudioSettings.swift', 'Sources/Safety.swift', 'Sources/Models.swift', 'Sources/PlaybackReconnect.swift',
-    'Sources/RecordingState.swift', 'Sources/SongHistory.swift',
+    'Sources/RecordingState.swift', 'Sources/SongHistory.swift', 'Sources/SleepTimer.swift', 'Sources/SleepTimerController.swift',
     'Sources/ICYMetadataReader.swift']], str(recorder), str(source), '-o', str(build / 'player-rollover-harness')], check=True)
 subprocess.run([str(build / 'player-rollover-harness')], check=True)
 subprocess.run([str(build / 'player-rollover-harness'), '--title-first'], check=True)

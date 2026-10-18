@@ -272,6 +272,43 @@ struct PlayerHarness {
         check(VLCMediaPlayer.latest === afterWake, "Doppeltes Aufwachereignis startet zweimal")
         metadataRadio.stop()
 
+        var timerNow = 0.0
+        let sleepTimer = SleepTimerController(now: { timerNow })
+        let timerRetryClock = ReconnectClock()
+        let timerRetry = PlaybackReconnect(delays: [2], schedule: timerRetryClock.schedule)
+        let timedRadio = RadioPlayer(reconnect: timerRetry, preferences: preferences, sleepTimer: sleepTimer)
+        preferences.set(0.4, forKey: "volume"); timedRadio.setVolume(0.4)
+        timedRadio.play(metadataStation); await waitFor { timedRadio.currentStreamURL != nil }
+        VLCMediaPlayer.latest.timeEvent(); await waitFor { timedRadio.isPlaying }
+        check(sleepTimer.start(duration: 60), "Timer startet nicht")
+        timerNow = 55; sleepTimer.refresh()
+        check(VLCMediaPlayer.latest.audio?.volume == 32 && preferences.double(forKey: "volume") == 0.4,
+              "Fade verändert persönliche Lautstärke oder kubischen VLC-Pegel falsch")
+        let switchedStation = Station(id: UUID(), name: "Timed second station", url: "https://fixture.invalid/timed-second")
+        timedRadio.play(switchedStation); await waitFor { timedRadio.currentStreamURL != nil && timedRadio.currentStation?.id == switchedStation.id }
+        check(sleepTimer.remaining == 5 && VLCMediaPlayer.latest.audio?.volume == 32, "Senderwechsel verliert laufenden Timer/Fade")
+        sleepTimer.extend(minutes: 15)
+        check(sleepTimer.remaining == 905 && VLCMediaPlayer.latest.audio?.volume == 40, "Verlängern stellt Ausgabe nicht wieder her")
+        sleepTimer.cancel();check(VLCMediaPlayer.latest.audio?.volume == 40, "Abbruch bleibt ausgeblendet")
+        check(sleepTimer.start(duration: 60), "Timer erneut starten fehlgeschlagen")
+        let beforeTimerRetry = VLCMediaPlayer.latest!
+        beforeTimerRetry.state = .error;beforeTimerRetry.stateEvent()
+        await waitFor { timedRadio.isLoading && timedRadio.currentStreamURL == nil }
+        timerNow = 116;sleepTimer.refresh();timerRetryClock.advance(100);await drainEvents()
+        check(VLCMediaPlayer.latest === beforeTimerRetry && timedRadio.currentStreamURL == nil && !timedRadio.isLoading,
+              "Verspäteter Retry startet nach Timerablauf")
+        timedRadio.play(metadataStation);await waitFor { timedRadio.currentStreamURL != nil }
+        check(VLCMediaPlayer.latest.audio?.volume == 40 && sleepTimer.remaining == nil, "Manueller Neustart behält Fade oder Timer")
+        check(sleepTimer.start(duration: 60), "Timer vor künstlichem Wake fehlgeschlagen")
+        let beforeTimedSleep = VLCMediaPlayer.latest!
+        timedRadio.prepareForSleep();timerNow = 200;timedRadio.resumeAfterWake();await drainEvents()
+        check(VLCMediaPlayer.latest === beforeTimedSleep && timedRadio.currentStreamURL == nil && !timedRadio.isLoading,
+              "Künstlich übersprungene Frist startet beim Wake erneut")
+        timedRadio.play(metadataStation);await waitFor { timedRadio.currentStreamURL != nil }
+        check(sleepTimer.start(duration: 60), "Timer vor Stop fehlgeschlagen")
+        timedRadio.stop();check(sleepTimer.remaining == nil && preferences.double(forKey: "volume") == 0.4,
+              "Manueller Stop erhält Timer oder verändert Präferenz")
+
         let preview = PreviewPlayer()
         preview.toggle(RBStation(stationuuid: "A", streamURL: "https://fixture.invalid/a"), volume: 0)
         await waitFor { VLCMediaPlayer.latest.media != nil }

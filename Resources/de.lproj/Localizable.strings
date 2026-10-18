@@ -594,3 +594,18 @@
 "Kein Sender ausgewählt" = "Kein Sender ausgewählt";
 "Visualizer" = "Visualizer";
 "Darstellung" = "Darstellung";
+
+/* Einschlaftimer */
+"Einschlaftimer" = "Einschlaftimer";
+"Blendet die Wiedergabe am Ende sanft aus und stoppt sie. Deine persönliche Lautstärke bleibt erhalten." = "Blendet die Wiedergabe am Ende sanft aus und stoppt sie. Deine persönliche Lautstärke bleibt erhalten.";
+"Restzeit: %@" = "Restzeit: %@";
+"Um 15 Minuten verlängern" = "Um 15 Minuten verlängern";
+"Timer abbrechen" = "Timer abbrechen";
+"Dauer" = "Dauer";
+"%lld Minuten" = "%lld Minuten";
+"Eigene Dauer" = "Eigene Dauer";
+"Timer starten" = "Timer starten";
+"Timer neu setzen" = "Timer neu setzen";
+"Starte zuerst einen Sender." = "Starte zuerst einen Sender.";
+"Minuten" = "Minuten";
+"1 bis 1440 Minuten" = "1 bis 1440 Minuten";
