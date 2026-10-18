@@ -29,7 +29,9 @@ private struct SleepTimerControl: View {
             .frame(minWidth: 32, minHeight: 32).contentShape(Rectangle())
         }
         .buttonStyle(.plain).help("Einschlaftimer")
-        .accessibilityLabel("Einschlaftimer").accessibilityIdentifier(identifier + "-open")
+        .accessibilityLabel("Einschlaftimer")
+        .accessibilityValue(timer.remaining.map(timerTime) ?? String(localized: "Aus"))
+        .accessibilityIdentifier(identifier + "-open")
         .popover(isPresented: $showing, arrowEdge: .top) {
             SleepTimerPanel(timer: timer, canStart: canStart) { showing = false }
                 .environment(\.theme, theme).environment(\.uiFontScale, scale)
