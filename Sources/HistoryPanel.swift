@@ -424,11 +424,6 @@ struct HistoryPanel: View {
 
     // MARK: - Export (Aufnahme -> Song-Datei)
 
-    // Quelldatei + Offset/Dauer fuer einen Verlauf-Eintrag bestimmen.
-    private func sourceInfo(_ e: SongEntry) -> (url: URL, offset: Double, duration: Double)? {
-        player.recorder.exportSource(for: e)
-    }
-
     private var canExportSelection: Bool {
         guard let entry = selectedEntry else { return false }
         return recordings?.audio(for: entry).source != nil
@@ -443,11 +438,14 @@ struct HistoryPanel: View {
     }
 
     private func openExportEditor() {
-        guard let e = selectedEntry, let info = sourceInfo(e) else {
+        guard let e = selectedEntry else { return }
+        let availability = player.recorder.audioAvailability(for: e)
+        guard let info = availability.source else {
             exportMsg = String(localized: "Keine Aufnahme zu diesem Titel."); return
         }
         exportMsg = ""
         exportRequest = ExportEditorRequest(entry: e, source: info.url, offset: info.offset, duration: info.duration,
+                                            partialRecording: availability.isPartial,
                                             availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
                                             availableHeight: (NSApp.keyWindow?.frame.height ?? 760) - 80)
     }

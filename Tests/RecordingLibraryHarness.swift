@@ -50,9 +50,11 @@ struct RecordingLibraryHarness {
         let entry = SongEntry(station: complete.station, raw: "Artist - Track", start: base.addingTimeInterval(10),
                               end: base.addingTimeInterval(90), sessionID: session)
         check(inventory.audio(for: entry).status == .complete, "Vollständiges Audio nicht erkannt")
+        check(!recorder.audioAvailability(for: entry).isPartial, "Vollständiger Titel wird als Teilaudio markiert")
         check(inventory.audio(for: entry).source?.duration == 80, "Vollständige Zeitspanne falsch")
         var partial = entry; partial.end = base.addingTimeInterval(180)
         check(inventory.audio(for: partial).status == .partial && inventory.audio(for: partial).source?.duration == 110, "Abgeschnittenes Audio wird als vollständig angeboten")
+        check(recorder.audioAvailability(for: partial).isPartial, "Frisch begrenzte Exportquelle verliert Teilaufnahme-Kennzeichnung")
         partial.start = base.addingTimeInterval(-10)
         check(inventory.audio(for: partial).source?.offset == 0, "Negativer Vorlauf wird exportiert")
         var wrong = entry; wrong.sessionID = UUID()

@@ -91,6 +91,8 @@ enum ExportHarness {
         }
         let unreadable = root.appendingPathComponent("bad.mp3")
         try Data("keine Audiodatei".utf8).write(to: unreadable)
+        do { _ = try await SongExporter.inspect(source: unreadable);fatalError("Kaputte Aufnahme wird als lesbar angeboten") }
+        catch SongExporter.ExportError.notReadable {}
         await rejects { try await SongExporter.export(source: unreadable, offset: 0, duration: 5, mode: .hardCut, to: target) }
         check(try Data(contentsOf: target) == sentinel, "unlesbare Quelle hat Ziel verändert")
 

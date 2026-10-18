@@ -8,6 +8,7 @@ struct ExportEditorRequest: Identifiable {
     let source: URL
     let offset: Double
     let duration: Double
+    let partialRecording: Bool
     let availableWidth: CGFloat
     let availableHeight: CGFloat
 }
@@ -132,7 +133,7 @@ struct ExportEditorView: View {
                         Spacer()
                         Text(time(range.audio.start) + " – " + time(range.audio.end)).monospacedDigit()
                     }.font(theme.font(.label, size: 11 * scale)).foregroundStyle(dim)
-                    if range.isPartial {
+                    if request.partialRecording || range.isPartial {
                         Text("Der Titel ist nur teilweise aufgenommen. Die Ausgangsgrenzen wurden an das verfügbare Audio angepasst.")
                             .font(theme.font(.body, size: 12 * scale)).foregroundStyle(dim)
                             .fixedSize(horizontal: false, vertical: true)
