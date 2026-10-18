@@ -24,7 +24,7 @@ struct HistoryPanel: View {
     @State private var selection: SongEntry.ID?
     @State private var lyricsFor: SongEntry?
     @State private var exportMsg = ""
-    @State private var showExportChoice = false
+    @State private var exportRequest: ExportEditorRequest?
     @State private var showDeleteAllRecordingsConfirmation = false
     @State private var filter = HistoryFilter()
     @State private var filterNow = Date()
@@ -157,19 +157,14 @@ struct HistoryPanel: View {
                 Button { lyricsFor = selectedEntry } label: {
                     historyActionLabel("text.quote", "Lyrics")
                 }.buttonStyle(.plain).help("Songtext anzeigen").disabled(!selectedIsLookup)
-                // Plain-Button (statt Menu) — der borderlessButton-Menustil rendert sein Label
-                // groesser/horizontal und ignoriert die kleine Schrift; so saehe „Export" anders
-                // aus als die anderen drei. Die zwei Export-Varianten kommen in einen Dialog.
-                Button { showExportChoice = true } label: {
+                // Derselbe Dialog behandelt Vorschau, Schnittgrenzen und Übergänge.
+                Button { openExportEditor() } label: {
                     historyActionLabel("square.and.arrow.up", "Export")
                 }
                 .buttonStyle(.plain)
-                .help("Song aus Aufnahme exportieren (oder per Drag&Drop aus der Liste ziehen)")
-                .confirmationDialog("Song exportieren", isPresented: $showExportChoice, titleVisibility: .visible) {
-                    Button("Als Datei (harter Schnitt) …") { exportToFile(.hardCut) }
-                    Button("Als Datei (ein-/ausgefadet) …") { exportToFile(.faded) }
-                    Button("Abbrechen", role: .cancel) {}
-                }
+                .help(canExportSelection ? String(localized: "Song vorhören, Schnittgrenzen korrigieren und exportieren")
+                      : String(localized: "Für diesen Titel ist kein verfügbares Audio vorhanden."))
+                .disabled(!canExportSelection).accessibilityIdentifier("history-export")
                 Spacer(minLength: 0)
                 if !exportMsg.isEmpty {
                     Text(exportMsg)
@@ -203,6 +198,7 @@ struct HistoryPanel: View {
         .sheet(item: $lyricsFor) { e in
             LyricsView(artist: e.artist ?? "", title: e.title ?? e.raw)
         }
+        .sheet(item: $exportRequest) { request in ExportEditorView(request: request) }
         .onChange(of: history.entries.map(\.id)) { _, ids in
             if let selection, !ids.contains(selection) { self.selection = nil }
         }
@@ -433,9 +429,9 @@ struct HistoryPanel: View {
         player.recorder.exportSource(for: e)
     }
 
-    private func exportName(_ e: SongEntry) -> String {
-        let base = (e.artist.map { "\($0) - " } ?? "") + (e.title ?? e.raw)
-        return Self.safeFileBase(base)
+    private var canExportSelection: Bool {
+        guard let entry = selectedEntry else { return false }
+        return recordings?.audio(for: entry).source != nil
     }
 
     // Dateiname aus untrustwuerdigem ICY-Titel: gleiche Whitelist wie Recorder.fileName.
@@ -446,24 +442,14 @@ struct HistoryPanel: View {
         SongExporter.safeFileBase(raw)
     }
 
-    private func exportToFile(_ mode: SongExporter.Mode) {
+    private func openExportEditor() {
         guard let e = selectedEntry, let info = sourceInfo(e) else {
-            exportMsg = "Keine Aufnahme zu diesem Titel."; return
+            exportMsg = String(localized: "Keine Aufnahme zu diesem Titel."); return
         }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.mpeg4Audio]
-        panel.nameFieldStringValue = exportName(e) + ".m4a"
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
-        exportMsg = String(localized: "Exportiere …")
-        Task {
-            do {
-                try await SongExporter.export(source: info.url, offset: info.offset,
-                                              duration: info.duration, mode: mode, to: dest)
-                exportMsg = "Exportiert."
-            } catch {
-                exportMsg = (error as? SongExporter.ExportError)?.errorDescription ?? "Fehler beim Export."
-            }
-        }
+        exportMsg = ""
+        exportRequest = ExportEditorRequest(entry: e, source: info.url, offset: info.offset, duration: info.duration,
+                                            availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
+                                            availableHeight: (NSApp.keyWindow?.frame.height ?? 760) - 80)
     }
 }
 

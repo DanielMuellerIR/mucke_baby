@@ -72,10 +72,19 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/icy-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift \
+  Sources/ExportRange.swift Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift \
   Sources/Models.swift Sources/SongHistory.swift Tests/ExportHarness.swift \
   -o "$BUILD/export-harness"
 "$BUILD/export-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/ExportRange.swift Tests/ExportRangeHarness.swift -o "$BUILD/export-range-harness"
+"$BUILD/export-range-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/ExportRange.swift Sources/SongExporter.swift Sources/ExportEditorModel.swift \
+  Tests/ExportEditorHarness.swift -o "$BUILD/export-editor-harness"
+"$BUILD/export-editor-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
   Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift Sources/SongHistory.swift \

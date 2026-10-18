@@ -6,7 +6,7 @@ import Darwin
 // mit Ein-/Ausblendung, und exportiert als .m4a. Die lesbaren Quellcodecs
 // hängen von der macOS-Version ab; unlesbare Dateien werden ohne Zieländerung abgewiesen.
 enum SongExporter {
-    enum Mode { case hardCut, faded }
+    enum Mode: Hashable, Sendable { case hardCut, faded }
     enum ExportError: LocalizedError {
         case tooShort, noSession, notReadable, failed(String)
         var errorDescription: String? {
@@ -17,6 +17,19 @@ enum SongExporter {
             case .failed(let m): return m
             }
         }
+    }
+
+    static func inspect(source: URL) async throws -> ExportAudioBounds {
+        try Task.checkCancellation()
+        try validateAudioFile(source)
+        let tracks = try await AVURLAsset(url: source).loadTracks(withMediaType: .audio)
+        guard let track = tracks.first else { throw ExportError.notReadable }
+        let range = try await track.load(.timeRange)
+        try Task.checkCancellation()
+        let start = max(0, CMTimeGetSeconds(range.start))
+        let end = CMTimeGetSeconds(CMTimeRangeGetEnd(range))
+        guard start.isFinite, end.isFinite, end > start else { throw ExportError.notReadable }
+        return ExportAudioBounds(start: start, end: end)
     }
 
     static func export(source: URL, offset: Double, duration: Double,
@@ -37,23 +50,15 @@ enum SongExporter {
         guard duration > 0.5 else { throw ExportError.tooShort }
         let start = CMTime(seconds: max(0, offset), preferredTimescale: 600)
         let dur = CMTime(seconds: duration, preferredTimescale: 600)
-        var exportAsset: AVAsset = asset
-        var mixTrack = tracks[0]
-        var outputStart = start
-        if mode == .faded {
-            // Die Rampen beziehen sich auf den ausgeschnittenen Song ab Zeit null.
-            // Beim direkten Asset-Trim gelangte Decoder-Vorlauf laut in die Einblendung.
-            let composition = AVMutableComposition()
-            guard let track = composition.addMutableTrack(withMediaType: .audio,
-                                                          preferredTrackID: kCMPersistentTrackID_Invalid) else {
-                throw ExportError.noSession
-            }
-            try track.insertTimeRange(CMTimeRange(start: start, duration: dur), of: tracks[0], at: .zero)
-            exportAsset = composition
-            mixTrack = track
-            outputStart = .zero
+        // Beide Modi schneiden dieselbe Medienzeit ab Null. Direktes Asset-Trim
+        // verschob Codec-Vorlauf gegenüber dem Fade-Pfad und kürzte Ogg/Opus.
+        let composition = AVMutableComposition()
+        guard let mixTrack = composition.addMutableTrack(withMediaType: .audio,
+                                                         preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            throw ExportError.noSession
         }
-        guard let session = AVAssetExportSession(asset: exportAsset, presetName: AVAssetExportPresetAppleM4A) else {
+        try mixTrack.insertTimeRange(CMTimeRange(start: start, duration: dur), of: tracks[0], at: .zero)
+        guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetAppleM4A) else {
             throw ExportError.noSession
         }
         // Erst im Zielordner fertigstellen, dann atomar ersetzen. Fehler und
@@ -64,7 +69,7 @@ enum SongExporter {
         session.outputURL = staged
         session.outputFileType = .m4a
 
-        session.timeRange = CMTimeRange(start: outputStart, duration: dur)
+        session.timeRange = CMTimeRange(start: .zero, duration: dur)
 
         if mode == .faded {
             let p = AVMutableAudioMixInputParameters(track: mixTrack)
@@ -86,12 +91,48 @@ enum SongExporter {
         }
         try Task.checkCancellation()
         if session.status != .completed {
-            throw ExportError.failed(session.error?.localizedDescription ?? "Export fehlgeschlagen.")
+            throw ExportError.failed(session.error?.localizedDescription ?? String(localized: "Export fehlgeschlagen."))
         }
+        let commit = PreparedExportCommit()
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            try protectSource(source, destination: dest)
+            try commit.install(staged, at: dest)
+        } onCancel: { commit.cancel() }
+    }
+
+    static func savePrepared(_ rendered: URL, originalSource source: URL, to dest: URL) async throws {
+        try Task.checkCancellation()
         try protectSource(source, destination: dest)
-        guard rename(staged.path, dest.path) == 0 else {
-            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
-        }
+        try protectSource(rendered, destination: dest)
+        let staged = dest.deletingLastPathComponent().appendingPathComponent(".mucke-export-\(UUID().uuidString).m4a")
+        let descriptor = open(staged.path, O_CREAT | O_EXCL | O_WRONLY, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        let writer = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        defer { try? writer.close(); try? FileManager.default.removeItem(at: staged) }
+        let reader = try FileHandle(forReadingFrom: rendered)
+        defer { try? reader.close() }
+        let commit = PreparedExportCommit()
+        try await withTaskCancellationHandler {
+            while let data = try reader.read(upToCount: 512 * 1024), !data.isEmpty {
+                try Task.checkCancellation()
+                try writer.write(contentsOf: data)
+            }
+            try writer.synchronize()
+            try writer.close()
+            try Task.checkCancellation()
+            try protectSource(source, destination: dest)
+            try protectSource(rendered, destination: dest)
+            try commit.install(staged, at: dest)
+        } onCancel: { commit.cancel() }
+    }
+
+    private static func validateAudioFile(_ source: URL) throws {
+        guard source.isFileURL else { throw ExportError.notReadable }
+        let attributes = try FileManager.default.attributesOfItem(atPath: source.path)
+        guard attributes[.type] as? FileAttributeType == .typeRegular,
+              ((attributes[.size] as? NSNumber)?.int64Value ?? 0) > 0,
+              FileManager.default.isReadableFile(atPath: source.path) else { throw ExportError.notReadable }
     }
 
     private static func protectSource(_ source: URL, destination: URL) throws {
@@ -99,6 +140,7 @@ enum SongExporter {
         guard source.isFileURL, destination.isFileURL else {
             throw ExportError.notReadable
         }
+        try validateAudioFile(source)
         let samePath = source.standardizedFileURL.resolvingSymlinksInPath()
             == destination.standardizedFileURL.resolvingSymlinksInPath()
         let src = try fm.attributesOfItem(atPath: source.path)
@@ -137,6 +179,22 @@ enum SongExporter {
     // Drag-Dateien deshalb bis zum App-Ende behalten, nicht vor der Übernahme löschen.
     static func cleanupTemporaryExports() { temporaryExports.cleanup() }
     private static let temporaryExports = TemporaryExports()
+}
+
+// Abbruch und atomarer Austausch haben einen eindeutigen Gewinner. Nach erfolgreichem
+// rename darf ein gleichzeitig eintreffender Abbruch keinen Fehlabschluss vortäuschen.
+private final class PreparedExportCommit: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    func cancel() { lock.lock(); cancelled = true; lock.unlock() }
+    func install(_ source: URL, at destination: URL) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !cancelled else { throw CancellationError() }
+        guard rename(source.path, destination.path) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+    }
 }
 
 private final class ExportOperation: @unchecked Sendable {

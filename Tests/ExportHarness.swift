@@ -138,6 +138,43 @@ enum ExportHarness {
         await rejects { try await SongExporter.export(source: source, offset: 0, duration: 5, mode: .hardCut, to: directoryTarget) }
         check(!(try fm.contentsOfDirectory(atPath: root.path)).contains { $0.hasPrefix(".mucke-export-") }, "Staging nach Zielfehler blieb liegen")
 
+        let bounds = try await SongExporter.inspect(source: source)
+        check(abs(bounds.end - 12) < 0.02 && bounds.start == 0, "Mediengrenzen stammen nicht aus der Datei")
+        await rejects { _ = try await SongExporter.inspect(source: root.appendingPathComponent("symlink.wav")) }
+        let rendered = root.appendingPathComponent("rendered.m4a")
+        try await SongExporter.export(source: source, offset: 1.5, duration: 2.7, mode: .faded, to: rendered)
+        let renderedBytes = try Data(contentsOf: rendered)
+        try await SongExporter.savePrepared(rendered, originalSource: source, to: target)
+        check(try Data(contentsOf: target) == renderedBytes, "Gespeicherter Export entspricht nicht der Vorschau")
+        let renderedLink = root.appendingPathComponent("rendered-link.m4a")
+        try fm.linkItem(at: rendered, to: renderedLink)
+        for alias in [source, root.appendingPathComponent("symlink.wav"), root.appendingPathComponent("hardlink.wav"), rendered, renderedLink] {
+            await rejects { try await SongExporter.savePrepared(rendered, originalSource: source, to: alias) }
+            check(try Data(contentsOf: source) == original && Data(contentsOf: rendered) == renderedBytes,
+                  "Vorbereiteter Export verändert eine Quelle")
+        }
+        let keep = directoryTarget.appendingPathComponent("keep.txt")
+        try sentinel.write(to: keep)
+        await rejects { try await SongExporter.savePrepared(rendered, originalSource: source, to: directoryTarget) }
+        check(try Data(contentsOf: keep) == sentinel, "Fehler beim Speichern entfernt ein Verzeichnis")
+
+        let largePrepared = root.appendingPathComponent("large-prepared.m4a")
+        check(fm.createFile(atPath: largePrepared.path, contents: nil), "Copy-Fixture fehlt")
+        let largeHandle = try FileHandle(forWritingTo: largePrepared)
+        try largeHandle.truncate(atOffset: 512 * 1024 * 1024); try largeHandle.close()
+        try sentinel.write(to: target)
+        let copying = Task { try await SongExporter.savePrepared(largePrepared, originalSource: source, to: target) }
+        let copyDeadline = Date(timeIntervalSinceNow: 10)
+        while !(try fm.contentsOfDirectory(atPath: root.path)).contains(where: { $0.hasPrefix(".mucke-export-") }) {
+            check(Date() < copyDeadline, "Vorbereiteter Export begann nicht")
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        copying.cancel()
+        do { try await copying.value; check(false, "Abbruch während Kopieren ignoriert") } catch is CancellationError {}
+        check(try Data(contentsOf: target) == sentinel, "Abbruch ersetzt vorhandenen Export")
+        check(!(try fm.contentsOfDirectory(atPath: root.path)).contains { $0.hasPrefix(".mucke-export-") }, "Kopier-Staging bleibt liegen")
+        try fm.removeItem(at: largePrepared)
+
         for name in ["", "../.hidden/evil:\0", " .", String(repeating: "X", count: 1000), "日本語"] {
             let safe = SongExporter.safeFileBase(name)
             check(!safe.isEmpty && !safe.hasPrefix(".") && !safe.contains("/") && !safe.contains(":"), "unsicherer Titel")
@@ -203,6 +240,9 @@ enum ExportHarness {
                 for mode in [SongExporter.Mode.hardCut, .faded] {
                     try await SongExporter.export(source: recording, offset: 2, duration: 5, mode: mode, to: target)
                     _ = try decode(target, duration: 5)
+                    let preparedTarget = root.appendingPathComponent("prepared-\(ext).m4a")
+                    try await SongExporter.savePrepared(target, originalSource: recording, to: preparedTarget)
+                    check(try Data(contentsOf: target) == Data(contentsOf: preparedTarget), "\(ext)-Vorschau und Export unterscheiden sich")
                     if let evidencePath = ProcessInfo.processInfo.environment["MUCKE_EXPORT_EVIDENCE"] {
                         let file = "export-\(ext)-\(mode == .faded ? "faded" : "hard").m4a"
                         try fm.copyItem(at: target, to: URL(fileURLWithPath: evidencePath).appendingPathComponent(file))

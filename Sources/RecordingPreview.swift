@@ -4,6 +4,7 @@ import VLCKit
 
 @MainActor
 final class RecordingPreview: ObservableObject {
+    private static weak var active: RecordingPreview?
     @Published private(set) var currentID: UUID?
     @Published private(set) var isLoading = false
     @Published private(set) var error: String?
@@ -20,6 +21,8 @@ final class RecordingPreview: ObservableObject {
     func play(id: UUID, url: URL, volume: Float) {
         stop()
         guard url.isFileURL else { return }
+        Self.active?.stop()
+        Self.active = self
         error = nil
         currentID = id; isLoading = true
         let ticket = generation
@@ -37,8 +40,8 @@ final class RecordingPreview: ObservableObject {
         })
         delegate = shim; next.delegate = shim
         next.media = VLCMedia(url: url)
-        next.audio?.volume = Int32(max(0, min(1, volume)) * 100)
         player = next
+        setVolume(volume)
         next.play()
         startTask = Task { [weak self, startDeadlineNanoseconds] in
             do { try await Task.sleep(nanoseconds: startDeadlineNanoseconds) }
@@ -50,11 +53,17 @@ final class RecordingPreview: ObservableObject {
     }
 
     func stop() {
+        if Self.active === self { Self.active = nil }
         generation &+= 1
         startTask?.cancel(); startTask = nil
         let previous = player
         player = nil; previous?.delegate = nil; delegate = nil
         currentID = nil; isLoading = false; error = nil
         previous?.stop()
+    }
+
+    func setVolume(_ volume: Float) {
+        let value = volume.isFinite ? max(0, min(1, volume)) : 0
+        player?.audio?.volume = Int32(value * 100)
     }
 }

@@ -371,3 +371,24 @@
 "Vorhören stoppen" = "Stop preview";
 "Aufnahmeordner öffnen" = "Open recording folder";
 "Der beschädigte Aufnahmeindex wurde gesichert. Vorhandene Dateien können im Aufnahmeordner geprüft werden." = "The damaged recording index was backed up. Existing files can be checked in the recording folder.";
+
+"Bitte gültige Sekundenwerte eingeben." = "Enter valid values in seconds.";
+"Der Ausschnitt muss innerhalb des verfügbaren Audios liegen." = "The selection must stay within the available audio.";
+"Der Ausschnitt muss länger als 0,5 Sekunden sein." = "The selection must be longer than 0.5 seconds.";
+"Export fehlgeschlagen." = "Export failed.";
+"Die Zeitkorrekturen gelten nur für diesen Export. Die Aufnahme bleibt unverändert." = "Time adjustments apply only to this export. The recording is preserved.";
+"Verfügbares Audio wird geprüft …" = "Checking available audio…";
+"Verfügbares Audio" = "Available audio";
+"Der Titel ist nur teilweise aufgenommen. Die Ausgangsgrenzen wurden an das verfügbare Audio angepasst." = "Only part of the track was recorded. The initial boundaries have been adjusted to the available audio.";
+"Anfangskorrektur" = "Start adjustment";
+"Endkorrektur" = "End adjustment";
+"Ein- und Ausblenden" = "Fade in and out";
+"Grenzen zurücksetzen" = "Reset boundaries";
+"Ausschnitt" = "Selection";
+"Ausschnitt wird vorbereitet …" = "Preparing selection…";
+"Als Datei speichern …" = "Save to file…";
+"Vorhören und Speichern verwenden denselben Ausschnitt. Vorhören beendet Live-Radio; danach den Sender bei Bedarf manuell starten." = "Preview and save use the same selection. Preview stops live radio; start the station manually afterward if needed.";
+"Song vorhören, Schnittgrenzen korrigieren und exportieren" = "Preview track, adjust boundaries and export";
+"Für diesen Titel ist kein verfügbares Audio vorhanden." = "No audio is available for this track.";
+"Vorhören oder stoppen (⌘⇧P)" = "Preview or stop (⌘⇧P)";
+"s" = "s";

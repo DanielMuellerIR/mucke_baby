@@ -6,7 +6,7 @@
 
 A native macOS internet‑radio player (SwiftUI + VLCKit) with seven hand‑crafted visual themes and audio‑reactive visualizers that move in sync with the actual sound. Originally inspired by the Linux Mint **Radio++** applet — now its own app, with a play history, stream recording (and per‑song extraction), one‑click Apple Music / Spotify links and more. There is also an iPhone sibling: [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
 
-> The app's UI is in German; this README is English.
+> The app's interface is available in German and English.
 
 ## Download
 
@@ -38,6 +38,7 @@ open "build/Mucke, Baby!.app"                    # launch
 ### Headless / automation
 
 - **Headless regression tests:** `bash Tests/run-tests.sh` runs the existing harnesses on Apple Silicon macOS, without launching the app or downloading VLCKit. HTTP fixtures use loopback only. The macOS CI workflow runs the same command.
+- **Export codec and position checks:** `python3 Tests/export-codecs.py` and `python3 Tests/export-positions.py` generate temporary audio fixtures and independently decode exports with FFmpeg. The position check compares marked cuts with and without fades and verifies that preview and saved files have identical bytes. Both commands require FFmpeg; source codec support depends on the macOS version.
 - **Automatic theme screenshots:** set `MUCKE_SHOTS=<dir>` — the app cycles through all themes, writes one PNG per theme and quits. `MUCKE_SHOT_W=<points>` overrides the window width; the layout baseline uses 940 and 660 macOS points.
   ```bash
   MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
@@ -67,6 +68,7 @@ open "build/Mucke, Baby!.app"                    # launch
 - **Bookmarks** — keep tracks from history or current playback with the heart action. The searchable list stores metadata independently of history and recordings, offers music links, and exports visible matches as UTF-8 text or CSV. Different mixes stay separate.
 - **Separate deletion actions** — clearing history preserves all recordings. “Delete all recordings” requires confirmation and removes only completed recordings, preserving history and any recording in progress.
 - **Recording library** — browse completed and active recordings independently of history, with date, duration, size, Finder access and local preview. Preview asks before stopping live radio. Removing a selected completed recording requires confirmation; history stays intact. History distinguishes fully and partially available audio from missing files.
+- **Preview and trim exports** — Recorded-track exports open an editor with start/end adjustments and optional fades. Preview uses the exact prepared M4A file that will be saved. ⌘⇧P starts or stops preview; Escape closes the editor. Preview asks before stopping live radio, and radio resumes only when you start it manually. Changes affect the exported selection, leaving the original recording and history intact.
 - **Optional stream recording** (off by default) — records the playing stream to `~/Music/MuckeBaby/Aufnahmen/`, with per‑song extraction; auto‑stops when less than 10 GiB is free.
 - **Live recording controls** — turn recording on or off while listening and see the effective status in the main window and menu bar. Recording begins only when audio data is successfully written; waiting, storage and write errors remain visible. It uses the existing metadata connection, which stays open for stations without song titles, and stops below 10 GiB of free storage. Ogg, Opus and FLAC renew that metadata connection for complete file headers while the audio player continues.
 - **One‑click links** from the history to look a track up on Apple Music or Spotify.

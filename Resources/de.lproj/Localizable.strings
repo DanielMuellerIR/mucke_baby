@@ -371,3 +371,24 @@
 "Vorhören stoppen" = "Vorhören stoppen";
 "Aufnahmeordner öffnen" = "Aufnahmeordner öffnen";
 "Der beschädigte Aufnahmeindex wurde gesichert. Vorhandene Dateien können im Aufnahmeordner geprüft werden." = "Der beschädigte Aufnahmeindex wurde gesichert. Vorhandene Dateien können im Aufnahmeordner geprüft werden.";
+
+"Bitte gültige Sekundenwerte eingeben." = "Bitte gültige Sekundenwerte eingeben.";
+"Der Ausschnitt muss innerhalb des verfügbaren Audios liegen." = "Der Ausschnitt muss innerhalb des verfügbaren Audios liegen.";
+"Der Ausschnitt muss länger als 0,5 Sekunden sein." = "Der Ausschnitt muss länger als 0,5 Sekunden sein.";
+"Export fehlgeschlagen." = "Export fehlgeschlagen.";
+"Die Zeitkorrekturen gelten nur für diesen Export. Die Aufnahme bleibt unverändert." = "Die Zeitkorrekturen gelten nur für diesen Export. Die Aufnahme bleibt unverändert.";
+"Verfügbares Audio wird geprüft …" = "Verfügbares Audio wird geprüft …";
+"Verfügbares Audio" = "Verfügbares Audio";
+"Der Titel ist nur teilweise aufgenommen. Die Ausgangsgrenzen wurden an das verfügbare Audio angepasst." = "Der Titel ist nur teilweise aufgenommen. Die Ausgangsgrenzen wurden an das verfügbare Audio angepasst.";
+"Anfangskorrektur" = "Anfangskorrektur";
+"Endkorrektur" = "Endkorrektur";
+"Ein- und Ausblenden" = "Ein- und Ausblenden";
+"Grenzen zurücksetzen" = "Grenzen zurücksetzen";
+"Ausschnitt" = "Ausschnitt";
+"Ausschnitt wird vorbereitet …" = "Ausschnitt wird vorbereitet …";
+"Als Datei speichern …" = "Als Datei speichern …";
+"Vorhören und Speichern verwenden denselben Ausschnitt. Vorhören beendet Live-Radio; danach den Sender bei Bedarf manuell starten." = "Vorhören und Speichern verwenden denselben Ausschnitt. Vorhören beendet Live-Radio; danach den Sender bei Bedarf manuell starten.";
+"Song vorhören, Schnittgrenzen korrigieren und exportieren" = "Song vorhören, Schnittgrenzen korrigieren und exportieren";
+"Für diesen Titel ist kein verfügbares Audio vorhanden." = "Für diesen Titel ist kein verfügbares Audio vorhanden.";
+"Vorhören oder stoppen (⌘⇧P)" = "Vorhören oder stoppen (⌘⇧P)";
+"s" = "s";

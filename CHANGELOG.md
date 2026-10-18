@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.15 — 2026-10-18
+
+- Preview a recorded track, adjust its start and end within the available audio, and choose a hard cut or fade before saving. Preview and save use the same rendered M4A file; recordings and history remain unchanged.
+- Cancel preparation or saving without replacing an existing target. Discard outdated previews after an edit, and keep one local recording preview active across windows.
+- Use the same media-time cut for hard and faded exports, avoiding differing decoder lead-in and shortened Ogg/Opus output.
+
 ## 1.9.13 — 2026-10-18
 
 - Browse recordings independently of history, with station, date, duration, file size, local preview and Finder actions. Confirm stopping live radio before preview; protect active recordings and confirm removal of a selected completed recording.
