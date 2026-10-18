@@ -92,9 +92,11 @@ final class SystemMediaBinding {
 
 // Eine gemeinsame, verzögert erzeugte Abhängigkeitskette für Fenster und Menüleiste.
 @MainActor
-final class RadioServices: ObservableObject {
+final class RadioServices: @preconcurrency ObservableObject {
+    static let shared = RadioServices()
     let objectWillChange = ObservableObjectPublisher()
     let store: Store
+    let bookmarks: BookmarkStore
     let startup: StartupSettings
     let player: RadioPlayer
     let systemMedia: SystemMediaBinding
@@ -103,10 +105,12 @@ final class RadioServices: ObservableObject {
     private var subscriptions = Set<AnyCancellable>()
     init() {
         let store = Store(), player = RadioPlayer()
-        self.store = store; self.player = player
+        self.store = store; self.player = player; bookmarks = BookmarkStore(directory: store.dir)
         let audioSettings = AudioSettingsStore(directory: store.dir), audioTap = AudioTap()
         self.audioSettings = audioSettings; self.audioTap = audioTap
         startup = StartupSettings(directory: store.dir, stations: store.stations)
+        let volume = UserDefaults.standard.object(forKey: "volume") as? Double ?? 0.77
+        player.setVolume(Float(volume))
         systemMedia = SystemMediaBinding(player: player, store: store)
         Publishers.Merge3(store.objectWillChange, startup.objectWillChange, player.objectWillChange)
             .sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)

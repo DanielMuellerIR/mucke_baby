@@ -8,10 +8,12 @@
 
 import SwiftUI
 import AppKit
+import AppIntents
 
 /// App-Delegate nur fuer den Screenshot-Trigger. Im Normalbetrieb ein No-Op.
 final class MuckeAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        RadioShortcuts.updateAppShortcutParameters()
         ScreenshotDebug.runIfRequested()
     }
     func applicationWillTerminate(_ notification: Notification) {

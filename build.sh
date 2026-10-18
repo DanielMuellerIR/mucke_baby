@@ -69,8 +69,25 @@ fi
 rm -rf "$BUILD"/*.app          # alte Bundles (auch frueheres MacRadio.app) weg
 mkdir -p "$APPDIR/Contents/MacOS" "$APPDIR/Contents/Resources" "$APPDIR/Contents/Frameworks" "$MODULE_CACHE"
 
+# AppIntents benötigt Compiler-Konstanten und extrahierte Bundle-Metadaten.
+xcrun --find appintentsmetadataprocessor >/dev/null
+TOOLCHAIN="$(xcrun --find swiftc)"
+TOOLCHAIN="${TOOLCHAIN%/usr/bin/swiftc}"
+python3 - "$TOOLCHAIN" "$BUILD" <<'PYMETA'
+import json,sys
+from pathlib import Path
+root,build=map(Path,sys.argv[1:])
+protocols=json.loads((root/'usr/share/swift/SwiftConstantValues/AppIntents.json').read_text())
+if isinstance(protocols,dict): protocols=protocols['constValueProtocols']
+(build/'intent-protocols.json').write_text(json.dumps(protocols))
+PYMETA
+
 echo "Kompiliere …"
-swiftc -O -parse-as-library \
+swiftc -O -whole-module-optimization -parse-as-library \
+  -module-name MuckeBaby \
+  -Xfrontend -const-gather-protocols-file -Xfrontend "$BUILD/intent-protocols.json" \
+  -emit-const-values-path "$BUILD/MuckeBaby.swiftconstvalues" \
+  -file-prefix-map "$PWD"=. \
   -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$MODULE_CACHE" \
   -F "$FWDIR" -framework VLCKit \
@@ -79,6 +96,21 @@ swiftc -O -parse-as-library \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   Sources/*.swift \
   -o "$APPDIR/Contents/MacOS/$EXE"
+
+python3 - "$BUILD" <<'PYMETA'
+from pathlib import Path
+import sys
+build=Path(sys.argv[1])
+(build/'intent-sources.list').write_text(''.join(str(p.resolve())+'\n' for p in sorted(Path('Sources').glob('*.swift'))))
+(build/'intent-values.list').write_text(str((build/'MuckeBaby.swiftconstvalues').resolve())+'\n')
+PYMETA
+xcrun appintentsmetadataprocessor --module-name MuckeBaby \
+  --toolchain-dir "$TOOLCHAIN" --sdk-root "$SDK" \
+  --xcode-version "$(xcodebuild -version | awk '/Build version/ {print $3}')" \
+  --platform-family macOS --deployment-target 14.2 --target-triple "$TARGET" \
+  --source-file-list "$BUILD/intent-sources.list" --swift-const-vals-list "$BUILD/intent-values.list" \
+  --output "$APPDIR/Contents/Resources"
+test -s "$APPDIR/Contents/Resources/Metadata.appintents/extract.actionsdata"
 
 cp Resources/Info.plist "$APPDIR/Contents/Info.plist"
 mkdir -p "$APPDIR/Contents/Resources/Licenses"

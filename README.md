@@ -26,7 +26,7 @@ Prefer to build from source? See [Run it](#run-it-cli--headlessfriendly) below.
 
 ## Run it (CLI / headless‑friendly)
 
-No Xcode project — the app is compiled with `swiftc` into a `.app` bundle. Only the Command Line Tools are required. The whole toolchain is scriptable (handy for automation and AI agents):
+No Xcode project — the app is compiled with `swiftc` into a `.app` bundle. Xcode with its App Intents metadata tools is required. The whole toolchain is scriptable (handy for automation and AI agents):
 
 ```bash
 ./build.sh                                       # build -> "build/Mucke, Baby!.app" (downloads VLCKit once, ~84 MB)
@@ -60,6 +60,8 @@ open "build/Mucke, Baby!.app"                    # launch
   each Mac and never synchronized.
 
 ## Features
+
+- Native macOS Shortcuts actions can play saved stations, stop radio, set volume, return the current title and save a bookmark. See [Shortcuts](docs/shortcuts.md) for parameters and recording behavior.
 
 - Plays **all codecs** via VLCKit/libVLC (mp3, aac, **ogg, opus**, flac, …).
 - **Seven themes**, each with its own layout, textures and visualizer: Standard, Acid Rave, Retro, Fanzine, GuitarAmp, Danish, Black MIDI.
@@ -116,7 +118,7 @@ See [`THIRD-PARTY.md`](THIRD-PARTY.md) for the full breakdown. In short:
 
 ## Requirements
 
-macOS **14.2+**, Apple Silicon, Xcode Command Line Tools (`xcode-select --install`).
+macOS **14.2+**, Apple Silicon, Xcode (including the App Intents metadata tools).
 
 ---
 

@@ -6,12 +6,12 @@ private let uiLog = Logger(subsystem: "de.danielmuller.macradio", category: "ui"
 
 @main
 struct MacRadioApp: App {
-    @StateObject private var services = RadioServices()
+    @StateObject private var services = RadioServices.shared
     private var store: Store { services.store }
     private var startup: StartupSettings { services.startup }
     private var player: RadioPlayer { services.player }
     @StateObject private var health = StationHealth()
-    @StateObject private var bookmarks = BookmarkStore()
+    private var bookmarks: BookmarkStore { services.bookmarks }
     // Audio-Reaktivität der Visualizer (CoreAudio Process-Tap auf die eigene Ausgabe,
     // vor der Analyse gegen die App-Lautstaerke normalisiert).
     private var audioTap: AudioTap { services.audioTap }

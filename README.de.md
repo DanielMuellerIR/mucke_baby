@@ -59,6 +59,8 @@ open "build/Mucke, Baby!.app"                    # starten
 
 ## Funktionen
 
+- Native macOS-Kurzbefehle können gespeicherte Sender starten, Radio stoppen, die Lautstärke setzen, den aktuellen Titel abfragen und merken. Parameter und Aufnahmeverhalten stehen unter [Kurzbefehle](docs/shortcuts.md).
+
 - Spielt **alle Codecs** über VLCKit/libVLC (mp3, aac, **ogg, opus**, flac, …).
 - **Sieben Themes**, je mit eigenem Layout, eigenen Texturen und eigenem Visualizer: Standard, Acid Rave, Retro, Fanzine, GuitarAmp, Danish, Black MIDI.
 - **Audio-reaktive Visualizer** — analoge VU-Nadeln, Oszilloskop, Spektrum-Balken und eine Piano-Roll — gespeist von einem **CoreAudio-Process-Tap** auf die eigene Tonausgabe. Das getappte Signal wird vor der Analyse normalisiert, damit leiseres Hören den Visualizer nicht kleiner macht; das Bild bleibt perfekt synchron und flüssig (~90 Hz).
@@ -114,7 +116,7 @@ Vollständige Aufstellung in [`THIRD-PARTY.md`](THIRD-PARTY.md). Kurz:
 
 ## Voraussetzungen
 
-macOS **14.2+**, Apple Silicon, Xcode Command Line Tools (`xcode-select --install`).
+macOS **14.2+**, Apple Silicon, Xcode (including the App Intents metadata tools).
 
 ---
 

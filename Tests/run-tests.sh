@@ -161,3 +161,9 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/LibraryExchange.swift \
   Tests/LibraryExchangeHarness.swift -o "$BUILD/library-exchange-harness"
 "$BUILD/library-exchange-harness"
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/Safety.swift Sources/Models.swift \
+  Sources/RecordingState.swift Sources/Recorder.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
+  Sources/RadioCommands.swift Tests/RadioCommandsHarness.swift -o "$BUILD/radio-commands-harness"
+"$BUILD/radio-commands-harness"

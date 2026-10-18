@@ -1,0 +1,5 @@
+"Starte Radio mit ${applicationName}" = "Play radio with ${applicationName}";
+"Stoppe Radio mit ${applicationName}" = "Stop radio with ${applicationName}";
+"Ändere die Lautstärke mit ${applicationName}" = "Change radio volume with ${applicationName}";
+"Frage den Radiotitel mit ${applicationName}" = "Get the radio title with ${applicationName}";
+"Merke den Radiotitel mit ${applicationName}" = "Bookmark the radio title with ${applicationName}";

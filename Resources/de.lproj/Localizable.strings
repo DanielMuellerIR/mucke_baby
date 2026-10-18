@@ -490,3 +490,24 @@
 "Gemerkt: %@" = "Gemerkt: %@";
 
 "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen." = "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen.";
+
+// Kurzbefehle und ihre Fehlerzustände.
+"Radiosender" = "Radiosender";
+"Radiosender starten" = "Radiosender starten";
+"Startet einen gespeicherten Sender ohne eine Aufnahme zu aktivieren." = "Startet einen gespeicherten Sender ohne eine Aufnahme zu aktivieren.";
+"Radio stoppen" = "Radio stoppen";
+"Radiolautstärke setzen" = "Radiolautstärke setzen";
+"Lautstärke in Prozent" = "Lautstärke in Prozent";
+"${station} starten" = "${station} starten";
+"Lautstärke auf ${percent} Prozent setzen" = "Lautstärke auf ${percent} Prozent setzen";
+"Aktuellen Radiotitel abfragen" = "Aktuellen Radiotitel abfragen";
+"Aktuellen Radiotitel merken" = "Aktuellen Radiotitel merken";
+"Radio starten" = "Radio starten";
+"Radiolautstärke" = "Radiolautstärke";
+"Radiotitel abfragen" = "Radiotitel abfragen";
+"Radiotitel merken" = "Radiotitel merken";
+"Dieser Sender ist nicht mehr vorhanden oder deaktiviert." = "Dieser Sender ist nicht mehr vorhanden oder deaktiviert.";
+"Dieser Sender hat keine sichere HTTP- oder HTTPS-Adresse." = "Dieser Sender hat keine sichere HTTP- oder HTTPS-Adresse.";
+"Bitte zuerst die Aufnahme in Mucke, Baby! ausschalten. Dieser Kurzbefehl startet keine Aufnahme." = "Bitte zuerst die Aufnahme in Mucke, Baby! ausschalten. Dieser Kurzbefehl startet keine Aufnahme.";
+"Die Lautstärke muss eine Zahl zwischen 0 und 100 sein." = "Die Lautstärke muss eine Zahl zwischen 0 und 100 sein.";
+"Aktuell ist kein Songtitel verfügbar." = "Aktuell ist kein Songtitel verfügbar.";

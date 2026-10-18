@@ -490,3 +490,24 @@
 "Gemerkt: %@" = "Bookmarked: %@";
 
 "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen." = "The local library contains entries that do not fit the exchange format. It is preserved. Check names, station URLs and group references.";
+
+// Kurzbefehle und ihre Fehlerzustände.
+"Radiosender" = "Radio station";
+"Radiosender starten" = "Play radio station";
+"Startet einen gespeicherten Sender ohne eine Aufnahme zu aktivieren." = "Plays a saved station without enabling recording.";
+"Radio stoppen" = "Stop radio";
+"Radiolautstärke setzen" = "Set radio volume";
+"Lautstärke in Prozent" = "Volume in percent";
+"${station} starten" = "Play ${station}";
+"Lautstärke auf ${percent} Prozent setzen" = "Set volume to ${percent} percent";
+"Aktuellen Radiotitel abfragen" = "Get current radio title";
+"Aktuellen Radiotitel merken" = "Bookmark current radio title";
+"Radio starten" = "Play radio";
+"Radiolautstärke" = "Radio volume";
+"Radiotitel abfragen" = "Get radio title";
+"Radiotitel merken" = "Bookmark radio title";
+"Dieser Sender ist nicht mehr vorhanden oder deaktiviert." = "This station no longer exists or is disabled.";
+"Dieser Sender hat keine sichere HTTP- oder HTTPS-Adresse." = "This station does not have a safe HTTP or HTTPS address.";
+"Bitte zuerst die Aufnahme in Mucke, Baby! ausschalten. Dieser Kurzbefehl startet keine Aufnahme." = "Please turn off recording in Mucke, Baby! first. This shortcut does not start a recording.";
+"Die Lautstärke muss eine Zahl zwischen 0 und 100 sein." = "Volume must be a number between 0 and 100.";
+"Aktuell ist kein Songtitel verfügbar." = "No track title is currently available.";

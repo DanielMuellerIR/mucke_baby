@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.18
+
+- Added native Shortcuts actions for saved stations, stop, volume, current title and bookmarks, sharing the app’s player and library.
+- Added reproducible App Intents metadata extraction to the direct Swift build.
+
+
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
