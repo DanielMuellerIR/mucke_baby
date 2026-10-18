@@ -11,6 +11,7 @@ final class PlayerWindowState: ObservableObject {
 
     func attach(_ window: NSWindow?) {
         guard let window else { return }
+        trace("attach", window: window)
         guard self.window !== window else {
             refresh()
             if wantsFullScreen && window.isVisible { scheduleFullScreen() }
@@ -23,6 +24,7 @@ final class PlayerWindowState: ObservableObject {
                      NSWindow.didExitFullScreenNotification, NSWindow.willCloseNotification] {
             observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] note in
                 guard let self else { return }
+                self.trace(note.name.rawValue)
                 if note.name == NSWindow.willCloseNotification {
                     // SwiftUI kann dasselbe NSWindow erneut öffnen; dessen Beobachter bleiben erhalten.
                     VisualizerRenderTrace.window(self.window, visible: false, fullScreen: false)
@@ -45,15 +47,17 @@ final class PlayerWindowState: ObservableObject {
     }
 
     func showFullScreen(open: OpenWindowAction) {
+        trace("open-before")
         open(id: "visualizer")
         wantsFullScreen = true
+        trace("open-after")
         if let window, window.isVisible || window.isMiniaturized {
             window.deminiaturize(nil); window.makeKeyAndOrderFront(nil)
         }
         scheduleFullScreen()
     }
 
-    func toggleFullScreen() { window?.toggleFullScreen(nil) }
+    func toggleFullScreen() { trace("manual-toggle"); window?.toggleFullScreen(nil) }
 
     func returnToMain(_ action: @escaping () -> Void) {
         if window?.styleMask.contains(.fullScreen) == true {
@@ -69,10 +73,16 @@ final class PlayerWindowState: ObservableObject {
     private func scheduleFullScreen() {
         // SwiftUI muss die Wiederöffnung abschließen, bevor AppKit den Space wechselt.
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.wantsFullScreen, let window = self.window, window.isVisible else { return }
+            guard let self else { return }
+            self.trace("scheduled-toggle")
+            guard self.wantsFullScreen, let window = self.window, window.isVisible else { return }
             self.wantsFullScreen = false
             if !window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
         }
+    }
+
+    private func trace(_ event: String, window: NSWindow? = nil) {
+        VisualizerRenderTrace.event(event, owner: self, window: window ?? self.window, pending: wantsFullScreen)
     }
 
     private func refresh() {
@@ -149,12 +159,20 @@ enum VisualizerRenderTrace {
     private static var frames: [String: Int] = [:]
     private static var windows: [String: [String: Bool]] = [:]
     private static var timer: Timer?
+    private static var events: [[String: Any]] = []
+    static func event(_ event: String, owner: AnyObject, window: NSWindow?, pending: Bool) {
+        guard destination != nil else { return }
+        events.append(["event": event, "owner": String(describing: ObjectIdentifier(owner)), "window": window?.windowNumber ?? -1,
+                       "visible": window?.isVisible ?? false, "fullScreen": window?.styleMask.contains(.fullScreen) ?? false,
+                       "pending": pending, "at": Date().timeIntervalSince1970])
+        if events.count > 128 { events.removeFirst(events.count - 128) }
+    }
     static func frame(owner: String) {
         guard destination != nil else { return }
         frames[owner, default: 0] += 1
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            guard let destination, let data = try? JSONSerialization.data(withJSONObject: ["frames": frames, "windows": windows, "at": Date().timeIntervalSince1970]) else { return }
+            guard let destination, let data = try? JSONSerialization.data(withJSONObject: ["frames": frames, "windows": windows, "events": events, "at": Date().timeIntervalSince1970]) else { return }
             try? data.write(to: destination, options: .atomic)
         }
     }
