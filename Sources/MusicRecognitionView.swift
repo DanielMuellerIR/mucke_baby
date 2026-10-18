@@ -59,7 +59,8 @@ struct MusicRecognitionView: View {
             }
         }
         .padding(16).foregroundStyle(ink)
-        .frame(width: max(320, min(560, availableWidth)), height: max(280, min(460, availableHeight)))
+        .frame(width: max(320, min(560, availableWidth)),
+               height: max(280, min(availableHeight, min(460, 300 * max(1, scale)))))
         .background { SongListSurface() }
         .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
         .onAppear { recognition.refresh() }

@@ -70,6 +70,14 @@ private final class ShazamMatchDelegate: NSObject, SHSessionDelegate {
     nonisolated static func failure(for error: Error) -> RecognitionFailure {
         var next: NSError? = error as NSError, depth = 0
         while let current = next, depth < 4 {
+            if current.domain == SHErrorDomain {
+                switch current.code {
+                case SHError.Code.invalidAudioFormat.rawValue, SHError.Code.signatureInvalid.rawValue: return .invalidAudio
+                case SHError.Code.audioDiscontinuity.rawValue: return .audioChanged
+                case SHError.Code.signatureDurationInvalid.rawValue: return .notEnoughAudio
+                default: break
+                }
+            }
             if current.domain == NSURLErrorDomain {
                 if current.code == NSURLErrorNotConnectedToInternet { return .offline }
                 if current.code == NSURLErrorTimedOut { return .timedOut }

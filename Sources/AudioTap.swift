@@ -1,4 +1,4 @@
-// AudioTap.swift — Audio-Reaktivität für die Theme-Visualizer.
+// AudioTap.swift — eigene Audioausgabe für Visualizer und optionale Musikerkennung.
 //
 // ANSATZ (Variante C, CoreAudio Process-Tap, macOS 14.2+): Wir tappen die TONAUSGABE des EIGENEN
 // Prozesses ab — also denselben, bereits von CoreAudio getakteten Output wie der sichtbare
@@ -93,8 +93,7 @@ final class AudioTap: ObservableObject {
         return isActive ? _captureRate : nil
     }
 
-    /// Liefert der Analyse-Player GERADE echtes Audio? Nur dann sollen die Visualizer ihn als
-    /// Quelle nutzen; sonst (kein Sender, Verbindungsaufbau, Fehler) zeitbasiert weiter.
+    /// Erhält der Process-Tap gerade echtes Audio? Ohne Signal ruhen die Visualizer.
     var reactive: Bool {
         // isActive MIT unter den Lock: es wird auf der lifecycleQueue geschrieben
         // (startTap/teardownTap), hier aber vom Main-Thread (Visualizer, jeder Frame)
@@ -416,8 +415,8 @@ final class AudioTap: ObservableObject {
         os_unfair_lock_unlock(&lock)
     }
 
-    /// Rechnet den App-Lautstaerkeregler aus den getappten Samples heraus. Beispiel:
-    /// VLC spielt mit 25 % → der Tap liefert 0.25x-Amplitude → Analyse bekommt wieder 1.0x.
+    /// Rechnet die tatsächliche Ausgabeamplitude aus den getappten Samples heraus.
+    /// Beispiel: 0.25x-Amplitude im Tap → die Analyse erhält wieder 1.0x.
     private func volumeNormalized(_ mono: [Float]) -> [Float] {
         os_unfair_lock_lock(&lock)
         let outputVolume = _outputVolume

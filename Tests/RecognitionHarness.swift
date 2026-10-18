@@ -68,6 +68,12 @@ private func fails(_ expected: RecognitionFailure, _ action: () throws -> Void) 
         require(RecognizedTrack(title: "\n\u{0}", artist: nil, shazamID: nil, appleMusicURL: nil) == nil, "Leerer Titel")
         require(ShazamRecognitionClient.failure(for: NSError(domain: "SDK", code: 202, userInfo: [NSUnderlyingErrorKey: NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)])) == .offline, "Offline-Kette")
         require(ShazamRecognitionClient.failure(for: NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)) == .timedOut, "Netz-Zeitlimit")
+        for code in [SHError.Code.invalidAudioFormat, .signatureInvalid] {
+            require(ShazamRecognitionClient.failure(for: NSError(domain: SHErrorDomain, code: code.rawValue)) == .invalidAudio, "SDK-Audiofehler wird als Dienstausfall gemeldet")
+        }
+        require(ShazamRecognitionClient.failure(for: NSError(domain: SHErrorDomain, code: SHError.Code.audioDiscontinuity.rawValue)) == .audioChanged, "SDK-Unterbrechung")
+        require(ShazamRecognitionClient.failure(for: NSError(domain: SHErrorDomain, code: SHError.Code.signatureDurationInvalid.rawValue)) == .notEnoughAudio, "SDK-Dauerfehler")
+        require(ShazamRecognitionClient.failure(for: NSError(domain: SHErrorDomain, code: SHError.Code.matchAttemptFailed.rawValue)) == .serviceUnavailable, "SDK-Katalogfehler")
 
         // Lokale Signaturbildung verwendet den SDK-Generator, ohne Katalogabfrage.
         for rate in [16000.0, 22050, 32000, 44100, 48000, 96000] {
