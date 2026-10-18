@@ -35,3 +35,7 @@ Der `StationRepairHarness` prüft optionale Katalogherkunft und Altdaten, UUID-A
 Der `MiniWindowHarness` prüft gespeicherte Fenstergeometrie mit negativen und vertikal angeordneten Bildschirmflächen sowie entfernten Displays. Der Startup-Harness prüft, dass weitere Fenster keinen zweiten Autostart auslösen. Native Fenster-, Fokus- und Mehrdisplay-Prüfungen bleiben gesonderte Laufzeitprüfungen.
 
 `python3 Tests/audio-effects.py` benötigt den gepinnten Vendor-Cache und FFmpeg. Das Gate misst echten VLCKit-PCM-Ausgang mit neutralem Equalizer, Bandabsenkung und Headroom; es prüft keinen CoreAudio-Lautstärkeregler oder Hörtest. AudioSettingsHarness und PlayerHarness prüfen zusätzlich Dateischutz, atomare Speicherung, lokale Senderidentität, Playerwechsel, Retry und Stumm.
+
+## Experimenteller Zeitversatz
+
+`TimeshiftHarness` prüft Frame-/Bytezeit, fragmentierte Pakete, Grenzen, Titel, aktive Ausschnitte, Disk-Gate und den Erhalt dauerhafter Dateien. Die isolierte native MP3-Probe und die frühe Codecprüfung sind in [docs/timeshift-experiment.md](../docs/timeshift-experiment.md) beschrieben. Der normale Player aktiviert sie nicht.

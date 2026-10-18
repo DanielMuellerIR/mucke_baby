@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.26 — 2026-10-18
+
+- Add an isolated experimental MP3 timeshift path with bounded compressed audio, a protected local playback excerpt, pause/resume, an ICY title timeline and return to live playback. The normal player does not enable the experiment.
+- Add reproducible codec and loopback playback checks while keeping temporary audio separate from permanent recordings.
+
 ## 1.9.25 — 2026-10-18
 
 - Add a shared sleep timer in the main player and menu bar, with presets, a custom duration, extension and cancellation.
