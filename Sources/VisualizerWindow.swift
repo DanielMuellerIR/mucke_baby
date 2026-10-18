@@ -268,6 +268,8 @@ struct VisualizerWindowView: View {
         .background {
             Button("") { togglePlayback() }.keyboardShortcut(.space, modifiers: [])
                 .opacity(0).accessibilityHidden(true)
+            Button("") { presentation.toggleFullScreen() }.keyboardShortcut("f", modifiers: [.control, .command])
+                .opacity(0).accessibilityHidden(true)
         }
     }
 
