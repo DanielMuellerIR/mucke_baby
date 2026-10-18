@@ -57,7 +57,12 @@ final class PlayerWindowState: ObservableObject {
         scheduleFullScreen()
     }
 
-    func toggleFullScreen() { trace("manual-toggle"); window?.toggleFullScreen(nil) }
+    func toggleFullScreen() {
+        guard let window else { return }
+        trace("manual-toggle")
+        VisualizerWindowPolicy.configure(window)
+        window.toggleFullScreen(nil)
+    }
 
     func returnToMain(_ action: @escaping () -> Void) {
         if window?.styleMask.contains(.fullScreen) == true {
@@ -77,6 +82,8 @@ final class PlayerWindowState: ObservableObject {
             self.trace("scheduled-toggle")
             guard self.wantsFullScreen, let window = self.window, window.isVisible else { return }
             self.wantsFullScreen = false
+            VisualizerWindowPolicy.configure(window)
+            self.trace("configured-toggle")
             if !window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
         }
     }
@@ -102,6 +109,16 @@ final class PlayerWindowState: ObservableObject {
     deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 }
 
+private enum VisualizerWindowPolicy {
+    static func configure(_ window: NSWindow) {
+        window.identifier = NSUserInterfaceItemIdentifier("MuckeBabyVisualizer")
+        window.isRestorable = false
+        // Die primäre Vollbildrolle gilt auch nach einer SwiftUI-Wiederöffnung.
+        window.collectionBehavior.remove([.fullScreenAuxiliary, .fullScreenNone])
+        window.collectionBehavior.insert(.fullScreenPrimary)
+    }
+}
+
 struct PlayerWindowObserver: NSViewRepresentable {
     let state: PlayerWindowState
     var visualizer = false
@@ -110,10 +127,7 @@ struct PlayerWindowObserver: NSViewRepresentable {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
             if visualizer {
-                window.identifier = NSUserInterfaceItemIdentifier("MuckeBabyVisualizer")
-                window.isRestorable = false
-                window.collectionBehavior.remove(.fullScreenAuxiliary)
-                window.collectionBehavior.insert(.fullScreenPrimary)
+                VisualizerWindowPolicy.configure(window)
             }
             state.attach(window)
         }
@@ -164,7 +178,8 @@ enum VisualizerRenderTrace {
         guard destination != nil else { return }
         events.append(["event": event, "owner": String(describing: ObjectIdentifier(owner)), "window": window?.windowNumber ?? -1,
                        "visible": window?.isVisible ?? false, "fullScreen": window?.styleMask.contains(.fullScreen) ?? false,
-                       "pending": pending, "at": Date().timeIntervalSince1970])
+                       "pending": pending, "collectionBehavior": window?.collectionBehavior.rawValue ?? 0,
+                       "styleMask": window?.styleMask.rawValue ?? 0, "at": Date().timeIntervalSince1970])
         if events.count > 128 { events.removeFirst(events.count - 128) }
     }
     static func frame(owner: String) {
