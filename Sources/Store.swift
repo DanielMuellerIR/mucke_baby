@@ -28,6 +28,7 @@ final class Store: ObservableObject {
     let stationsURL: URL
     private let seedURL: URL?
     private var canPersist = false
+    var isReadOnly: Bool { !canPersist }
 
     init(directory: URL? = nil,
          seedURL: URL? = Bundle.main.url(forResource: "seed-stations", withExtension: "json")) {
@@ -57,6 +58,12 @@ final class Store: ObservableObject {
         let collection: StationCollection?
         struct Header: Decodable { let formatVersion: Int }
         do {
+            if let recovery = try LibraryExchangeStorage.recover(in: dir) {
+                guard let data = recovery.values["stations.json"] else { throw ExchangeDiskError.invalidJournal }
+                let imported = try JSONDecoder().decode(StationCollection.self, from: data)
+                adoptImport(imported, pending: recovery.pending, notice: recovery.notice)
+                return
+            }
             if let data = try? Data(contentsOf: stationsURL),
                let header = try? JSONDecoder().decode(Header.self, from: data), header.formatVersion != 2 {
                 loadNotice = String(localized: "Die Senderliste stammt aus einer anderen App-Version und bleibt unverändert. Bitte eine passende App-Version verwenden.")
@@ -65,7 +72,7 @@ final class Store: ObservableObject {
             }
             collection = try JSONFileRecovery.load(StationCollection.self, from: stationsURL)
         }
-        catch { persistenceFailed = true; return }
+        catch { loadNotice = error.localizedDescription; persistenceFailed = true; return }
         canPersist = true
         if let collection {
             stations = collection.stations; groups = collection.groups; quickSlots = collection.quickSlots
@@ -79,6 +86,9 @@ final class Store: ObservableObject {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
+            guard try ExchangeTransaction.read(dir.appendingPathComponent(ExchangeTransaction.journalName)) == nil else {
+                throw ExchangeDiskError.pending
+            }
             try enc.encode(next).write(to: stationsURL, options: .atomic)
         } catch {
             throw StationSaveError.persistenceFailed
@@ -86,6 +96,11 @@ final class Store: ObservableObject {
         stations = next.stations
         groups = next.groups
         quickSlots = next.quickSlots
+    }
+
+    func adoptImport(_ collection: StationCollection, pending: Bool, notice: String?) {
+        stations = collection.stations; groups = collection.groups; quickSlots = collection.quickSlots
+        canPersist = !pending; persistenceFailed = pending; loadNotice = notice
     }
 
     private func commitStations(_ next: [Station]) throws {
@@ -334,34 +349,6 @@ final class Store: ObservableObject {
         importStations(stations(in: list))
     }
 
-    // MARK: - JSON Im-/Export (portabel, ohne interne ids)
-
-    // Portabler Senderexport mit optionaler Katalogherkunft, ohne lokale Sender-IDs.
-    func exportData() -> Data? {
-        let arr = stations.map {
-            PortableStation(name: $0.name, url: $0.url, enabled: $0.enabled, favorite: $0.favorite,
-                            radioBrowserID: $0.radioBrowserID)
-        }
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try? enc.encode(arr)
-    }
-
-    // JSON importieren (tolerant: SeedStation-Format). Fuegt neue Sender hinzu
-    // (Dubletten per URL übersprungen). -1 = Datei nicht lesbar, -2 = Speicherfehler.
-    func importData(_ data: Data) -> Int {
-        guard let seeds = try? JSONDecoder().decode([SeedStation].self, from: data) else { return -1 }
-        return importStations(seeds)
-    }
-}
-
-// Lokale Sender-IDs bleiben lokal; Katalog-IDs sind auf anderen Geräten nutzbar.
-struct PortableStation: Codable {
-    var name: String
-    var url: String
-    var enabled: Bool
-    var favorite: Bool
-    var radioBrowserID: UUID?
 }
 
 // Eintrag im Genre-Listen-Manifest.

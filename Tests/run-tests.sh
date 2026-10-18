@@ -33,12 +33,12 @@ swiftc -parse-as-library \
 "$BUILD/review-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/BookmarkStore.swift Sources/SongHistory.swift Sources/HistoryFilter.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
   Tests/StoreHarness.swift -o "$BUILD/store-harness"
 "$BUILD/store-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/BookmarkStore.swift Sources/SongHistory.swift Sources/HistoryFilter.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
   Tests/StationSelectionHarness.swift -o "$BUILD/station-selection-harness"
 "$BUILD/station-selection-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
@@ -53,7 +53,7 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
   Sources/Models.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
-  Sources/RecordingState.swift Sources/Recorder.swift Sources/BookmarkStore.swift Tests/BookmarkHarness.swift \
+  Sources/RecordingState.swift Sources/Recorder.swift Sources/BookmarkStore.swift Sources/Safety.swift Sources/StationSelection.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift Tests/BookmarkHarness.swift \
   -o "$BUILD/bookmark-harness"
 MUCKE_BOOKMARK_EXPORT_FIXTURE="$BUILD/bookmarks.csv" "$BUILD/bookmark-harness"
 python3 - <<'PY'
@@ -138,7 +138,26 @@ python3 Tests/release-publish.py
 
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/BookmarkStore.swift Sources/SongHistory.swift Sources/HistoryFilter.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift \
   Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/StationHealth.swift Sources/PlaylistResolver.swift \
-  Tests/StationRepairHarness.swift -o "$BUILD/station-repair-harness"
+  Sources/ExchangeMerge.swift Sources/LibraryExchange.swift Tests/StationRepairHarness.swift -o "$BUILD/station-repair-harness"
 "$BUILD/station-repair-harness"
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
+  Sources/BookmarkStore.swift Sources/ExchangeCodec.swift Sources/ExchangeMerge.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift \
+  Tests/ExchangeCodecHarness.swift -o "$BUILD/exchange-codec-harness"
+"$BUILD/exchange-codec-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/ExchangeTransaction.swift Tests/ExchangeTransactionHarness.swift \
+  -o "$BUILD/exchange-transaction-harness"
+"$BUILD/exchange-transaction-harness"
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" \
+  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
+  Sources/BookmarkStore.swift Sources/ExchangeCodec.swift Sources/ExchangeMerge.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift \
+  Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/LibraryExchange.swift \
+  Tests/LibraryExchangeHarness.swift -o "$BUILD/library-exchange-harness"
+"$BUILD/library-exchange-harness"

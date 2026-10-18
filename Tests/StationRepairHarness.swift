@@ -76,10 +76,14 @@ struct StationRepairHarness {
         check(restarted.stations == store.stations && restarted.groups == store.groups && restarted.quickSlots == store.quickSlots, "Reparatur übersteht Neustart nicht")
         do { try store.applyURLRepair(proposal); fatalError("Alte Vorschau überschreibt neue URL") }
         catch StationSaveError.stationChanged { }
-        let exported = try JSONDecoder().decode([SeedStation].self, from: store.exportData()!)
-        check(exported.first { $0.radioBrowserID == origin }?.name == renamed.name, "Export verliert Herkunft")
+        let exchangeData = try ExchangeCodec.encode(ExchangeLibrary(stations: store.stations, groups: store.groups, bookmarks: []))
+        let exported = try ExchangeCodec.decode(exchangeData)
+        check(exported.stations.first { $0.radioBrowserID == origin }?.name == renamed.name, "Export verliert Herkunft")
         let imported = Store(directory: root.appendingPathComponent("import"), seedURL: nil)
-        check(imported.importData(store.exportData()!) >= 1 && imported.stations.contains { $0.radioBrowserID == origin }, "Import verliert Herkunft")
+        let importedBookmarks = BookmarkStore(directory: imported.dir)
+        let importRequest = try LibraryExchange.prepare(exchangeData, store: imported, bookmarks: importedBookmarks)
+        try LibraryExchange.apply(importRequest, choices: [:], store: imported, bookmarks: importedBookmarks)
+        check(imported.stations.contains { $0.radioBrowserID == origin }, "Import verliert Herkunft")
         let legacyData = Data("[{\"name\":\"Alt\",\"url\":\"https://example.com/alt\",\"radioBrowserID\":\"ungueltig\"}]".utf8)
         let legacy = try JSONDecoder().decode([Station].self, from: legacyData)[0]
         let legacySeeds = try JSONDecoder().decode([SeedStation].self, from: legacyData)

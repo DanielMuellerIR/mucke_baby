@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.17 — 2026-10-18
+
+- Exchange stations, favorites, catalog identity, groups and bookmarks through a documented versioned JSON format. Continue reading legacy station files.
+- Preview new, unchanged and conflicting records before import, with explicit choices that preserve local identity and never delete existing entries.
+- Commit stations and bookmarks together, reject stale previews and protect incomplete import recovery. Keep recordings, history, quick slots and device settings local.
+
 ## 1.9.16 — 2026-10-18
 
 - Store manual gain adjustments per local station and cap the resulting playback volume at 100%. Keep recordings and exports unprocessed.

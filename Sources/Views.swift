@@ -130,11 +130,13 @@ struct StationEditView: View {
 struct PreferencesView: View {
     @EnvironmentObject var startup: StartupSettings
     @EnvironmentObject var store: Store
+    @EnvironmentObject private var bookmarks: BookmarkStore
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("menuBarMode") private var menuBarMode = false
     @EnvironmentObject private var player: RadioPlayer
     @State private var ioMessage = ""
+    @State private var importRequest: ExchangeImportRequest?
 
     private var recordingsDir: URL {
         FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0]
@@ -197,12 +199,12 @@ struct PreferencesView: View {
                         NSWorkspace.shared.activateFileViewerSelecting([recordingsDir])
                     }
                 }
-                Section("Sender Im-/Export (JSON)") {
+                Section("Bibliothek austauschen (JSON)") {
                     HStack {
-                        Button("Exportieren …") { exportStations() }
-                        Button("Importieren …") { importStations() }
+                        Button("Exportieren …") { exportStations() }.accessibilityIdentifier("exchange-export")
+                        Button("Importieren …") { importStations() }.accessibilityIdentifier("exchange-import")
                     }
-                    Text("JSON exportiert Sender und Favoriten. Import ergänzt neue sichtbare Sender ohne Favoriten und überspringt gleiche URLs. Gruppen und Schnellplätze bleiben lokal.")
+                    Text("Sender mit Favoriten und Katalogherkunft, Gruppen und gemerkte Titel austauschen. Vor dem Import erscheint eine Vorschau mit Konfliktwahl. Rohaufnahmen und Verlauf werden nicht exportiert.")
                         .font(.caption).foregroundStyle(.secondary)
                     if !ioMessage.isEmpty {
                         Text(ioMessage).font(.caption).foregroundStyle(Color.accentColor)
@@ -227,35 +229,37 @@ struct PreferencesView: View {
         }
         .padding(18)
         .frame(width: 460)
+        .sheet(item: $importRequest) { request in
+            ExchangeImportView(request: request, availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
+                               availableHeight: (NSApp.keyWindow?.frame.height ?? 780) - 80)
+        }
     }
 
-    // Ganze Senderliste als JSON-Datei sichern.
+    // Die portable Bibliothek enthält keine Aufnahmen und keine lokalen Einstellungen.
     private func exportStations() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "muckebaby-sender.json"
-        guard panel.runModal() == .OK, let url = panel.url, let data = store.exportData() else { return }
+        panel.nameFieldStringValue = "muckebaby-bibliothek.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try data.write(to: url)
-            ioMessage = String(localized: "\(store.stations.count) Sender exportiert.")
+            try LibraryExchange.export(store: store, bookmarks: bookmarks, to: url, recordingDirectory: recordingsDir)
+            ioMessage = String(localized: "Bibliothek exportiert.")
         } catch {
             ioMessage = String(localized: "Export fehlgeschlagen: \(error.localizedDescription)")
         }
     }
 
-    // JSON-Datei einlesen und neue Sender hinzufuegen.
+    // Einlesen allein verändert weder Sender noch Merkliste.
     private func importStations() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url, let data = try? Data(contentsOf: url) else { return }
-        let n = store.importData(data)
-        if n == -2 { store.persistenceFailed = false }
-        ioMessage = n == -2
-            ? String(localized: "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.")
-            : n >= 0
-            ? String(localized: "\(n) neue Sender importiert.")
-            : String(localized: "Datei nicht lesbar (erwartet: JSON-Array mit {name,url}).")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            guard let data = try ExchangeTransaction.read(url, limit: ExchangeCodec.byteLimit) else { throw ExchangeFormatError.invalidData }
+            importRequest = try LibraryExchange.prepare(data, store: store, bookmarks: bookmarks)
+            ioMessage = ""
+        } catch { ioMessage = error.localizedDescription }
     }
 }
 

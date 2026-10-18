@@ -83,15 +83,16 @@ enum StoreHarness {
               "add/update müssen gültige URLs normalisieren und Identität erhalten")
         let persisted = try JSONDecoder().decode(StationCollection.self, from: Data(contentsOf: store.stationsURL)).stations
         check(persisted == store.stations, "Akzeptierte Änderungen müssen auf Platte stehen")
-        check(store.importData(Data("""
+        check(store.importStations(try JSONDecoder().decode([SeedStation].self, from: Data("""
         [{"name":"Duplicate","url":"https://EXAMPLE.com:443/Changed?Key=Y"},
          {"name":"Case-sensitive","url":"https://example.com/changed?Key=Y"},
          {"name":"Unsafe","url":"file:///tmp/audio"}]
-        """.utf8)) == 1, "Import muss Dubletten und unzulässige URLs überspringen")
+        """.utf8))) == 1, "Genre-Import muss Dubletten und unzulässige URLs überspringen")
         let imported = store.stations.last!
         check(imported.enabled && !imported.favorite, "Importflags bleiben erhalten")
         let beforeMalformed = try Data(contentsOf: store.stationsURL)
-        check(store.importData(Data("not json".utf8)) == -1, "Defekter Import muss Fehler melden")
+        do { _ = try ExchangeCodec.decode(Data("not json".utf8)); fatalError("Defekter Import muss Fehler melden") }
+        catch ExchangeFormatError.invalidData {}
         check(try Data(contentsOf: store.stationsURL) == beforeMalformed, "Defekter Import verändert Bestände")
 
         // Bestandsdaten durchlaufen beim Lesen bewusst keine neue URL-Policy.
@@ -141,7 +142,7 @@ enum StoreHarness {
         store.toggleFavorite(snapshot.last!)
         check(!store.addIfNew(name: "Catalog", url: "https://example.com/catalog"),
               "Katalog meldet ungespeicherten Sender als hinzugefügt")
-        check(store.importData(Data("[{\"name\":\"Import\",\"url\":\"https://example.com/import\"}]".utf8)) == -2,
+        check(store.importStations(try JSONDecoder().decode([SeedStation].self, from: Data("[{\"name\":\"Import\",\"url\":\"https://example.com/import\"}]".utf8))) == -2,
               "Import meldet trotz Speicherfehler Erfolg")
         check(store.stations == snapshot && store.persistenceFailed,
               "Fehlgeschlagene Senderaktion verändert Zustand oder meldet keinen Speicherfehler")
@@ -179,7 +180,7 @@ enum StoreHarness {
         let restarted = Store(directory: favorites.dir, seedURL: nil)
         check(restarted.stations == favorites.stations && restarted.stations.filter(\.favorite).count == 3,
               "Mehrere Favoriten müssen einen Neustart überstehen")
-        let decoded = try JSONDecoder().decode([Station].self, from: favorites.exportData()!)
+        let decoded = try ExchangeCodec.decode(ExchangeCodec.encode(ExchangeLibrary(stations: favorites.stations, groups: favorites.groups, bookmarks: []))).stations
         check(decoded.filter(\.favorite).count == 3, "Export muss alle Favoriten erhalten")
         print("StoreHarness: OK")
     }

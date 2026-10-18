@@ -15,7 +15,22 @@ struct SongBookmark: Identifiable, Codable, Equatable {
     }
 }
 
-private struct BookmarkIdentity: Hashable {
+struct BookmarkDocument: Codable {
+    let formatVersion: Int
+    let entries: [SongBookmark]
+    init(entries: [SongBookmark]) { formatVersion = 1; self.entries = entries }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        formatVersion = try container.decode(Int.self, forKey: .formatVersion)
+        entries = try container.decode([SongBookmark].self, forKey: .entries)
+        guard Set(entries.map(\.id)).count == entries.count,
+              entries.allSatisfy({ !$0.raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid bookmark entries"))
+        }
+    }
+}
+
+struct BookmarkIdentity: Hashable {
     let artist: String
     let title: String
 
@@ -40,25 +55,9 @@ final class BookmarkStore: ObservableObject {
     @Published private(set) var entries: [SongBookmark] = []
     @Published private(set) var notice: String?
     private(set) var isReadOnly = false
-    private let fileURL: URL
+    let fileURL: URL
 
     private struct Header: Decodable { let formatVersion: Int }
-    private struct Document: Codable {
-        let formatVersion: Int
-        let entries: [SongBookmark]
-
-        init(entries: [SongBookmark]) { formatVersion = 1; self.entries = entries }
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            formatVersion = try container.decode(Int.self, forKey: .formatVersion)
-            entries = try container.decode([SongBookmark].self, forKey: .entries)
-            guard Set(entries.map(\.id)).count == entries.count,
-                  entries.allSatisfy({ !$0.raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
-                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
-                                                       debugDescription: "Invalid bookmark entries"))
-            }
-        }
-    }
 
     enum StoreError: LocalizedError {
         case readOnly, noTitle, protectedDestination
@@ -78,6 +77,12 @@ final class BookmarkStore: ObservableObject {
         fileURL = directory.appendingPathComponent("bookmarks.json")
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            if let recovery = try LibraryExchangeStorage.recover(in: directory) {
+                guard let data = recovery.values["bookmarks.json"] else { throw ExchangeDiskError.invalidJournal }
+                let imported = try ExchangeCodec.dateDecoder().decode(BookmarkDocument.self, from: data)
+                adoptImport(imported.entries, pending: recovery.pending, notice: recovery.notice)
+                return
+            }
             let existed = FileManager.default.fileExists(atPath: fileURL.path)
             if let header = try JSONFileRecovery.load(Header.self, from: fileURL) {
                 // Neuere Versionen sind keine beschädigten Dateien. Unverändert
@@ -87,7 +92,7 @@ final class BookmarkStore: ObservableObject {
                     notice = String(localized: "Diese Merkliste verwendet eine unbekannte Dateiversion. Die Datei bleibt unverändert.")
                     return
                 }
-                if let document = try JSONFileRecovery.load(Document.self, from: fileURL, decoder: .iso) {
+                if let document = try JSONFileRecovery.load(BookmarkDocument.self, from: fileURL, decoder: ExchangeCodec.dateDecoder()) {
                     guard document.formatVersion == 1 else { throw StoreError.readOnly }
                     entries = document.entries
                 }
@@ -132,10 +137,18 @@ final class BookmarkStore: ObservableObject {
 
     private func persist(_ value: [SongBookmark]) throws {
         guard !isReadOnly else { throw StoreError.readOnly }
-        let data = try JSONEncoder.isoPretty.encode(Document(entries: value))
+        guard try ExchangeTransaction.read(fileURL.deletingLastPathComponent().appendingPathComponent(ExchangeTransaction.journalName)) == nil else {
+            throw ExchangeDiskError.pending
+        }
+        let data = try ExchangeCodec.dateEncoder().encode(BookmarkDocument(entries: value))
+        let stored = try ExchangeCodec.dateDecoder().decode(BookmarkDocument.self, from: data)
         try data.write(to: fileURL, options: .atomic)
         // Erst nach erfolgreichem Schreiben darf das Herz Erfolg anzeigen.
-        entries = value
+        entries = stored.entries
+    }
+
+    func adoptImport(_ value: [SongBookmark], pending: Bool, notice: String?) {
+        entries = value; isReadOnly = pending; self.notice = notice
     }
 
     enum ExportFormat { case text, csv }
