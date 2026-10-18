@@ -1,17 +1,21 @@
 # Changelog
 
-## 1.9.18
+All notable changes to "Mucke, Baby!" are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/).
+
+## 1.9.19 — 2026-10-18
+
+- Prevent restored main windows when a shortcut starts the app in the background; retain normal app launch behavior.
+- Reject stream ports outside 1–65535 in portable library files.
+
+## 1.9.18 — 2026-10-18
 
 - Added native Shortcuts actions for saved stations, stop, volume, current title and bookmarks, sharing the app’s player and library.
 - Added reproducible App Intents metadata extraction to the direct Swift build.
 
-
-All notable changes to "Mucke, Baby!" are documented in this file.
-The format is based on [Keep a Changelog](https://keepachangelog.com/).
-
 ## 1.9.17 — 2026-10-18
 
-- Exchange stations, favorites, catalog identity, groups and bookmarks through a documented versioned JSON format. Continue reading legacy station files and reject stream ports outside 1–65535.
+- Exchange stations, favorites, catalog identity, groups and bookmarks through a documented versioned JSON format. Continue reading legacy station files.
 - Preview new, unchanged and conflicting records before import, with explicit choices that preserve local identity and never delete existing entries.
 - Commit stations and bookmarks together, reject stale previews and protect incomplete import recovery. Keep recordings, history, quick slots and device settings local.
 
