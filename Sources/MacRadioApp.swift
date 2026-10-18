@@ -695,10 +695,10 @@ struct ContentView: View {
     private var nowPlayingFooterText: some View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 8) {
-                Text(player.currentStation?.name ?? String(localized: "Kein Sender"))
                 if recognition.currentAdoption != nil {
                     Text("Shazam").accessibilityIdentifier("current-recognition-source")
                 }
+                Text(player.currentStation?.name ?? String(localized: "Kein Sender"))
             }
             .font(theme.font(.label, size: 11 * uiFontScale))
             .foregroundStyle(theme.palette.textSecondary).lineLimit(1)
