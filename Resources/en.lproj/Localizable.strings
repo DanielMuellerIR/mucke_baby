@@ -98,6 +98,7 @@
 "Schrift größer" = "Increase font size";
 "Schrift kleiner" = "Decrease font size";
 "Originalgröße" = "Original size";
+"Thema" = "Theme";
 "Nächstes Thema" = "Next theme";
 "Lautstärke: %lld % — ziehen zum Drehen" = "Volume: %lld% — drag to rotate";
 "Lautstärke: %lld %" = "Volume: %lld%";
@@ -539,3 +540,5 @@
 "Zum Stapelexport auswählen" = "Select for batch export";
 "Zum Stapelexport auswählen: %@ %@" = "Select for batch export: %@ %@";
 "Kein freier Dateiname für diesen Export gefunden." = "No unused filename was found for this export.";
+
+"Keine Aufnahme zu diesem Titel." = "No recording for this track.";

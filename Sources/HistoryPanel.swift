@@ -161,7 +161,10 @@ struct HistoryPanel: View {
                             .buttonStyle(.plain).help("Mehrfachauswahl beenden")
                             .accessibilityLabel("Mehrfachauswahl beenden").accessibilityIdentifier("history-batch-end")
                     }
-                }.padding(8)
+                }
+                .padding(8)
+                .foregroundStyle(historyInk)
+                .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
                 Divider()
             }
             // Aktionen fuer den ausgewaehlten Titel — Icon UND Text.
@@ -424,6 +427,8 @@ struct HistoryPanel: View {
                     } label: { Label("Neueste anzeigen", systemImage: "arrow.down.to.line") }
                         .font(theme.font(.label, size: 10 * uiFontScale))
                         .buttonStyle(.bordered)
+                        .foregroundStyle(historyInk)
+                        .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
                         .padding(8)
                 }
             }

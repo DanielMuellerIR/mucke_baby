@@ -98,6 +98,7 @@
 "Schrift größer" = "Schrift größer";
 "Schrift kleiner" = "Schrift kleiner";
 "Originalgröße" = "Originalgröße";
+"Thema" = "Thema";
 "Nächstes Thema" = "Nächstes Thema";
 "Lautstärke: %lld % — ziehen zum Drehen" = "Lautstärke: %lld % — ziehen zum Drehen";
 "Lautstärke: %lld %" = "Lautstärke: %lld %";
@@ -539,3 +540,5 @@
 "Zum Stapelexport auswählen" = "Zum Stapelexport auswählen";
 "Zum Stapelexport auswählen: %@ %@" = "Zum Stapelexport auswählen: %@ %@";
 "Kein freier Dateiname für diesen Export gefunden." = "Kein freier Dateiname für diesen Export gefunden.";
+
+"Keine Aufnahme zu diesem Titel." = "Keine Aufnahme zu diesem Titel.";
