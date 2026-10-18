@@ -253,7 +253,12 @@ struct VisualizerWindowView: View {
                 .environment(\.visualizerRenderingEnabled, presentation.isVisible)
                 .environment(\.visualizerRenderOwner, "visualizer")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topTrailing) { controlsToggle.padding(12) }
+                .overlay(alignment: .topTrailing) {
+                    controlsToggle
+                        // Im Vollbild können Menü- und Titelleiste über der Bühne einblenden.
+                        .padding(.top, presentation.isFullScreen ? 64 : 12)
+                        .padding(.trailing, 12)
+                }
             if controlsVisible {
                 Rectangle().fill(theme.palette.divider).frame(height: 1)
                 controls
