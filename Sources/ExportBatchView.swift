@@ -135,11 +135,8 @@ struct ExportBatchView: View {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true; panel.prompt = String(localized: "Ordner wählen")
-        guard let window = NSApp.keyWindow else { return }
-        panel.beginSheetModal(for: window) { response in
-            guard response == .OK, let url = panel.url else { return }
-            directory = url
-            queue.start(directory: url, mode: faded ? .faded : .hardCut)
-        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        directory = url
+        queue.start(directory: url, mode: faded ? .faded : .hardCut)
     }
 }
