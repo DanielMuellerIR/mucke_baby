@@ -77,3 +77,17 @@ Zustandsbilder dokumentieren den Lauf. `played-excerpt.mp3` dient dem unabhängi
 Decoder-/Titelvergleich. CoreAudio-Ausgangsstatus und decodierbares Audio ersetzen
 keinen menschlichen Hörtest. Ein solcher Test sowie die reale Mindest-macOS-
 Prüfung müssen im jeweiligen Abnahmeprotokoll ausdrücklich gekennzeichnet bleiben.
+
+## Hörprüfung des Experiments
+
+Am 2026-10-18 wurde der vollständige MP3-Versuch unter macOS 26.7.1 gehört:
+Live-Ton, Fortsetzen nach der Pause und Live-Rückkehr waren hörbar; es wurden
+keine Aussetzer bemerkt. An den Frequenzwechseln knackte der Testton. Die
+synthetische Quelle schaltet ihre Sinusfrequenz mit einem Phasensprung um;
+diese Signalsprünge sind auch in der unabhängig decodierten Quelle enthalten.
+Der lokale Ausschnitt ist bytegleich zur entsprechenden Quellstelle.
+
+Der begrenzte EOF-Schutz war auch in diesem Lauf nötig. Die Hörprüfung bestätigt
+den endlichen Versuch; präzise Decoder-Vorläufe, vollständige Endpositionen und
+nahtlose Übergänge eines fortlaufenden Segmentlesers sind damit weiterhin nicht
+freigegeben. Die reale Laufzeitprüfung unter macOS 14.2 bleibt ausstehend.

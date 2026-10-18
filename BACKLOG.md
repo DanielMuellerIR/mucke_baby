@@ -46,7 +46,9 @@
 13. Experimenteller MP3-Zeitversatz ist ausschließlich im isolierten Testbundle
     erreichbar. Vor allgemeiner Freigabe bleiben fortlaufender Segmentleser,
     Decoder-Vorlauf/Seek, Crash-Cleanup, gemeinsame Recorder-Anbindung und die
-    reale Hör-/Mindest-macOS-Abnahme erforderlich. AAC benötigt ADTS-Framegrenzen;
+    reale Hör-/Mindest-macOS-Abnahme der Produktionsfunktion erforderlich. Der
+    endliche MP3-Versuch wurde unter macOS 26.7.1 ohne Aussetzer gehört; sein
+    EOF-Schutz ersetzt keine nahtlosen Segmentübergänge. AAC benötigt ADTS-Framegrenzen;
     Ogg/Vorbis und Ogg/Opus benötigen eine eigene Containerstrategie.
 
 Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
