@@ -31,6 +31,10 @@ final class PlayerWindowState: ObservableObject {
                     self.isVisible = false; self.isFullScreen = false
                     self.returnAction = nil; self.wantsFullScreen = false
                 } else {
+                    if note.name == NSWindow.didEnterFullScreenNotification || note.name == NSWindow.didExitFullScreenNotification,
+                       let window = self.window, window.identifier?.rawValue == "MuckeBabyVisualizer" {
+                        VisualizerWindowPolicy.configure(window)
+                    }
                     self.refresh()
                     if note.name == NSWindow.didExitFullScreenNotification, let action = self.returnAction {
                         self.returnAction = nil; self.window?.close(); action()
@@ -66,7 +70,7 @@ final class PlayerWindowState: ObservableObject {
 
     func returnToMain(_ action: @escaping () -> Void) {
         if window?.styleMask.contains(.fullScreen) == true {
-            returnAction = action; window?.toggleFullScreen(nil)
+            returnAction = action; toggleFullScreen()
         } else { window?.close(); action() }
     }
 
@@ -114,8 +118,8 @@ private enum VisualizerWindowPolicy {
         window.identifier = NSUserInterfaceItemIdentifier("MuckeBabyVisualizer")
         window.isRestorable = false
         // Die primäre Vollbildrolle gilt auch nach einer SwiftUI-Wiederöffnung.
-        window.collectionBehavior.remove([.fullScreenAuxiliary, .fullScreenNone])
-        window.collectionBehavior.insert(.fullScreenPrimary)
+        let behavior = window.collectionBehavior.subtracting([.fullScreenAuxiliary, .fullScreenNone]).union(.fullScreenPrimary)
+        if window.collectionBehavior != behavior { window.collectionBehavior = behavior }
     }
 }
 
