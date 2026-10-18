@@ -260,6 +260,9 @@ private struct WindowConfigurator: NSViewRepresentable {
         DispatchQueue.main.async {
             guard let w = v.window else { return }
             w.identifier = NSUserInterfaceItemIdentifier("MuckeBabyMain")
+            // Ein Hintergrund-Kurzbefehl darf kein beim letzten Quit gesichertes
+            // Hauptfenster wiederherstellen. Der normale Appstart öffnet es selbst.
+            w.isRestorable = false
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
             w.styleMask.insert(.fullSizeContentView)

@@ -10,7 +10,7 @@ import SwiftUI
 import AppKit
 import AppIntents
 
-/// App-Delegate nur fuer den Screenshot-Trigger. Im Normalbetrieb ein No-Op.
+/// Registriert Kurzbefehle und startet bei Bedarf den isolierten Screenshotlauf.
 final class MuckeAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         RadioShortcuts.updateAppShortcutParameters()
