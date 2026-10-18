@@ -17,6 +17,7 @@ struct ExportEditorView: View {
     @EnvironmentObject private var player: RadioPlayer
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
     @Environment(\.dismiss) private var dismiss
     @AppStorage("volume") private var volume = 0.77
@@ -96,6 +97,7 @@ struct ExportEditorView: View {
         .frame(width: min(760, max(580, request.availableWidth)),
                height: min(max(480, request.availableHeight), 560 + 180 * max(0, scale - 1)))
         .background { SongListSurface() }
+        .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
         .confirmationDialog("Live-Radio zum Vorhören beenden?", isPresented: $confirmPreview, titleVisibility: .visible) {
             Button("Radio beenden und vorhören") { if let pendingPreview { startPreview(pendingPreview, stopLive: true) } }
                 .accessibilityIdentifier("export-confirm-preview")

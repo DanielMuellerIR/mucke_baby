@@ -480,3 +480,5 @@
 "Bibliothek exportiert." = "Library exported.";
 "Bitte gültige Sekundenwerte mit „%@“ eingeben; keine Tausendertrennzeichen." = "Enter valid seconds using “%@”; no thousands separators.";
 "Stopp" = "Stop";
+
+"Song exportieren" = "Export track";
