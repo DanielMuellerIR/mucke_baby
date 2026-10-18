@@ -102,12 +102,18 @@ final class RadioServices: @preconcurrency ObservableObject {
     let systemMedia: SystemMediaBinding
     let audioSettings: AudioSettingsStore
     let audioTap: AudioTap
+    let recognition: MusicRecognitionService
     private var subscriptions = Set<AnyCancellable>()
     init() {
         let store = Store(), player = RadioPlayer()
         self.store = store; self.player = player; bookmarks = BookmarkStore(directory: store.dir)
         let audioSettings = AudioSettingsStore(directory: store.dir), audioTap = AudioTap()
         self.audioSettings = audioSettings; self.audioTap = audioTap
+        recognition = MusicRecognitionService(capture: audioTap.recognitionCapture,
+            sampleRate: { [weak audioTap] in audioTap?.captureSampleRate },
+            context: { [weak player] in player?.recognitionContext },
+            volume: { [weak player] in player?.effectiveOutputVolume ?? 0 },
+            matcher: ShazamRecognitionClient())
         startup = StartupSettings(directory: store.dir, stations: store.stations)
         let volume = UserDefaults.standard.object(forKey: "volume") as? Double ?? 0.77
         player.setVolume(Float(volume))
@@ -120,10 +126,16 @@ final class RadioServices: @preconcurrency ObservableObject {
             .sink { [weak audioTap] in audioTap?.setOutputVolume($0) }.store(in: &subscriptions)
         player.$currentStreamURL.removeDuplicates()
             .sink { [weak audioTap] in audioTap?.setStream($0) }.store(in: &subscriptions)
+        Publishers.Merge(player.objectWillChange, audioTap.objectWillChange)
+            .sink { [weak recognition] in
+                // @Published sendet vor der Änderung; Kontext erst danach lesen.
+                Task { @MainActor in recognition?.refresh() }
+            }.store(in: &subscriptions)
         // Auch ohne offenes Hauptfenster müssen Empfang, Dateien und Verlauf vor Quit schließen.
         NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.recognition.cancel()
                 self.player.stop()
                 self.audioTap.stop()
                 self.player.recorder.flush()

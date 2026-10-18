@@ -1,6 +1,6 @@
 // AudioTap.swift — Audio-Reaktivität für die Theme-Visualizer.
 //
-// ANSATZ (Variante C, CoreAudio Process-Tap, macOS 14.4+): Wir tappen die TONAUSGABE des EIGENEN
+// ANSATZ (Variante C, CoreAudio Process-Tap, macOS 14.2+): Wir tappen die TONAUSGABE des EIGENEN
 // Prozesses ab — also denselben, bereits von CoreAudio getakteten Output wie der sichtbare
 // VLCKit-Player. Der Tap liegt NACH der VLC-Lautstaerke; vor der Analyse rechnen wir den
 // App-Regler darum wieder heraus, damit der Visualizer auch bei leiser Wiedergabe ausschlaegt.
@@ -43,6 +43,8 @@ final class AudioTap: ObservableObject {
     private var loggedSignal = false       // einmaliges Log, sobald echtes Audio ankommt
 
     private(set) var isActive = false      // läuft der Tap gerade?
+    let recognitionCapture = RecognitionCapture()
+    private var _captureRate: Double?
 
     // CoreAudio-Process-Tap-Zustand (alle nur auf der Lifecycle-Queue angefasst).
     private var tapID = AudioObjectID(kAudioObjectUnknown)        // der Process-Tap
@@ -50,6 +52,8 @@ final class AudioTap: ObservableObject {
     private var ioProcID: AudioDeviceIOProcID?
     private var tapChannels = 2          // Kanäle im Tap-Format (Stereo-Mixdown → 2)
     private var tapInterleaved = true    // Float interleaved (Standard) vs. planar
+    private var tapSampleRate: Double = 0
+    private var formatListener: AudioObjectPropertyListenerBlock?
     // Serielle Queue für Start/Stop, damit Auf-/Abbau nie überlappen.
     private let lifecycleQueue = DispatchQueue(label: "de.danielmuller.macradio.audiotap.lifecycle")
 
@@ -82,6 +86,11 @@ final class AudioTap: ObservableObject {
     var waveform: [Float] {
         os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
         return _wave
+    }
+
+    var captureSampleRate: Double? {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        return isActive ? _captureRate : nil
     }
 
     /// Liefert der Analyse-Player GERADE echtes Audio? Nur dann sollen die Visualizer ihn als
@@ -149,7 +158,10 @@ final class AudioTap: ObservableObject {
         tapID = newTap
 
         // 3) Tap-Format lesen (Float, Kanäle, interleaved?).
-        readTapFormat()
+        guard readTapFormat() else {
+            tapLog.error("AudioTap: nicht unterstütztes PCM-Format")
+            teardownTap(); return
+        }
 
         // 4) Privates Aggregate-Device mit dem Tap. Es braucht ein OUTPUT-Sub-Device als Taktgeber
         //    (Default-Output), sonst wird der Tap nicht „gezogen" und liefert Stille.
@@ -197,12 +209,20 @@ final class AudioTap: ObservableObject {
 
         // Der IO-Proc kann bereits Samples geliefert haben. Seine Analysewerte
         // hier nicht zurücksetzen; ohne Samples bleibt der Tap zunächst still.
-        os_unfair_lock_lock(&lock); isActive = true; os_unfair_lock_unlock(&lock)
+        os_unfair_lock_lock(&lock); isActive = true; _captureRate = tapSampleRate; os_unfair_lock_unlock(&lock)
+        observeTapFormat()
+        notifyAvailability()
         tapLog.notice("AudioTap: CoreAudio-Process-Tap gestartet (\(self.tapChannels) Kanäle). Wartet auf Signal …")
     }
 
     private func teardownTap() {
-        os_unfair_lock_lock(&lock); isActive = false; os_unfair_lock_unlock(&lock)
+        recognitionCapture.interrupt()
+        if let listener = formatListener {
+            var address = tapFormatAddress
+            AudioObjectRemovePropertyListenerBlock(tapID, &address, lifecycleQueue, listener)
+            formatListener = nil
+        }
+        os_unfair_lock_lock(&lock); isActive = false; _captureRate = nil; os_unfair_lock_unlock(&lock)
         if let p = ioProcID, aggregateID != AudioObjectID(kAudioObjectUnknown) {
             AudioDeviceStop(aggregateID, p)
             AudioDeviceDestroyIOProcID(aggregateID, p)
@@ -226,6 +246,33 @@ final class AudioTap: ObservableObject {
         if tapID != AudioObjectID(kAudioObjectUnknown) {
             AudioHardwareDestroyProcessTap(tapID)
             tapID = AudioObjectID(kAudioObjectUnknown)
+        }
+        notifyAvailability()
+    }
+
+    private func notifyAvailability() {
+        DispatchQueue.main.async { [weak self] in self?.objectWillChange.send() }
+    }
+
+    private var tapFormatAddress: AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(mSelector: kAudioTapPropertyFormat,
+                                  mScope: kAudioObjectPropertyScopeGlobal,
+                                  mElement: kAudioObjectPropertyElementMain)
+    }
+
+    private func observeTapFormat() {
+        let watchedTap = tapID
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self, self.tapID == watchedTap, self.isActive else { return }
+            // Format erst nach dem letzten IO-Callback tauschen. Eine laufende
+            // Erkennung darf keine Samples unterschiedlicher Formate mischen.
+            self.teardownTap(); self.startTap()
+        }
+        var address = tapFormatAddress
+        if AudioObjectAddPropertyListenerBlock(tapID, &address, lifecycleQueue, listener) == noErr {
+            formatListener = listener
+        } else {
+            os_unfair_lock_lock(&lock); _captureRate = nil; os_unfair_lock_unlock(&lock)
         }
     }
 
@@ -270,17 +317,20 @@ final class AudioTap: ObservableObject {
     }
 
     /// Liest das Stream-Format des Taps (Kanäle, interleaved/planar).
-    private func readTapFormat() {
-        var addr = AudioObjectPropertyAddress(
-            mSelector: kAudioTapPropertyFormat,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain)
+    private func readTapFormat() -> Bool {
+        var addr = tapFormatAddress
         var asbd = AudioStreamBasicDescription()
         var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
-        if AudioObjectGetPropertyData(tapID, &addr, 0, nil, &size, &asbd) == noErr {
-            tapChannels = max(1, Int(asbd.mChannelsPerFrame))
-            tapInterleaved = (asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved) == 0
-        }
+        guard AudioObjectGetPropertyData(tapID, &addr, 0, nil, &size, &asbd) == noErr,
+              asbd.mFormatID == kAudioFormatLinearPCM,
+              asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+              asbd.mFormatFlags & kAudioFormatFlagIsBigEndian == 0,
+              asbd.mBitsPerChannel == 32, (1...32).contains(asbd.mChannelsPerFrame),
+              asbd.mSampleRate.isFinite, (8000...192000).contains(asbd.mSampleRate) else { return false }
+        tapChannels = Int(asbd.mChannelsPerFrame)
+        tapInterleaved = (asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved) == 0
+        tapSampleRate = asbd.mSampleRate
+        return asbd.mBytesPerFrame == UInt32(MemoryLayout<Float>.size * (tapInterleaved ? tapChannels : 1))
     }
 
     /// IO-Proc-Callback (Realtime-Audio-Thread — schlank halten!): Float-PCM → Mono → Analyse.
@@ -322,6 +372,7 @@ final class AudioTap: ObservableObject {
             }
             if used > 1 { let inv = Float(1) / Float(used); for i in 0..<frames { mono[i] *= inv } }
         }
+        recognitionCapture.append(mono, sampleRate: tapSampleRate)
         feedMono(mono)
     }
 

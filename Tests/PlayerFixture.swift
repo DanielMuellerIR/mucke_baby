@@ -133,6 +133,7 @@ struct PlayerHarness {
         let radio = RadioPlayer(reconnect: PlaybackReconnect(delays: []))
         radio.play(Station(name: "A", url: "https://fixture.invalid/a"))
         await waitFor { radio.currentStreamURL?.lastPathComponent == "a" }
+        check(radio.recognitionContext == nil, "Noch nicht spielender Stream bietet Erkennung an")
         let old = VLCMediaPlayer.latest!
         TestEvents.queue.suspend()
         old.timeEvent()
@@ -146,7 +147,9 @@ struct PlayerHarness {
         check(!radio.isPlaying && radio.isLoading, "A-Ereignis hat B als spielend markiert")
         VLCMediaPlayer.latest.timeEvent()
         await waitFor { radio.isPlaying }
+        check(radio.recognitionContext?.stationID == radio.currentStation?.id, "Erkennung gehört nicht zur aktuellen Wiedergabe")
         radio.stop()
+        check(radio.recognitionContext == nil, "Stop behält Erkennungskontext")
 
         let radioStopped = VLCMediaPlayer.latest!
         radio.play(Station(name: "Failure", url: "https://fixture.invalid/failure"))

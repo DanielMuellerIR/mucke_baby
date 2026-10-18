@@ -61,6 +61,8 @@ open "build/Mucke, Baby!.app"                    # launch
 
 ## Features
 
+- **Identify music** — open the waveform search button in the player footer, then choose Identify. Shazam receives an audio fingerprint of up to 12 seconds from the music currently playing; the audio file is not sent. Audio capture permission and an internet connection are required. Cancel at any time; results do not replace radio metadata or add bookmarks. Source builds require ShazamKit enabled under App Services for their signed App ID.
+
 - Native macOS Shortcuts actions can play saved stations, stop radio, set volume, return the current title and save a bookmark. See [Shortcuts](docs/shortcuts.md) for parameters and recording behavior.
 
 - Plays **all codecs** via VLCKit/libVLC (mp3, aac, **ogg, opus**, flac, …).

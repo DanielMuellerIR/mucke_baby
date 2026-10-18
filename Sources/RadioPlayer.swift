@@ -85,6 +85,11 @@ final class RadioPlayer: ObservableObject {
     private var networkMonitor: NWPathMonitor?
     private var networkToken = UUID()
 
+    var recognitionContext: RecognitionContext? {
+        guard isPlaying, let station = currentStation, currentStreamURL != nil else { return nil }
+        return RecognitionContext(generation: requests.current, stationID: station.id, title: nowPlayingTitle)
+    }
+
     init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil) {
         self.preferences = preferences
         self.recordingRequested = preferences.object(forKey: "recordStreams") as? Bool ?? false

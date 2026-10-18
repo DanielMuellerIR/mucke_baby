@@ -130,7 +130,7 @@ python3 Tests/recording-preview.py
 
 cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" "$BUILD/AudioTapCombined.swift" \
+  -module-cache-path "$BUILD/module-cache" Sources/RecognitionModels.swift Sources/RecognitionCapture.swift "$BUILD/AudioTapCombined.swift" \
   -o "$BUILD/audio-tap-harness"
 "$BUILD/audio-tap-harness"
 python3 Tests/release-mount.py
@@ -177,3 +177,16 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" Sources/ExportMetadata.swift Sources/SongDragProvider.swift Tests/SongDragHarness.swift \
   -o "$BUILD/song-drag-harness"
 "$BUILD/song-drag-harness"
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/RecognitionModels.swift Sources/RecognitionCapture.swift \
+  Sources/MusicRecognitionService.swift Sources/ShazamRecognitionClient.swift Tests/RecognitionHarness.swift \
+  -o "$BUILD/recognition-harness"
+"$BUILD/recognition-harness"
+
+cat Sources/ShazamRecognitionClient.swift Tests/RecognitionSDKHarness.swift > "$BUILD/RecognitionSDKCombined.swift"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/RecognitionModels.swift Sources/RecognitionCapture.swift \
+  Sources/MusicRecognitionService.swift "$BUILD/RecognitionSDKCombined.swift" \
+  -o "$BUILD/recognition-sdk-harness"
+"$BUILD/recognition-sdk-harness"

@@ -35,10 +35,10 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
-    <!-- CoreAudio Process-Tap (Audio-Reaktivität der Visualizer) tappt die eigene Tonausgabe.
+    <!-- CoreAudio Process-Tap für Visualizer und ausdrücklich gestartete Musikerkennung.
          Ohne diesen Schlüssel liefert der Tap stumme Nullen (TCC verweigert still). -->
     <key>NSAudioCaptureUsageDescription</key>
-    <string>„Mucke, Baby!“ analysiert die eigene Tonausgabe, damit die Visualizer synchron zur Musik reagieren.</string>
+    <string>„Mucke, Baby!“ analysiert die eigene Tonausgabe für die Visualizer und auf deinen Aufruf zur Musikerkennung.</string>
     <!-- Viele Radiostreams laufen ueber http (nicht https) -> ATS oeffnen. -->
     <key>NSAppTransportSecurity</key>
     <dict>

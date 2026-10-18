@@ -51,6 +51,7 @@ struct MacRadioApp: App {
                 .environmentObject(player.history)   // Wiedergabeverlauf
                 .environmentObject(health)           // Sender-Healthcheck
                 .environmentObject(audioTap)         // Audio-Reaktivität
+                .environmentObject(services.recognition)
                 .environment(\.uiFontScale, Self.scale(uiZoom))
                 // Theme und ColorScheme ins Environment injizieren
                 .environment(\.theme, theme)
@@ -325,6 +326,8 @@ struct ContentView: View {
     @State private var showingGenres = false
     @State private var showingBookmarks = false
     @State private var showingRecordings = false
+    @State private var showingRecognition = false
+    @State private var sheetHeight: CGFloat = 540
     @State private var editStation: Station?
     // Startwert der Lautstaerke beim Beginn eines Knopf-Drags (knob-Themes). nil = kein Drag aktiv.
     @State private var knobDragStart: Double? = nil
@@ -340,6 +343,7 @@ struct ContentView: View {
     // Der Tap sieht die Prozessausgabe nach dem Lautstaerkeregler; deshalb bekommt er den
     // Reglerwert, um die Analyse wieder auf Originalpegel zu normalisieren.
     @EnvironmentObject private var audioTap: AudioTap
+    @EnvironmentObject private var recognition: MusicRecognitionService
 
     // Kopf-Vordergrund: Bei GuitarAmp liegt die Kopfleiste auf einer HELLEN Goldplatte → die
     // normalen Theme-Töne (cremefarbener Titel, goldene Icons) verschwinden darauf. Deshalb
@@ -421,14 +425,21 @@ struct ContentView: View {
         .focusedSceneValue(\.openRecordingLibrary, { showingRecordings = true })
         .background {
             GeometryReader { geometry in
-                Color.clear.onAppear { browserWidth = geometry.size.width - 32 }
+                Color.clear.onAppear {
+                    browserWidth = geometry.size.width - 32
+                    sheetHeight = geometry.size.height - 32
+                }
                     .onChange(of: geometry.size.width) { _, width in browserWidth = width - 32 }
+                    .onChange(of: geometry.size.height) { _, height in sheetHeight = height - 32 }
             }
         }
         .sheet(isPresented: $showingSearch) { StationBrowserView(availableWidth: browserWidth) }
         .sheet(isPresented: $showingGenres) { GenreListsView() }
         .sheet(isPresented: $showingBookmarks) { BookmarkLibrary(onClose: { showingBookmarks = false }) }
         .sheet(isPresented: $showingRecordings) { RecordingLibraryView(availableWidth: browserWidth) }
+        .sheet(isPresented: $showingRecognition) {
+            MusicRecognitionView(availableWidth: browserWidth, availableHeight: sheetHeight)
+        }
         .sheet(isPresented: $showingWelcome, onDismiss: { autoplayIfNeeded() }) { WelcomeView() }
         // Cmd+"=" als zweite Zoom-in-Taste (Layout-unabhaengig), unsichtbar verdrahtet.
         .background {
@@ -647,6 +658,14 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            Button { showingRecognition = true } label: {
+                Image(systemName: MusicRecognitionSymbol.name)
+                    .font(.system(size: 16)).frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).foregroundStyle(theme.palette.textSecondary)
+            .help("Musik erkennen").accessibilityLabel("Musik erkennen")
+            .accessibilityIdentifier("recognition-open")
             if let song = player.currentSong { BookmarkButton(song: song) }
             Button { showingBookmarks = true } label: {
                 Image(systemName: "heart.text.square")
@@ -681,7 +700,7 @@ struct ContentView: View {
 
     private var nowPlayingFooterText: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(player.currentStation?.name ?? "Kein Sender")
+            Text(player.currentStation?.name ?? String(localized: "Kein Sender"))
                 .font(theme.font(.label, size: 11 * uiFontScale))
                 .foregroundStyle(theme.palette.textSecondary)
                 .lineLimit(1)

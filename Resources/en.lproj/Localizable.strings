@@ -542,3 +542,27 @@
 "Kein freier Dateiname für diesen Export gefunden." = "No unused filename was found for this export.";
 
 "Keine Aufnahme zu diesem Titel." = "No recording for this track.";
+
+/* Musikerkennung */
+"Musik erkennen" = "Identify music";
+"Erkennen" = "Identify";
+"Kein Sender" = "No station";
+"Erkenne die Musik des laufenden Senders." = "Identify music from the station that is playing.";
+"Nach „Erkennen“ wird ein Fingerabdruck von bis zu 12 Sekunden der laufenden Musik an Shazam gesendet. Die Audiodatei wird nicht übertragen." = "After you choose Identify, an audio fingerprint of up to 12 seconds of the music playing is sent to Shazam. The audio file is not sent.";
+"Höre den laufenden Sender …" = "Listening to the station …";
+"Suche bei Shazam …" = "Searching Shazam …";
+"Erkannt" = "Identified";
+"In Apple Music öffnen" = "Open in Apple Music";
+"Kein passender Titel gefunden. Versuche einen anderen Ausschnitt." = "No matching track found. Try another excerpt.";
+"Erkennung abgebrochen." = "Identification cancelled.";
+"Starte einen Sender, um Musik zu erkennen." = "Play a station to identify music.";
+"Die Wiedergabe ist stumm. Erhöhe die Lautstärke für die Erkennung." = "Playback is muted. Turn up the volume to identify music.";
+"Audiozugriff nicht verfügbar. Prüfe die Audiofreigabe in den Systemeinstellungen und starte den Sender erneut." = "Audio access is unavailable. Check the audio permission in System Settings and restart the station.";
+"Der Audiozugriff wurde unterbrochen. Bitte erneut versuchen." = "Audio access was interrupted. Please try again.";
+"Der hörbare Ausschnitt war zu kurz. Bitte erneut versuchen." = "The audible excerpt was too short. Please try again.";
+"Dieser Audioausschnitt konnte nicht erkannt werden." = "This audio excerpt could not be identified.";
+"Kein hörbares Audio erkannt." = "No audible audio detected.";
+"Keine Internetverbindung. Bitte verbinden und erneut versuchen." = "No internet connection. Connect and try again.";
+"Musikerkennung ist derzeit nicht verfügbar. Bitte später erneut versuchen." = "Music identification is currently unavailable. Please try again later.";
+"Die Musikerkennung hat zu lange gedauert. Bitte erneut versuchen." = "Music identification took too long. Please try again.";
+"Die Wiedergabe oder der Titel hat sich geändert. Bitte erneut erkennen." = "Playback or the track changed. Please identify again.";

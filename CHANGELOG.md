@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.22 — 2026-10-18
+
+- Add explicit ShazamKit music identification from a bounded excerpt of the app's actual audio output, with cancellation, timeout and clear failure states.
+- Discard outdated identification after playback or title changes. Keep radio metadata, bookmarks and recordings unchanged.
+- Explain fingerprint transmission before identification and share the interface across all themes in German and English.
+
 ## 1.9.21 — 2026-10-18
 
 - Add artist, track title including mix version, station and recording provenance to M4A exports. Single-file exports, preview and drag-and-drop share the same metadata.

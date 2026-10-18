@@ -542,3 +542,27 @@
 "Kein freier Dateiname für diesen Export gefunden." = "Kein freier Dateiname für diesen Export gefunden.";
 
 "Keine Aufnahme zu diesem Titel." = "Keine Aufnahme zu diesem Titel.";
+
+/* Musikerkennung */
+"Musik erkennen" = "Musik erkennen";
+"Erkennen" = "Erkennen";
+"Kein Sender" = "Kein Sender";
+"Erkenne die Musik des laufenden Senders." = "Erkenne die Musik des laufenden Senders.";
+"Nach „Erkennen“ wird ein Fingerabdruck von bis zu 12 Sekunden der laufenden Musik an Shazam gesendet. Die Audiodatei wird nicht übertragen." = "Nach „Erkennen“ wird ein Fingerabdruck von bis zu 12 Sekunden der laufenden Musik an Shazam gesendet. Die Audiodatei wird nicht übertragen.";
+"Höre den laufenden Sender …" = "Höre den laufenden Sender …";
+"Suche bei Shazam …" = "Suche bei Shazam …";
+"Erkannt" = "Erkannt";
+"In Apple Music öffnen" = "In Apple Music öffnen";
+"Kein passender Titel gefunden. Versuche einen anderen Ausschnitt." = "Kein passender Titel gefunden. Versuche einen anderen Ausschnitt.";
+"Erkennung abgebrochen." = "Erkennung abgebrochen.";
+"Starte einen Sender, um Musik zu erkennen." = "Starte einen Sender, um Musik zu erkennen.";
+"Die Wiedergabe ist stumm. Erhöhe die Lautstärke für die Erkennung." = "Die Wiedergabe ist stumm. Erhöhe die Lautstärke für die Erkennung.";
+"Audiozugriff nicht verfügbar. Prüfe die Audiofreigabe in den Systemeinstellungen und starte den Sender erneut." = "Audiozugriff nicht verfügbar. Prüfe die Audiofreigabe in den Systemeinstellungen und starte den Sender erneut.";
+"Der Audiozugriff wurde unterbrochen. Bitte erneut versuchen." = "Der Audiozugriff wurde unterbrochen. Bitte erneut versuchen.";
+"Der hörbare Ausschnitt war zu kurz. Bitte erneut versuchen." = "Der hörbare Ausschnitt war zu kurz. Bitte erneut versuchen.";
+"Dieser Audioausschnitt konnte nicht erkannt werden." = "Dieser Audioausschnitt konnte nicht erkannt werden.";
+"Kein hörbares Audio erkannt." = "Kein hörbares Audio erkannt.";
+"Keine Internetverbindung. Bitte verbinden und erneut versuchen." = "Keine Internetverbindung. Bitte verbinden und erneut versuchen.";
+"Musikerkennung ist derzeit nicht verfügbar. Bitte später erneut versuchen." = "Musikerkennung ist derzeit nicht verfügbar. Bitte später erneut versuchen.";
+"Die Musikerkennung hat zu lange gedauert. Bitte erneut versuchen." = "Die Musikerkennung hat zu lange gedauert. Bitte erneut versuchen.";
+"Die Wiedergabe oder der Titel hat sich geändert. Bitte erneut erkennen." = "Die Wiedergabe oder der Titel hat sich geändert. Bitte erneut erkennen.";
