@@ -135,7 +135,8 @@ struct MacRadioApp: App {
         .windowResizability(.contentMinSize)
         .keyboardShortcut("m", modifiers: [.command, .shift])
 
-        Window("Visualizer", id: "visualizer") {
+        // Eine feste Präsentationsidentität erhält genau eine große Ansicht.
+        WindowGroup("Visualizer", id: "visualizer", for: VisualizerWindowIdentity.self) { _ in
             VisualizerWindowView()
                 .modifier(VisualizerMotionFixture())
                 .environmentObject(store)
@@ -147,9 +148,10 @@ struct MacRadioApp: App {
                 .environment(\.uiFontScale, Self.scale(uiZoom))
                 .environment(\.theme, theme)
                 .preferredColorScheme(effectiveScheme)
-        }
+        } defaultValue: { .shared }
         .defaultSize(width: 940, height: 620)
         .windowResizability(.contentMinSize)
+        .commandsRemoved()
 
         Window("Audioeinstellungen", id: "audio-settings") {
             AudioSettingsView()

@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
 
+enum VisualizerWindowIdentity: String, Codable, Hashable { case shared }
+
 final class PlayerWindowState: ObservableObject {
     @Published private(set) var isVisible = false
     @Published private(set) var isFullScreen = false
@@ -52,7 +54,7 @@ final class PlayerWindowState: ObservableObject {
 
     func showFullScreen(open: OpenWindowAction) {
         trace("open-before")
-        open(id: "visualizer")
+        open(id: "visualizer", value: VisualizerWindowIdentity.shared)
         wantsFullScreen = true
         trace("open-after")
         if let window, window.isVisible || window.isMiniaturized {
@@ -117,6 +119,7 @@ private enum VisualizerWindowPolicy {
     static func configure(_ window: NSWindow) {
         window.identifier = NSUserInterfaceItemIdentifier("MuckeBabyVisualizer")
         window.isRestorable = false
+        window.tabbingMode = .disallowed
         // Die primäre Vollbildrolle gilt auch nach einer SwiftUI-Wiederöffnung.
         let behavior = window.collectionBehavior.subtracting([.fullScreenAuxiliary, .fullScreenNone]).union(.fullScreenPrimary)
         if window.collectionBehavior != behavior { window.collectionBehavior = behavior }
@@ -306,7 +309,7 @@ struct VisualizerWindowView: View {
             HStack(spacing: 12) {
                 Button(action: togglePlayback) {
                     Label(active ? String(localized: "Stopp") : String(localized: "Abspielen"), systemImage: active ? "stop.fill" : "play.fill")
-                        .font(theme.font(.label, size: 12 * scale, weight: .semibold)).frame(minWidth: 80, minHeight: 44)
+                        .font(theme.font(.label, size: 12 * scale, weight: .semibold)).frame(minWidth: 80, minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(theme.palette.playActive)
                 .disabled(!active && current == nil).accessibilityIdentifier("visualizer-transport")
@@ -317,13 +320,13 @@ struct VisualizerWindowView: View {
             }
             HStack(spacing: 12) {
                 Button { presentation.returnToMain { PlayerWindowRouter.showMain(open: openWindow) } } label: {
-                    Label("Hauptfenster anzeigen", systemImage: "macwindow").font(theme.font(.label, size: 11 * scale)).frame(minHeight: 36)
+                    Label("Hauptfenster anzeigen", systemImage: "macwindow").font(theme.font(.label, size: 11 * scale)).frame(minHeight: 36).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityIdentifier("visualizer-main")
                 .keyboardShortcut(.return, modifiers: .command)
                 Spacer()
                 Button { presentation.toggleFullScreen() } label: {
-                    Image(systemName: presentation.isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 44, height: 36)
+                    Image(systemName: presentation.isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 44, height: 36).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(presentation.isFullScreen ? String(localized: "Vollbild beenden") : String(localized: "Vollbild"))
