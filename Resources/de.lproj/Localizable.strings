@@ -430,3 +430,4 @@
 "Equalizer ausgeschaltet; neutraler Audiopfad." = "Equalizer ausgeschaltet; neutraler Audiopfad.";
 
 "Die Audioeinstellungsdatei wurde außerhalb der App geändert. Bitte die App neu starten." = "Die Audioeinstellungsdatei wurde außerhalb der App geändert. Bitte die App neu starten.";
+"Bitte gültige Sekundenwerte mit „%@“ eingeben; keine Tausendertrennzeichen." = "Bitte gültige Sekundenwerte mit „%@“ eingeben; keine Tausendertrennzeichen.";

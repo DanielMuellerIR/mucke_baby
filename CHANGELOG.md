@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Preview a recorded track, adjust its start and end within the available audio, and choose a hard cut or fade before saving. Preview and save use the same rendered M4A file; recordings and history remain unchanged.
 - Cancel preparation or saving without replacing an existing target. Discard outdated previews after an edit, and keep one local recording preview active across windows.
 - Use the same media-time cut for hard and faded exports, avoiding differing decoder lead-in and shortened Ogg/Opus output.
+- Validate the complete localized time adjustment. Reject invalid decimal separators instead of silently applying an integer prefix, and keep preview/save disabled until the input is valid.
 
 ## 1.9.14 — 2026-10-18
 

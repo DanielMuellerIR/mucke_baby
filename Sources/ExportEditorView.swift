@@ -16,6 +16,7 @@ struct ExportEditorView: View {
     @EnvironmentObject private var player: RadioPlayer
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
+    @Environment(\.locale) private var locale
     @Environment(\.dismiss) private var dismiss
     @AppStorage("volume") private var volume = 0.77
     @StateObject private var model: ExportEditorModel
@@ -27,6 +28,8 @@ struct ExportEditorView: View {
     @State private var pendingPreview: URL?
     @State private var message: String?
     @State private var saved = false
+    @State private var startText = "0"
+    @State private var endText = "0"
     @FocusState private var field: Field?
     private enum Field { case start, end }
     let request: ExportEditorRequest
@@ -41,6 +44,11 @@ struct ExportEditorView: View {
     private var dim: Color { theme.id == .retro ? Color(hex: "#5C4A38") : theme.palette.textSecondary }
     private var live: Bool { player.isPlaying || player.isLoading || player.currentStreamURL != nil }
     private var previewVolume: Float { Float(volume.isFinite ? min(1, max(0, volume)) : 0) }
+    private var inputValid: Bool {
+        ExportAdjustmentText.parse(startText, locale: locale) != nil
+            && ExportAdjustmentText.parse(endText, locale: locale) != nil
+    }
+    private var canPrepare: Bool { inputValid && model.canPrepare }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -70,13 +78,13 @@ struct ExportEditorView: View {
                           ? String(localized: "Vorhören") : String(localized: "Vorhören stoppen"),
                           systemImage: preview.currentID == nil ? "play.fill" : "stop.fill")
                 }
-                .disabled(!model.canPrepare || exporting).keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(!canPrepare || exporting).keyboardShortcut("p", modifiers: [.command, .shift])
                 .help("Vorhören oder stoppen (⌘⇧P)")
                 .accessibilityIdentifier("export-preview")
                 if preview.isLoading { ProgressView().controlSize(.small) }
                 Spacer()
                 Button("Als Datei speichern …") { save() }.keyboardShortcut(.defaultAction)
-                    .disabled(!model.canPrepare || model.isPreparing || exporting)
+                    .disabled(!canPrepare || model.isPreparing || exporting)
                     .accessibilityIdentifier("export-save")
             }
             Text("Vorhören und Speichern verwenden denselben Ausschnitt. Vorhören beendet Live-Radio; danach den Sender bei Bedarf manuell starten.")
@@ -129,17 +137,21 @@ struct ExportEditorView: View {
                             .font(theme.font(.body, size: 12 * scale)).foregroundStyle(dim)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    adjustment("Anfangskorrektur", value: Binding(get: { model.startAdjustment }, set: { model.setStart($0) }),
+                    adjustment("Anfangskorrektur", text: $startText,
+                               value: Binding(get: { model.startAdjustment }, set: { model.setStart($0) }),
                                id: "export-start", field: .start)
-                    adjustment("Endkorrektur", value: Binding(get: { model.endAdjustment }, set: { model.setEnd($0) }),
+                    adjustment("Endkorrektur", text: $endText,
+                               value: Binding(get: { model.endAdjustment }, set: { model.setEnd($0) }),
                                id: "export-end", field: .end)
                     HStack {
                         Toggle("Ein- und Ausblenden", isOn: Binding(get: { model.faded }, set: { model.setFaded($0) }))
                             .accessibilityIdentifier("export-fade")
                         Spacer()
-                        Button("Grenzen zurücksetzen") { model.reset() }.accessibilityIdentifier("export-reset")
+                        Button("Grenzen zurücksetzen") {
+                            startText = "0"; endText = "0"; model.reset()
+                        }.accessibilityIdentifier("export-reset")
                     }.font(theme.font(.label, size: 11 * scale))
-                    if let cut = try? model.cut {
+                    if inputValid, let cut = try? model.cut {
                         HStack {
                             Text("Ausschnitt")
                             Spacer()
@@ -150,34 +162,40 @@ struct ExportEditorView: View {
                 }.padding(14).background(ink.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                     .disabled(exporting)
             }
-            if let error = model.validationMessage ?? message ?? model.message ?? preview.error {
+            if let error = (!inputValid ? String(localized: "Bitte gültige Sekundenwerte mit „\(locale.decimalSeparator ?? ".")“ eingeben; keine Tausendertrennzeichen.") : nil)
+                ?? model.validationMessage ?? message ?? model.message ?? preview.error {
                 Text(error).font(theme.font(.body, size: 12 * scale)).foregroundStyle(saved ? dim : .red)
                     .lineLimit(3).help(error).accessibilityIdentifier("export-message")
             }
         }
     }
 
-    private func adjustment(_ title: LocalizedStringKey, value: Binding<Double>, id: String, field focus: Field) -> some View {
+    private func adjustment(_ title: LocalizedStringKey, text: Binding<String>, value: Binding<Double>, id: String, field focus: Field) -> some View {
         HStack(spacing: 10) {
             Text(title).frame(maxWidth: .infinity, alignment: .leading)
-            TextField(title, value: value, format: .number.precision(.fractionLength(0...2)).grouping(.never))
+            TextField(title, text: Binding(get: { text.wrappedValue }, set: { raw in
+                text.wrappedValue = raw
+                if let number = ExportAdjustmentText.parse(raw, locale: locale) { value.wrappedValue = number }
+                else { model.cancelPreparation() }
+            }))
                 .textFieldStyle(.roundedBorder).multilineTextAlignment(.trailing)
                 .frame(width: 100 * scale).focused($field, equals: focus)
                 .accessibilityIdentifier(id)
             Text("s").foregroundStyle(dim)
-            Stepper(title, value: value, step: 0.5).labelsHidden().fixedSize()
+            Stepper(title, value: Binding(get: { value.wrappedValue }, set: { number in
+                text.wrappedValue = ExportAdjustmentText.format(number, locale: locale)
+                value.wrappedValue = number
+            }), step: 0.5).labelsHidden().fixedSize()
                 .accessibilityIdentifier(id + "-step")
         }.font(theme.font(.body, size: 12 * scale))
     }
 
     private func time(_ value: Double) -> String {
-        guard value.isFinite, value >= 0 else { return "—" }
-        let hours = floor(value / 3600), minutes = floor((value - hours * 3600) / 60)
-        return String(format: "%.0f:%02.0f:%05.2f", locale: Locale.current,
-                      hours, minutes, value - hours * 3600 - minutes * 60)
+        ExportTimeText.format(value, locale: locale)
     }
 
     private func preparePreview() {
+        guard canPrepare else { return }
         cancelPreview(); message = nil; saved = false
         previewTask = Task {
             do {
@@ -200,6 +218,7 @@ struct ExportEditorView: View {
     private func cancelPreview() { previewTask?.cancel(); previewTask = nil; preview.stop() }
 
     private func save() {
+        guard canPrepare else { return }
         cancelPreview(); exporting = true; message = nil; saved = false
         exportTask = Task {
             defer { exporting = false }
