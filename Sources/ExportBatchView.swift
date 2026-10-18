@@ -111,13 +111,16 @@ struct ExportBatchView: View {
             }.frame(maxWidth: .infinity, alignment: .leading)
             if item.status == .exporting { ProgressView().controlSize(.small) }
             if !item.status.finished {
-                Button { queue.cancel(item.id) } label: { Image(systemName: "xmark.circle") }
-                    .buttonStyle(.borderless)
+                Button { queue.cancel(item.id) } label: {
+                    Image(systemName: "xmark.circle").frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                    .buttonStyle(.plain)
                     .help(queue.didStart ? String(localized: "Diesen Export abbrechen") : String(localized: "Diesen Titel überspringen"))
                     .accessibilityLabel(queue.didStart ? String(localized: "Diesen Export abbrechen") : String(localized: "Diesen Titel überspringen"))
                     .accessibilityIdentifier("batch-cancel-\(item.id)")
             }
-        }.accessibilityIdentifier("batch-item-\(item.id)")
+        }
     }
 
     private func isFailure(_ item: ExportQueue.Item) -> Bool { if case .failed = item.status { return true }; return false }

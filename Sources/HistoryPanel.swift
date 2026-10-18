@@ -154,7 +154,10 @@ struct HistoryPanel: View {
                         Button("Exportieren …") { openBatchExport() }.disabled(batchSelection.isEmpty)
                             .accessibilityIdentifier("history-batch-export")
                         Spacer(minLength: 0)
-                        Button { selectingMultiple = false; batchSelection.removeAll() } label: { Image(systemName: "xmark.circle") }
+                        Button { selectingMultiple = false; batchSelection.removeAll() } label: {
+                            Image(systemName: "xmark.circle").frame(width: 28, height: 28)
+                                .contentShape(Rectangle())
+                        }
                             .buttonStyle(.plain).help("Mehrfachauswahl beenden")
                             .accessibilityLabel("Mehrfachauswahl beenden").accessibilityIdentifier("history-batch-end")
                     }
