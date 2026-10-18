@@ -108,7 +108,7 @@ struct PlayerHarness {
         audioRadio.play(gainA)
         await waitFor { audioRadio.currentStreamURL?.lastPathComponent == "gain-a" }
         let firstAudio = VLCMediaPlayer.latest!
-        check(firstAudio.audio?.volume == 25 && firstAudio.equalizer == nil, "Senderkorrektur oder neutraler EQ-Pfad falsch")
+        check(firstAudio.audio?.volume == 40 && abs(audioRadio.effectiveOutputVolume - 0.064) < 0.00001 && firstAudio.equalizer == nil, "Senderkorrektur oder neutraler EQ-Pfad falsch")
         audio.equalizerEnabled = true; audio.bands[5] = 6
         audioRadio.configureAudio(audio)
         check(VLCMediaPlayer.latest === firstAudio && abs((firstAudio.equalizer?.preAmplification ?? 0) - 6.0412) < 0.001
@@ -116,11 +116,11 @@ struct PlayerHarness {
         audioRadio.play(gainB)
         await waitFor { audioRadio.currentStreamURL?.lastPathComponent == "gain-b" }
         let secondAudio = VLCMediaPlayer.latest!
-        check(secondAudio !== firstAudio && secondAudio.audio?.volume == 99
+        check(secondAudio !== firstAudio && secondAudio.audio?.volume == 63
               && secondAudio.equalizer?.bands[5].amplification == 6, "Neue Playerinstanz erhält falsche Audioeinstellungen")
         secondAudio.state = .error; secondAudio.stateEvent()
         await waitFor { VLCMediaPlayer.latest !== secondAudio && audioRadio.currentStreamURL != nil }
-        check(VLCMediaPlayer.latest.audio?.volume == 99 && abs((VLCMediaPlayer.latest.equalizer?.preAmplification ?? 0) - 6.0412) < 0.001,
+        check(VLCMediaPlayer.latest.audio?.volume == 63 && abs((VLCMediaPlayer.latest.equalizer?.preAmplification ?? 0) - 6.0412) < 0.001,
               "Retry verliert Senderkorrektur oder Equalizer")
         audioRadio.setVolume(0)
         check(VLCMediaPlayer.latest.audio?.volume == 0 && audioRadio.effectiveOutputVolume == 0, "Stumm liefert Signal")

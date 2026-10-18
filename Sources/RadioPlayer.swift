@@ -50,7 +50,7 @@ final class RadioPlayer: ObservableObject {
     // Aufgelöste Direkt-Stream-URL des laufenden Senders. Der AudioTap dekodiert NICHT parallel;
     // er nutzt diese Published-URL nur als Start/Stop-Signal und tappt dann die Prozessausgabe.
     @Published private(set) var currentStreamURL: URL?
-    @Published private(set) var effectiveOutputVolume: Float = 0.77
+    @Published private(set) var effectiveOutputVolume = AudioConfiguration.outputAmplitude(forVLCVolume: 77)
     @Published private(set) var audioNotice: String?
 
     let history = SongHistory()
@@ -196,9 +196,9 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func applyOutputVolume() {
-        let volume = Int32(audioConfiguration.outputVolume(desiredVolume, stationID: installedStationID) * 100)
+        let volume = audioConfiguration.quantizedOutputVolume(desiredVolume, stationID: installedStationID)
         player.audio?.volume = volume
-        effectiveOutputVolume = Float(volume) / 100
+        effectiveOutputVolume = AudioConfiguration.outputAmplitude(forVLCVolume: volume)
     }
 
     private func applyAudioSettings() {

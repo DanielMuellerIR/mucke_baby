@@ -97,7 +97,8 @@ final class AudioTap: ObservableObject {
 
     // MARK: Steuerung — Tap läuft, solange ein Sender spielt
 
-    /// Aktuelle Hoer-Lautstaerke der App. Der Process-Tap sieht das Signal NACH diesem Regler;
+    /// Tatsächliche lineare Ausgabeamplitude nach der kubischen AUHAL-Reglerskala.
+    /// Der Process-Tap sieht das Signal NACH diesem Regler;
     /// fuer die Visualizer-Analyse rechnen wir ihn wieder heraus, damit die optische Dynamik
     /// nicht kleiner wird, nur weil leise gehoert wird.
     func setOutputVolume(_ volume: Float) {

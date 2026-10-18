@@ -19,13 +19,29 @@ struct AudioConfiguration: Codable, Equatable, Sendable {
     // Diesen festen Faktor ausgleichen, bevor die sichtbare Pegelreserve gilt.
     var vlcPreampDB: Double { effectivePreampDB + 20 * log10(4) }
 
-    func outputVolume(_ volume: Float, stationID: UUID?) -> Float {
+    private func unlimitedOutputVolume(_ volume: Float, stationID: UUID?) -> Float {
         let volume = volume.isFinite ? min(1, max(0, volume)) : 0
-        return min(1, volume * Float(pow(10, gain(for: stationID) / 20)))
+        // Zuerst die bestehende Ganzzahl-Skala bewahren. AUHAL wendet sie kubisch an;
+        // die Senderkorrektur muss sich auf die tatsächliche Amplitude beziehen.
+        let neutral = Float(Int32(volume * 100)) / 100
+        return neutral * Float(pow(10, gain(for: stationID) / 60))
+    }
+
+    func outputVolume(_ volume: Float, stationID: UUID?) -> Float {
+        min(1, unlimitedOutputVolume(volume, stationID: stationID))
+    }
+
+    func quantizedOutputVolume(_ volume: Float, stationID: UUID?) -> Int32 {
+        Int32((outputVolume(volume, stationID: stationID) * 100).rounded())
+    }
+
+    static func outputAmplitude(forVLCVolume volume: Int32) -> Float {
+        let value = Float(min(100, max(0, volume))) / 100
+        return value * value * value
     }
 
     func isVolumeLimited(_ volume: Float, stationID: UUID?) -> Bool {
-        volume.isFinite && volume > 0 && Double(volume) * pow(10, gain(for: stationID) / 20) > 1
+        unlimitedOutputVolume(volume, stationID: stationID) > 1
     }
 
     var isValid: Bool {

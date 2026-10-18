@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.20 — 2026-10-18
+
+- Apply station gain in decibels to the actual macOS output amplitude while preserving the existing global volume curve. Normalize visualizers against the quantized output amplitude.
+
 ## 1.9.19 — 2026-10-18
 
 - Prevent restored main windows when a shortcut starts the app in the background; retain normal app launch behavior.

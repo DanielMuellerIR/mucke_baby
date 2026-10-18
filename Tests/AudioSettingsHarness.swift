@@ -17,10 +17,22 @@ struct AudioSettingsHarness {
         let restored = AudioSettingsStore(directory: root)
         check(restored.configuration == store.configuration, "Senderkorrektur/EQ gehen beim Neustart verloren")
         let config = restored.configuration
-        check(abs(config.outputVolume(0.25, stationID: firstID) - 0.4988) < 0.001, "Positive Senderkorrektur wirkt nicht")
-        check(abs(config.outputVolume(0.5, stationID: secondID) - 0.2506) < 0.001, "Negative Senderkorrektur wirkt nicht")
+        check(abs(pow(Double(config.outputVolume(0.25, stationID: firstID) / 0.25), 3) - pow(10, 6.0 / 20)) < 0.001, "Positive Senderkorrektur entspricht nicht +6 dB am AUHAL-Ausgang")
+        check(abs(pow(Double(config.outputVolume(0.5, stationID: secondID) / 0.5), 3) - pow(10, -6.0 / 20)) < 0.001, "Negative Senderkorrektur entspricht nicht -6 dB am AUHAL-Ausgang")
         check(config.outputVolume(0.9, stationID: firstID) == 1 && config.isVolumeLimited(0.9, stationID: firstID), "Senderkorrektur kann den Ausgang übersteuern")
         check(config.outputVolume(0, stationID: firstID) == 0 && config.outputVolume(.nan, stationID: firstID) == 0, "Stumm/ungültiger Pegel erfindet Signal")
+        let neutral = AudioConfiguration()
+        check(neutral.quantizedOutputVolume(0.779, stationID: nil) == 77, "Neutrale Reglerkurve wurde verändert")
+        check(config.quantizedOutputVolume(0.779, stationID: firstID) == 97, "Senderkorrektur verliert den tatsächlichen neutralen Ausgangspegel")
+        check(AudioConfiguration.outputAmplitude(forVLCVolume: 50) == 0.125, "AUHAL-Reglerskala nicht berücksichtigt")
+        check(!config.isVolumeLimited(0.6, stationID: firstID), "Senderkorrektur warnt vor einer nicht erreichten Pegelgrenze")
+        for volume: Float in [0.25, 0.5, 0.75] {
+            let base = Double(AudioConfiguration.outputAmplitude(forVLCVolume: neutral.quantizedOutputVolume(volume, stationID: nil)))
+            for (id, expectedDB) in [(firstID, 6.0), (secondID, -6.0)] {
+                let output = Double(AudioConfiguration.outputAmplitude(forVLCVolume: config.quantizedOutputVolume(volume, stationID: id)))
+                check(abs(20 * log10(output / base) - expectedDB) < 0.5, "Quantisierte Senderkorrektur verfehlt den dB-Vertrag")
+            }
+        }
         check(config.gain(for: UUID()) == 0 && config.effectivePreampDB == -6, "Unbekannter Sender oder Headroom falsch")
         try restored.setStationGain(0, for: firstID)
         check(restored.configuration.gain(for: firstID) == 0 && restored.configuration.gain(for: secondID) == -6, "Reset verändert einen anderen Sender")
