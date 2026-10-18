@@ -478,3 +478,5 @@
 "Bibliothek austauschen (JSON)" = "Exchange library (JSON)";
 "Sender mit Favoriten und Katalogherkunft, Gruppen und gemerkte Titel austauschen. Vor dem Import erscheint eine Vorschau mit Konfliktwahl. Rohaufnahmen und Verlauf werden nicht exportiert." = "Exchange stations with favorites and catalog identity, groups and bookmarks. Review a preview and choose how to handle conflicts before importing. Recordings and history are not exported.";
 "Bibliothek exportiert." = "Library exported.";
+"Bitte gültige Sekundenwerte mit „%@“ eingeben; keine Tausendertrennzeichen." = "Enter valid seconds using “%@”; no thousands separators.";
+"Stopp" = "Stop";

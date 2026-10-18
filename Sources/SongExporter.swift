@@ -21,15 +21,21 @@ enum SongExporter {
 
     static func inspect(source: URL) async throws -> ExportAudioBounds {
         try Task.checkCancellation()
-        try validateAudioFile(source)
-        let tracks = try await AVURLAsset(url: source).loadTracks(withMediaType: .audio)
-        guard let track = tracks.first else { throw ExportError.notReadable }
-        let range = try await track.load(.timeRange)
-        try Task.checkCancellation()
-        let start = max(0, CMTimeGetSeconds(range.start))
-        let end = CMTimeGetSeconds(CMTimeRangeGetEnd(range))
-        guard start.isFinite, end.isFinite, end > start else { throw ExportError.notReadable }
-        return ExportAudioBounds(start: start, end: end)
+        do {
+            try validateAudioFile(source)
+            let tracks = try await AVURLAsset(url: source).loadTracks(withMediaType: .audio)
+            guard let track = tracks.first else { throw ExportError.notReadable }
+            let range = try await track.load(.timeRange)
+            try Task.checkCancellation()
+            let start = max(0, CMTimeGetSeconds(range.start))
+            let end = CMTimeGetSeconds(CMTimeRangeGetEnd(range))
+            guard start.isFinite, end.isFinite, end > start else { throw ExportError.notReadable }
+            return ExportAudioBounds(start: start, end: end)
+        } catch is CancellationError { throw CancellationError() }
+        catch {
+            try Task.checkCancellation()
+            throw ExportError.notReadable
+        }
     }
 
     static func export(source: URL, offset: Double, duration: Double,

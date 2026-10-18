@@ -27,6 +27,7 @@ struct RecordedAudioAvailability: Sendable {
     enum Status: Equatable, Sendable { case complete, partial, recording, missing, unreadable, none }
     let status: Status
     let source: RecordedAudioSource?
+    var isPartial = false
     var label: String {
         switch status {
         case .complete: return String(localized: "Audio vollständig vorhanden")
@@ -67,7 +68,8 @@ struct RecordingLibrarySnapshot: Sendable {
         let source = RecordedAudioSource(clipID: item.id, url: directory.appendingPathComponent(item.clip.file),
                                          offset: start.timeIntervalSince(item.clip.start), duration: duration)
         let partial = start > entry.start || availableEnd < end
-        return RecordedAudioAvailability(status: item.isActive ? .recording : partial ? .partial : .complete, source: source)
+        return RecordedAudioAvailability(status: item.isActive ? .recording : partial ? .partial : .complete,
+                                         source: source, isPartial: partial)
     }
 }
 
@@ -479,8 +481,12 @@ final class Recorder: @unchecked Sendable {
     // Verlauf kann nach Aufnahmeabbruch oder Crash länger als die Datei laufen.
     // Dateiexport und Drag verwenden deshalb dieselbe begrenzte Zeitspanne.
     func exportSource(for entry: SongEntry, now: Date = Date()) -> (url: URL, offset: Double, duration: Double)? {
-        guard let source = q.sync(execute: { makeLibrarySnapshot().audio(for: entry, now: now).source }) else { return nil }
+        guard let source = audioAvailability(for: entry, now: now).source else { return nil }
         return (source.url, source.offset, source.duration)
+    }
+
+    func audioAvailability(for entry: SongEntry, now: Date = Date()) -> RecordedAudioAvailability {
+        q.sync { makeLibrarySnapshot().audio(for: entry, now: now) }
     }
 
     // MARK: - intern (immer auf q)

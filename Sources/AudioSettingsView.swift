@@ -18,6 +18,7 @@ struct AudioSettingsView: View {
     @EnvironmentObject private var player: RadioPlayer
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismissWindow) private var dismissWindow
     @AppStorage("volume") private var volume = 0.77
     @State private var message: String?
@@ -56,6 +57,7 @@ struct AudioSettingsView: View {
         .padding(20).foregroundStyle(ink)
         .frame(minWidth: 580, idealWidth: 620, minHeight: 500, idealHeight: 650)
         .background { SongListSurface() }
+        .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
     }
 
     private var stationCorrection: some View {
@@ -67,6 +69,7 @@ struct AudioSettingsView: View {
                     Slider(value: Binding(get: { config.gain(for: station.id) },
                                           set: { value in change { try settings.setStationGain(value, for: station.id) } }),
                            in: -12...12, step: 0.5) { Text("Senderkorrektur") }
+                        .labelsHidden()
                         .accessibilityIdentifier("audio-station-gain")
                     Text(db(config.gain(for: station.id))).monospacedDigit().frame(width: 70, alignment: .trailing)
                     Button("Neutral") { change { try settings.setStationGain(0, for: station.id) } }
@@ -123,6 +126,7 @@ struct AudioSettingsView: View {
                 Slider(value: Binding(get: { config.preampDB },
                                       set: { value in change { try settings.update { $0.preampDB = value } } }),
                        in: -12...0, step: 0.5) { Text("Vorverstärkung") }
+                    .labelsHidden()
                     .accessibilityIdentifier("audio-preamp")
                 Text(db(config.preampDB)).monospacedDigit().frame(width: 70, alignment: .trailing)
             }.font(theme.font(.label, size: 12 * scale)).disabled(!config.equalizerEnabled)

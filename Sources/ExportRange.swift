@@ -1,5 +1,37 @@
 import Foundation
 
+enum ExportAdjustmentText {
+    static func parse(_ text: String, locale: Locale) -> Double? {
+        var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty, body.utf8.count <= 64 else { return nil }
+        var sign = ""
+        if body.first == "-" || body.first == "+" { sign = String(body.removeFirst()) }
+        let separator = locale.decimalSeparator ?? "."
+        let parts = body.components(separatedBy: separator)
+        func digits(_ value: String) -> Bool { value.allSatisfy { $0 >= "0" && $0 <= "9" } }
+        guard parts.count <= 2, parts.allSatisfy(digits),
+              !parts[0].isEmpty || parts.count == 2,
+              parts.count == 1 || !parts[1].isEmpty else { return nil }
+        let normalized = sign + body.replacingOccurrences(of: separator, with: ".")
+        guard let value = Double(normalized), value.isFinite else { return nil }
+        return value
+    }
+
+    static func format(_ value: Double, locale: Locale) -> String {
+        value.formatted(.number.locale(locale).precision(.fractionLength(0...2)).grouping(.never))
+    }
+}
+
+enum ExportTimeText {
+    static func format(_ value: Double, locale: Locale) -> String {
+        guard value.isFinite, value >= 0, value < Double(Int.max / 100) else { return "—" }
+        let units = Int((value * 100).rounded())
+        let hours = units / 360_000, minutes = units / 6_000 % 60, seconds = units / 100 % 60
+        return "\(hours):" + String(format: "%02d:%02d", minutes, seconds)
+            + (locale.decimalSeparator ?? ".") + String(format: "%02d", units % 100)
+    }
+}
+
 struct ExportAudioBounds: Equatable, Sendable {
     let start: Double
     let end: Double
