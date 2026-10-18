@@ -192,8 +192,13 @@ struct HistoryPanel: View {
                     }.disabled(visible.isEmpty)
                     Button("Auswahl aufheben") { batchSelection.removeAll() }.disabled(batchSelection.isEmpty)
                     Button("Auswahl exportieren …") { openBatchExport() }.disabled(batchSelection.isEmpty)
-                } label: { Image(systemName: "chevron.down").foregroundStyle(historyActionInk) }
-                .menuStyle(.borderlessButton).fixedSize().help("Exportoptionen")
+                } label: {
+                    Image(systemName: "chevron.down").foregroundStyle(historyActionInk)
+                        .frame(width: 24, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+                .frame(width: 28, height: 28).help("Exportoptionen")
                 .accessibilityLabel("Exportoptionen").accessibilityIdentifier("history-export-options")
                 Spacer(minLength: 0)
                 if !exportMsg.isEmpty {
