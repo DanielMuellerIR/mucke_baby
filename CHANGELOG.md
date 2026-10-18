@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Cancel preparation or saving without replacing an existing target. Discard outdated previews after an edit, and keep one local recording preview active across windows.
 - Use the same media-time cut for hard and faded exports, avoiding differing decoder lead-in and shortened Ogg/Opus output.
 
+## 1.9.14 — 2026-10-18
+
+- Add a compact player window with shared playback, station selection, volume, bookmarks and recording controls. Keep it optionally above other windows and restore its visible position.
+- Keep playback running when the main window closes, prevent window reopening from repeating autoplay, and close recordings on quit even when no main window is open.
+
 ## 1.9.13 — 2026-10-18
 
 - Browse recordings independently of history, with station, date, duration, file size, local preview and Finder actions. Confirm stopping live radio before preview; protect active recordings and confirm removal of a selected completed recording.

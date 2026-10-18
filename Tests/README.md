@@ -31,3 +31,5 @@ Unlesbare Aufnahmen müssen kontrolliert abgewiesen werden. Wiedergabe über VLC
 und echte GUI-/Drag-Prüfungen sind gesonderte App-Abnahmen mit notarisiertem Bundle.
 
 Der `StationRepairHarness` prüft optionale Katalogherkunft und Altdaten, UUID-Abfragen samt Mirror-/Abbruchfällen, Vorschau ohne Speicherung, veraltete Antworten, unsichere URLs, Schreibfehler und den Erhalt lokaler Senderdaten. Kontrollierte Erreichbarkeitsproben belegen, dass Ergebnisse für eine ersetzte URL nicht mehr veröffentlicht werden.
+
+Der `MiniWindowHarness` prüft gespeicherte Fenstergeometrie mit negativen und vertikal angeordneten Bildschirmflächen sowie entfernten Displays. Der Startup-Harness prüft, dass weitere Fenster keinen zweiten Autostart auslösen. Native Fenster-, Fokus- und Mehrdisplay-Prüfungen bleiben gesonderte Laufzeitprüfungen.

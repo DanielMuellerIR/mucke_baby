@@ -392,3 +392,13 @@
 "Für diesen Titel ist kein verfügbares Audio vorhanden." = "Für diesen Titel ist kein verfügbares Audio vorhanden.";
 "Vorhören oder stoppen (⌘⇧P)" = "Vorhören oder stoppen (⌘⇧P)";
 "s" = "s";
+
+/* Miniplayer */
+"Miniplayer" = "Miniplayer";
+"Hauptfenster anzeigen" = "Hauptfenster anzeigen";
+"Noch kein Titel" = "Noch kein Titel";
+"Nicht im Vordergrund halten" = "Nicht im Vordergrund halten";
+"Im Vordergrund halten" = "Im Vordergrund halten";
+"Ein" = "Ein";
+"Keine Sender" = "Keine Sender";
+"Sender auswählen" = "Sender auswählen";

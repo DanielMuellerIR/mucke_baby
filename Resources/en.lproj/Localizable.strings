@@ -392,3 +392,13 @@
 "Für diesen Titel ist kein verfügbares Audio vorhanden." = "No audio is available for this track.";
 "Vorhören oder stoppen (⌘⇧P)" = "Preview or stop (⌘⇧P)";
 "s" = "s";
+
+/* Miniplayer */
+"Miniplayer" = "Mini player";
+"Hauptfenster anzeigen" = "Show main window";
+"Noch kein Titel" = "No track yet";
+"Nicht im Vordergrund halten" = "Stop keeping on top";
+"Im Vordergrund halten" = "Keep on top";
+"Ein" = "On";
+"Keine Sender" = "No stations";
+"Sender auswählen" = "Select station";

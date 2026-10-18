@@ -37,6 +37,7 @@ final class StartupSettings: ObservableObject {
     @Published var showNotice = false
     private(set) var isReadOnly = false
     private let fileURL: URL
+    private var didAttemptAutoplay = false
     private struct Header: Decodable { let formatVersion: Int }
 
     init(directory: URL, defaults: UserDefaults = .standard, stations: [Station]) {
@@ -81,6 +82,13 @@ final class StartupSettings: ObservableObject {
         var next = configuration
         next.mode = mode
         save(next)
+    }
+
+    // Autostart gehört zum App-Start, nicht zum Öffnen eines weiteren Fensters.
+    func claimAutoplay() -> Bool {
+        guard !didAttemptAutoplay else { return false }
+        didAttemptAutoplay = true
+        return true
     }
 
     func selectStation(_ id: UUID?) {

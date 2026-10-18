@@ -47,6 +47,10 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   Tests/StartupHarness.swift -o "$BUILD/startup-harness"
 "$BUILD/startup-harness"
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/MiniWindowPlacement.swift Tests/MiniWindowHarness.swift \
+  -o "$BUILD/mini-window-harness"
+"$BUILD/mini-window-harness"
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" \
   Sources/Models.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
   Sources/RecordingState.swift Sources/Recorder.swift Sources/BookmarkStore.swift Tests/BookmarkHarness.swift \

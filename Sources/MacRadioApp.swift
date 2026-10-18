@@ -42,7 +42,7 @@ struct MacRadioApp: App {
 
     var body: some Scene {
         // Normales App-Fenster (Standardmodus).
-        WindowGroup("Mucke, Baby!") {
+        WindowGroup("Mucke, Baby!", id: "main-player") {
             ContentView()
                 .environmentObject(store)
                 .environmentObject(startup)
@@ -112,6 +112,21 @@ struct MacRadioApp: App {
                     .keyboardShortcut("t", modifiers: [.command, .shift])
             }
         }
+
+        Window("Miniplayer", id: "mini-player") {
+            MiniPlayerView()
+                .environmentObject(store)
+                .environmentObject(startup)
+                .environmentObject(player)
+                .environmentObject(bookmarks)
+                .environmentObject(audioTap)
+                .environment(\.uiFontScale, Self.scale(uiZoom))
+                .environment(\.theme, theme)
+                .preferredColorScheme(effectiveScheme)
+        }
+        .defaultSize(width: 420, height: 240)
+        .windowResizability(.contentMinSize)
+        .keyboardShortcut("m", modifiers: [.command, .shift])
 
         // Optionaler Menueleisten-Modus. `isInserted` blendet das Icon
         // zur Laufzeit ein/aus, ohne die Szene neu aufzubauen.
@@ -232,6 +247,7 @@ private struct WindowConfigurator: NSViewRepresentable {
         let v = NSView()
         DispatchQueue.main.async {
             guard let w = v.window else { return }
+            w.identifier = NSUserInterfaceItemIdentifier("MuckeBabyMain")
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
             w.styleMask.insert(.fullSizeContentView)
@@ -295,7 +311,6 @@ struct ContentView: View {
     @State private var showingBookmarks = false
     @State private var showingRecordings = false
     @State private var editStation: Station?
-    @State private var didAutoplay = false
     // Startwert der Lautstaerke beim Beginn eines Knopf-Drags (knob-Themes). nil = kein Drag aktiv.
     @State private var knobDragStart: Double? = nil
     // Einmaliger Willkommens-Hinweis beim allerersten Start (Audio-Berechtigung +
@@ -414,21 +429,10 @@ struct ContentView: View {
         // Fenster so konfigurieren, dass die Kopfleiste den Titelbalken-Bereich einnimmt
         // (Ampel-Buttons inline). Unsichtbar.
         .background(WindowConfigurator().frame(width: 0, height: 0))
-        // Beim Beenden sauber abschliessen: laufende Aufnahme-Datei + ICY-Session
-        // schliessen (stop()) und auf das async _close warten (flush()), sonst
-        // bliebe der letzte Clip mit end == nil zurueck und wuerde beim naechsten
-        // Start als 0 s verworfen. Danach kurze Verlauf-Fragmente (< 20 s) wegputzen.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-            player.stop()
-            player.recorder.flush()
-            player.history.pruneOnLaunchOrQuit()
-            SongExporter.cleanupTemporaryExports()
-        }
     }
 
     private func autoplayIfNeeded() {
-        guard !didAutoplay else { return }
-        didAutoplay = true
+        guard startup.claimAutoplay() else { return }
         if let target = startup.configuration.target(in: store.stations) {
             player.play(target)
         }
