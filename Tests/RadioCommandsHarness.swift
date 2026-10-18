@@ -4,6 +4,7 @@ import Foundation
 final class CommandFixture: RadioCommandTarget {
     var commandStations: [Station] = []
     var commandStationID: UUID?
+    var commandStationURL: String?
     var commandIsActive = false
     var commandRecordingRequested = false
     var commandSong: SongEntry?
@@ -12,7 +13,7 @@ final class CommandFixture: RadioCommandTarget {
     var volume = 0.4
     var bookmarks: [SongEntry] = []
     var failWrite = false
-    func commandPlay(_ station: Station) { starts.append(station.id); commandStationID = station.id; commandIsActive = true }
+    func commandPlay(_ station: Station) { starts.append(station.id); commandStationID = station.id; commandStationURL = station.url; commandIsActive = true }
     func commandStop() { stops += 1; commandIsActive = false }
     func commandSetVolume(_ value: Double) { volume = value }
     func commandBookmark(_ song: SongEntry) throws {
@@ -43,6 +44,12 @@ final class CommandFixture: RadioCommandTarget {
         fixture.commandRecordingRequested = true
         try commands.play(stationID: valid.id)
         precondition(fixture.starts.count == 1)
+        fixture.commandStations[0].url = "https://example.test/repaired"
+        rejects { try commands.play(stationID: valid.id) }
+        precondition(fixture.starts.count == 1)
+        fixture.commandRecordingRequested = false
+        try commands.play(stationID: valid.id)
+        precondition(fixture.starts.count == 2 && fixture.commandStationURL == "https://example.test/repaired")
         for value in [-1.0, 101, Double.nan, Double.infinity, -Double.infinity] {
             rejects { try commands.setVolume(percent: value) }
             precondition(fixture.volume == 0.4)
@@ -60,6 +67,6 @@ final class CommandFixture: RadioCommandTarget {
         let saved = try commands.bookmarkCurrentTitle()
         precondition(saved == title && fixture.bookmarks == [fixture.commandSong!])
         commands.stop(); precondition(fixture.stops == 1 && !fixture.commandIsActive)
-        print("RadioCommands: verwaiste/deaktivierte/unsichere Sender, Aufnahmegrenze, idempotenter Start, endliche Lautstärke, Titel und Schreibfehler OK")
+        print("RadioCommands: verwaiste/deaktivierte/unsichere Sender, Aufnahmegrenze, idempotenter Start und bewusster Start reparierter URL, endliche Lautstärke, Titel und Schreibfehler OK")
     }
 }

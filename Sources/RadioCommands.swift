@@ -4,6 +4,7 @@ import Foundation
 protocol RadioCommandTarget: AnyObject {
     var commandStations: [Station] { get }
     var commandStationID: UUID? { get }
+    var commandStationURL: String? { get }
     var commandIsActive: Bool { get }
     var commandRecordingRequested: Bool { get }
     var commandSong: SongEntry? { get }
@@ -34,7 +35,7 @@ struct RadioCommands {
             throw RadioCommandError.stationUnavailable
         }
         guard StreamURLPolicy.validatedURL(station.url) != nil else { throw RadioCommandError.unsafeURL }
-        if target.commandStationID == station.id, target.commandIsActive { return }
+        if target.commandStationID == station.id, target.commandStationURL == station.url, target.commandIsActive { return }
         guard !target.commandRecordingRequested else { throw RadioCommandError.recordingEnabled }
         target.commandPlay(station)
     }

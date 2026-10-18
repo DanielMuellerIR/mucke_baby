@@ -77,6 +77,7 @@ extension RadioServices: RadioCommandTarget {
     var commands: RadioCommands { RadioCommands(target: self) }
     var commandStations: [Station] { store.stations }
     var commandStationID: UUID? { player.currentStation?.id }
+    var commandStationURL: String? { player.currentStation?.url }
     var commandIsActive: Bool { player.isPlaying || player.isLoading }
     var commandRecordingRequested: Bool { player.recordingRequested }
     var commandSong: SongEntry? { player.isPlaying || player.isLoading ? player.currentSong : nil }
