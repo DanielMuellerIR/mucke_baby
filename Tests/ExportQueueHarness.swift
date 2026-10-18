@@ -20,6 +20,19 @@ actor ExportGate {
     }
 }
 
+actor CommittedExportGate {
+    private(set) var committed = false
+    private var released = false
+    func release() { released = true }
+    func render(_ job: ExportJob, _ directory: URL) async throws -> URL {
+        let result = directory.appendingPathComponent(job.id.uuidString + ".m4a")
+        try Data("finished export".utf8).write(to: result, options: .atomic)
+        committed = true
+        while !released { await Task.yield() }
+        return result
+    }
+}
+
 @main enum ExportQueueHarness {
     static func check(_ value: Bool, _ message: String) { if !value { fatalError(message) } }
     @MainActor static func wait(_ predicate: () async -> Bool) async throws {
@@ -81,6 +94,21 @@ actor ExportGate {
         check(allCancel.succeededCount == 1 && allCancel.cancelledCount == 2, "Gesamtabbruch verliert fertiges Ergebnis")
         check(ExportQueue(jobs: []).items.isEmpty && ExportQueue(jobs: Array(repeating: jobs[0], count: 101)).items.isEmpty
               && ExportQueue(jobs: [jobs[0], jobs[0]]).items.isEmpty, "Stapelgrenzen/Dubletten werden nicht abgewiesen")
+        let maximum = (0..<ExportQueue.limit).map { _ in job() }, maximumGate = ExportGate()
+        let maximumQueue = ExportQueue(jobs: maximum) { j, dir, _ in try await maximumGate.render(j, dir) }
+        maximumQueue.start(directory: root, mode: .hardCut); try await wait { !maximumQueue.isRunning }
+        let maximumStarted = await maximumGate.started
+        check(maximumQueue.succeededCount == 100 && maximumStarted == maximum.map(\.id),
+              "Zulässiger voller Stapel verliert Einträge oder Reihenfolge")
+        let committedGate = CommittedExportGate(), committedJob = job()
+        let lateCancel = ExportQueue(jobs: [committedJob]) { j, dir, _ in try await committedGate.render(j, dir) }
+        lateCancel.start(directory: root, mode: .hardCut)
+        try await wait { await committedGate.committed }
+        lateCancel.cancelAll(); await committedGate.release(); try await wait { !lateCancel.isRunning }
+        check(lateCancel.succeededCount == 1 && lateCancel.cancelledCount == 0,
+              "Später Abbruch erklärt eine bereits fertige Datei zum Fehlschlag")
+        check(try Data(contentsOf: root.appendingPathComponent(committedJob.id.uuidString + ".m4a")) == Data("finished export".utf8),
+              "Später Abbruch verändert fertige Datei")
 
         let source = root.appendingPathComponent("tone.wav"); try tone(source)
         let original = try Data(contentsOf: source)
