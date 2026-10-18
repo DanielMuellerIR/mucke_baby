@@ -50,6 +50,8 @@ final class RadioPlayer: ObservableObject {
     // Aufgelöste Direkt-Stream-URL des laufenden Senders. Der AudioTap dekodiert NICHT parallel;
     // er nutzt diese Published-URL nur als Start/Stop-Signal und tappt dann die Prozessausgabe.
     @Published private(set) var currentStreamURL: URL?
+    @Published private(set) var effectiveOutputVolume: Float = 0.77
+    @Published private(set) var audioNotice: String?
 
     let history = SongHistory()
     let recorder: Recorder
@@ -64,6 +66,8 @@ final class RadioPlayer: ObservableObject {
     private var shim: PlayerDelegateShim?
     private let icy = ICYMetadataReader()
     private var desiredVolume: Float = 0.77
+    private var audioConfiguration = AudioConfiguration()
+    private var installedStationID: UUID?
     private var lastState: VLCMediaPlayerState?
     private var resolveTask: Task<Void, Never>?
     private var requests = LatestRequestGeneration()
@@ -181,8 +185,39 @@ final class RadioPlayer: ObservableObject {
 
     // Lautstaerke 0.0 … 1.0  (VLC-Skala: 0…100, 100 = Originalpegel)
     func setVolume(_ v: Float) {
-        desiredVolume = max(0, min(1, v))
-        player.audio?.volume = Int32(desiredVolume * 100)
+        desiredVolume = v.isFinite ? max(0, min(1, v)) : 0
+        applyOutputVolume()
+    }
+
+    func configureAudio(_ configuration: AudioConfiguration) {
+        guard configuration.isValid else { return }
+        audioConfiguration = configuration
+        applyAudioSettings()
+    }
+
+    private func applyOutputVolume() {
+        let volume = Int32(audioConfiguration.outputVolume(desiredVolume, stationID: installedStationID) * 100)
+        player.audio?.volume = volume
+        effectiveOutputVolume = Float(volume) / 100
+    }
+
+    private func applyAudioSettings() {
+        applyOutputVolume()
+        guard audioConfiguration.equalizerEnabled else {
+            player.equalizer = nil; audioNotice = nil
+            return
+        }
+        let equalizer = VLCAudioEqualizer()
+        guard equalizer.bands.count == audioConfiguration.bands.count else {
+            player.equalizer = nil
+            audioNotice = String(localized: "Der Equalizer ist mit dieser Audiobibliothek nicht verfügbar.")
+            return
+        }
+        equalizer.preAmplification = Float(audioConfiguration.vlcPreampDB)
+        for (band, value) in zip(equalizer.bands, audioConfiguration.bands) { band.amplification = Float(value) }
+        // VLCKit übernimmt die Werte beim Zuweisen; Änderungen am alten Objekt
+        // allein würden einen bereits laufenden Audioausgang nicht aktualisieren.
+        player.equalizer = equalizer; audioNotice = nil
     }
 
     // Sender abspielen. Zuerst evtl. Playlist (.pls/.m3u/Tune.ashx) zur
@@ -252,7 +287,8 @@ final class RadioPlayer: ObservableObject {
         let media = VLCMedia(url: url)
         media.addOption(":network-caching=1500")
         player.media = media
-        player.audio?.volume = Int32(desiredVolume * 100)
+        installedStationID = currentStation?.id
+        applyAudioSettings()
         installedGeneration = generation
         player.play()
         currentStreamURL = url   // AudioTap starten: er tappt die eigene Prozessausgabe

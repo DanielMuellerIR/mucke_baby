@@ -98,19 +98,30 @@ final class RadioServices: ObservableObject {
     let startup: StartupSettings
     let player: RadioPlayer
     let systemMedia: SystemMediaBinding
+    let audioSettings: AudioSettingsStore
+    let audioTap: AudioTap
     private var subscriptions = Set<AnyCancellable>()
     init() {
         let store = Store(), player = RadioPlayer()
         self.store = store; self.player = player
+        let audioSettings = AudioSettingsStore(directory: store.dir), audioTap = AudioTap()
+        self.audioSettings = audioSettings; self.audioTap = audioTap
         startup = StartupSettings(directory: store.dir, stations: store.stations)
         systemMedia = SystemMediaBinding(player: player, store: store)
         Publishers.Merge3(store.objectWillChange, startup.objectWillChange, player.objectWillChange)
             .sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
+        audioSettings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
+        audioSettings.$configuration.sink { [weak player] in player?.configureAudio($0) }.store(in: &subscriptions)
+        player.$effectiveOutputVolume.removeDuplicates()
+            .sink { [weak audioTap] in audioTap?.setOutputVolume($0) }.store(in: &subscriptions)
+        player.$currentStreamURL.removeDuplicates()
+            .sink { [weak audioTap] in audioTap?.setStream($0) }.store(in: &subscriptions)
         // Auch ohne offenes Hauptfenster müssen Empfang, Dateien und Verlauf vor Quit schließen.
         NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.player.stop()
+                self.audioTap.stop()
                 self.player.recorder.flush()
                 self.player.history.pruneOnLaunchOrQuit()
                 SongExporter.cleanupTemporaryExports()

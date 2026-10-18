@@ -119,6 +119,11 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   Tests/SystemMediaHarness.swift -o "$BUILD/system-media-harness"
 "$BUILD/system-media-harness"
 
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Sources/AudioSettings.swift Tests/AudioSettingsHarness.swift \
+  -o "$BUILD/audio-settings-harness"
+"$BUILD/audio-settings-harness"
+
 python3 Tests/player-events.py
 python3 Tests/player-rollover.py
 python3 Tests/recording-preview.py

@@ -402,3 +402,31 @@
 "Ein" = "Ein";
 "Keine Sender" = "Keine Sender";
 "Sender auswählen" = "Sender auswählen";
+
+/* Audioeinstellungen */
+"Audioeinstellungen" = "Audioeinstellungen";
+"Senderkorrektur" = "Senderkorrektur";
+"Diese Korrektur gehört zur lokalen Senderidentität und bleibt beim Senderwechsel gespeichert." = "Diese Korrektur gehört zur lokalen Senderidentität und bleibt beim Senderwechsel gespeichert.";
+"Die verstärkte Lautstärke ist auf 100 % begrenzt. Für mehr Spielraum die globale Lautstärke senken." = "Die verstärkte Lautstärke ist auf 100 % begrenzt. Für mehr Spielraum die globale Lautstärke senken.";
+"Starte einen Sender, um seine Korrektur einzustellen." = "Starte einen Sender, um seine Korrektur einzustellen.";
+"Equalizer" = "Equalizer";
+"Equalizer-Vorgabe" = "Equalizer-Vorgabe";
+"Vorverstärkung" = "Vorverstärkung";
+"Effektive Vorverstärkung: %@" = "Effektive Vorverstärkung: %@";
+"Headroom senkt die Vorverstärkung um mindestens die stärkste Bandanhebung. Das schafft Pegelreserve; es ersetzt keinen Limiter." = "Headroom senkt die Vorverstärkung um mindestens die stärkste Bandanhebung. Das schafft Pegelreserve; es ersetzt keinen Limiter.";
+"Korrektur und Equalizer verändern nur die Wiedergabe. Aufnahme und Export bleiben unbearbeitet. Kein automatischer Lautheitsabgleich." = "Korrektur und Equalizer verändern nur die Wiedergabe. Aufnahme und Export bleiben unbearbeitet. Kein automatischer Lautheitsabgleich.";
+"Neutral" = "Neutral";
+"Mehr Bass" = "Mehr Bass";
+"Sanfte Höhen" = "Sanfte Höhen";
+"Eigene Einstellung" = "Eigene Einstellung";
+"Ungültige Audioeinstellungen." = "Ungültige Audioeinstellungen.";
+"Die Audioeinstellungen sind geschützt. Bitte Datei und Speicherzugriff prüfen." = "Die Audioeinstellungen sind geschützt. Bitte Datei und Speicherzugriff prüfen.";
+"Die Audioeinstellungen überschreiten die zulässige Dateigröße." = "Die Audioeinstellungen überschreiten die zulässige Dateigröße.";
+"Die Audioeinstellungen konnten nicht geladen werden. Die Datei bleibt unverändert; neutrale Einstellungen gelten." = "Die Audioeinstellungen konnten nicht geladen werden. Die Datei bleibt unverändert; neutrale Einstellungen gelten.";
+"Die Audioeinstellungen konnten nicht gespeichert werden. Die bisherige Einstellung bleibt aktiv." = "Die Audioeinstellungen konnten nicht gespeichert werden. Die bisherige Einstellung bleibt aktiv.";
+"Der Equalizer ist mit dieser Audiobibliothek nicht verfügbar." = "Der Equalizer ist mit dieser Audiobibliothek nicht verfügbar.";
+
+"Sprachbetonung" = "Sprachbetonung";
+"Equalizer ausgeschaltet; neutraler Audiopfad." = "Equalizer ausgeschaltet; neutraler Audiopfad.";
+
+"Die Audioeinstellungsdatei wurde außerhalb der App geändert. Bitte die App neu starten." = "Die Audioeinstellungsdatei wurde außerhalb der App geändert. Bitte die App neu starten.";

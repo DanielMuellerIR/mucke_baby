@@ -402,3 +402,31 @@
 "Ein" = "On";
 "Keine Sender" = "No stations";
 "Sender auswählen" = "Select station";
+
+/* Audioeinstellungen */
+"Audioeinstellungen" = "Audio settings";
+"Senderkorrektur" = "Station gain";
+"Diese Korrektur gehört zur lokalen Senderidentität und bleibt beim Senderwechsel gespeichert." = "This adjustment belongs to the local station identity and is retained when you switch stations.";
+"Die verstärkte Lautstärke ist auf 100 % begrenzt. Für mehr Spielraum die globale Lautstärke senken." = "The adjusted volume is capped at 100%. Lower the global volume for more adjustment range.";
+"Starte einen Sender, um seine Korrektur einzustellen." = "Start a station to adjust its gain.";
+"Equalizer" = "Equalizer";
+"Equalizer-Vorgabe" = "Equalizer preset";
+"Vorverstärkung" = "Preamp";
+"Effektive Vorverstärkung: %@" = "Effective preamp: %@";
+"Headroom senkt die Vorverstärkung um mindestens die stärkste Bandanhebung. Das schafft Pegelreserve; es ersetzt keinen Limiter." = "Headroom reduces the preamp by at least the strongest band boost. This leaves level reserve; it does not replace a limiter.";
+"Korrektur und Equalizer verändern nur die Wiedergabe. Aufnahme und Export bleiben unbearbeitet. Kein automatischer Lautheitsabgleich." = "Gain and equalizer affect playback only. Recordings and exports remain unprocessed. There is no automatic loudness matching.";
+"Neutral" = "Flat";
+"Mehr Bass" = "More bass";
+"Sanfte Höhen" = "Soft treble";
+"Eigene Einstellung" = "Custom setting";
+"Ungültige Audioeinstellungen." = "Invalid audio settings.";
+"Die Audioeinstellungen sind geschützt. Bitte Datei und Speicherzugriff prüfen." = "Audio settings are protected. Check the file and storage access.";
+"Die Audioeinstellungen überschreiten die zulässige Dateigröße." = "Audio settings exceed the allowed file size.";
+"Die Audioeinstellungen konnten nicht geladen werden. Die Datei bleibt unverändert; neutrale Einstellungen gelten." = "Audio settings could not be loaded. The file is preserved; neutral settings apply.";
+"Die Audioeinstellungen konnten nicht gespeichert werden. Die bisherige Einstellung bleibt aktiv." = "Audio settings could not be saved. The previous setting remains active.";
+"Der Equalizer ist mit dieser Audiobibliothek nicht verfügbar." = "The equalizer is unavailable with this audio library.";
+
+"Sprachbetonung" = "Speech emphasis";
+"Equalizer ausgeschaltet; neutraler Audiopfad." = "Equalizer off; neutral audio path.";
+
+"Die Audioeinstellungsdatei wurde außerhalb der App geändert. Bitte die App neu starten." = "The audio settings file changed outside the app. Restart the app to reload it.";

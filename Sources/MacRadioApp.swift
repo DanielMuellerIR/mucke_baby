@@ -14,7 +14,7 @@ struct MacRadioApp: App {
     @StateObject private var bookmarks = BookmarkStore()
     // Audio-Reaktivität der Visualizer (CoreAudio Process-Tap auf die eigene Ausgabe,
     // vor der Analyse gegen die App-Lautstaerke normalisiert).
-    @StateObject private var audioTap = AudioTap()
+    private var audioTap: AudioTap { services.audioTap }
     // Nur fuer headless Theme-Screenshots aktiv (Env MUCKE_SHOTS); sonst No-Op.
     @NSApplicationDelegateAdaptor(MuckeAppDelegate.self) private var appDelegate
     // Menueleisten-Icon: per Schalter zu/abschaltbar. Default aus.
@@ -127,6 +127,18 @@ struct MacRadioApp: App {
         .defaultSize(width: 420, height: 240)
         .windowResizability(.contentMinSize)
         .keyboardShortcut("m", modifiers: [.command, .shift])
+
+        Window("Audioeinstellungen", id: "audio-settings") {
+            AudioSettingsView()
+                .environmentObject(store)
+                .environmentObject(player)
+                .environmentObject(services.audioSettings)
+                .environment(\.uiFontScale, Self.scale(uiZoom))
+                .environment(\.theme, theme)
+                .preferredColorScheme(effectiveScheme)
+        }
+        .defaultSize(width: 620, height: 650)
+        .windowResizability(.contentMinSize)
 
         // Optionaler Menueleisten-Modus. `isInserted` blendet das Icon
         // zur Laufzeit ein/aus, ohne die Szene neu aufzubauen.
@@ -365,12 +377,10 @@ struct ContentView: View {
         .onAppear {
             let v = Float(volume)
             player.setVolume(v)
-            audioTap.setOutputVolume(v)
         }
         .onChange(of: volume) { _, v in
             let fv = Float(v)
             player.setVolume(fv)
-            audioTap.setOutputVolume(fv)
         }
         .task {
             // Allererster Start: erst den Willkommens-Hinweis zeigen, Autoplay erst beim
@@ -399,8 +409,6 @@ struct ContentView: View {
         .onChange(of: player.currentStation?.id) { _, id in
             if let id { startup.rememberStation(id) }
         }
-        // AudioTap ist URL-agnostisch; die laufende Stream-URL ist nur das Start/Stop-Signal.
-        .onChange(of: player.currentStreamURL) { _, url in audioTap.setStream(url) }
         .sheet(isPresented: $showingAdd) { StationEditView(station: nil) }
         .sheet(item: $editStation) { st in StationEditView(station: st) }
         .sheet(isPresented: $showingPrefs) { PreferencesView() }
@@ -582,7 +590,7 @@ struct ContentView: View {
         }
     }
 
-    /// Aktions-Icons rechts: Suche, Hinzufuegen, Bearbeiten, Einstellungen, Verlauf, Theme.
+    /// Aktions-Icons rechts: Suche, Hinzufuegen, Bearbeiten, Einstellungen, Audio, Verlauf, Theme.
     private var headerActions: some View {
         HStack(spacing: 14) {
             headerIcon("magnifyingglass", "Sender-Katalog: stöbern, probehören, hinzufügen (radio-browser)") { showingSearch = true }
@@ -596,6 +604,7 @@ struct ContentView: View {
             .menuStyle(.borderlessButton).fixedSize().help("Hinzufügen")
             headerIcon(editing ? "checkmark" : "pencil", editing ? "Fertig" : "Bearbeiten") { editing.toggle() }
             headerIcon("gearshape", "Einstellungen") { showingPrefs = true }
+            AudioSettingsButton().foregroundStyle(headerInk)
             headerIcon(showHistory ? "sidebar.trailing" : "clock.arrow.circlepath",
                        "Verlauf ein-/ausblenden") { withAnimation { showHistory.toggle() } }
             headerIcon("paintpalette", "Theme: \(theme.name) → \(Theme.theme(theme.nextID).name)") {

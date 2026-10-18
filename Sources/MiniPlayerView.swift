@@ -14,7 +14,6 @@ struct MiniPlayerView: View {
     @EnvironmentObject private var player: RadioPlayer
     @EnvironmentObject private var store: Store
     @EnvironmentObject private var startup: StartupSettings
-    @EnvironmentObject private var audioTap: AudioTap
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
     @Environment(\.openWindow) private var openWindow
@@ -75,9 +74,8 @@ struct MiniPlayerView: View {
         .background { ThemedSurface(.window) }
         .frame(minWidth: 360, idealWidth: 420, minHeight: 195)
         .background(MiniWindowConfigurator(floating: floating).frame(width: 0, height: 0))
-        .onAppear { applyVolume(); audioTap.setStream(player.currentStreamURL) }
+        .onAppear { applyVolume() }
         .onChange(of: volume) { _, _ in applyVolume() }
-        .onChange(of: player.currentStreamURL) { _, url in audioTap.setStream(url) }
         .onChange(of: player.currentStation?.id) { _, id in if let id { startup.rememberStation(id) } }
         .sheet(isPresented: $quickSelection) { StationQuickSelectionView() }
         .focusedSceneValue(\.openStationQuickSelection, { quickSelection = true })
@@ -99,6 +97,7 @@ struct MiniPlayerView: View {
             }
             .menuStyle(.borderlessButton).accessibilityLabel("Senderauswahl")
             .accessibilityIdentifier("mini-stations")
+            AudioSettingsButton()
             Button { floating.toggle() } label: {
                 Image(systemName: floating ? "pin.fill" : "pin").frame(width: 28, height: 28)
             }
@@ -115,7 +114,7 @@ struct MiniPlayerView: View {
 
     private func applyVolume() {
         let value = Float(normalizedVolume)
-        player.setVolume(value); audioTap.setOutputVolume(value)
+        player.setVolume(value)
     }
 }
 

@@ -33,3 +33,5 @@ und echte GUI-/Drag-Prüfungen sind gesonderte App-Abnahmen mit notarisiertem Bu
 Der `StationRepairHarness` prüft optionale Katalogherkunft und Altdaten, UUID-Abfragen samt Mirror-/Abbruchfällen, Vorschau ohne Speicherung, veraltete Antworten, unsichere URLs, Schreibfehler und den Erhalt lokaler Senderdaten. Kontrollierte Erreichbarkeitsproben belegen, dass Ergebnisse für eine ersetzte URL nicht mehr veröffentlicht werden.
 
 Der `MiniWindowHarness` prüft gespeicherte Fenstergeometrie mit negativen und vertikal angeordneten Bildschirmflächen sowie entfernten Displays. Der Startup-Harness prüft, dass weitere Fenster keinen zweiten Autostart auslösen. Native Fenster-, Fokus- und Mehrdisplay-Prüfungen bleiben gesonderte Laufzeitprüfungen.
+
+`python3 Tests/audio-effects.py` benötigt den gepinnten Vendor-Cache und FFmpeg. Das Gate misst echten VLCKit-PCM-Ausgang mit neutralem Equalizer, Bandabsenkung und Headroom; es prüft keinen CoreAudio-Lautstärkeregler oder Hörtest. AudioSettingsHarness und PlayerHarness prüfen zusätzlich Dateischutz, atomare Speicherung, lokale Senderidentität, Playerwechsel, Retry und Stumm.

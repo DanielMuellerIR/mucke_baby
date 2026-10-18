@@ -8,12 +8,18 @@ protocol VLCMediaPlayerDelegate: AnyObject {
     func mediaPlayerTimeChanged(_ notification: Notification)
 }
 enum VLCMediaPlayerState { case opening, buffering, esAdded, playing, paused, stopped, ended, error }
+final class VLCAudioEqualizer {
+    final class Band { var amplification: Float = 0 }
+    var bands = (0..<10).map { _ in Band() }
+    var preAmplification: Float = 0
+}
 final class VLCAudio { var volume: Int32 = 0 }
 final class VLCMedia { init(url: URL) {}; func addOption(_ option: String) {} }
 final class VLCMediaPlayer {
     static var latest: VLCMediaPlayer!
     weak var delegate: VLCMediaPlayerDelegate?
     var audio: VLCAudio? = VLCAudio()
+    var equalizer: VLCAudioEqualizer?
     var media: VLCMedia?
     var state = VLCMediaPlayerState.stopped
     var isPlaying = false
@@ -92,6 +98,38 @@ struct PlayerHarness {
     }
     @MainActor
     static func main() async {
+        let audioRadio = RadioPlayer(reconnect: PlaybackReconnect(delays: [0.01]))
+        let gainA = Station(name: "Quiet correction", url: "https://fixture.invalid/gain-a")
+        let gainB = Station(name: "Loud correction", url: "https://fixture.invalid/gain-b")
+        var audio = AudioConfiguration()
+        audio.stationGainDB[gainA.id.uuidString] = -6
+        audio.stationGainDB[gainB.id.uuidString] = 6
+        audioRadio.configureAudio(audio); audioRadio.setVolume(0.5)
+        audioRadio.play(gainA)
+        await waitFor { audioRadio.currentStreamURL?.lastPathComponent == "gain-a" }
+        let firstAudio = VLCMediaPlayer.latest!
+        check(firstAudio.audio?.volume == 25 && firstAudio.equalizer == nil, "Senderkorrektur oder neutraler EQ-Pfad falsch")
+        audio.equalizerEnabled = true; audio.bands[5] = 6
+        audioRadio.configureAudio(audio)
+        check(VLCMediaPlayer.latest === firstAudio && abs((firstAudio.equalizer?.preAmplification ?? 0) - 6.0412) < 0.001
+              && firstAudio.equalizer?.bands[5].amplification == 6, "Live-EQ ersetzt Player oder verliert Headroom")
+        audioRadio.play(gainB)
+        await waitFor { audioRadio.currentStreamURL?.lastPathComponent == "gain-b" }
+        let secondAudio = VLCMediaPlayer.latest!
+        check(secondAudio !== firstAudio && secondAudio.audio?.volume == 99
+              && secondAudio.equalizer?.bands[5].amplification == 6, "Neue Playerinstanz erhält falsche Audioeinstellungen")
+        secondAudio.state = .error; secondAudio.stateEvent()
+        await waitFor { VLCMediaPlayer.latest !== secondAudio && audioRadio.currentStreamURL != nil }
+        check(VLCMediaPlayer.latest.audio?.volume == 99 && abs((VLCMediaPlayer.latest.equalizer?.preAmplification ?? 0) - 6.0412) < 0.001,
+              "Retry verliert Senderkorrektur oder Equalizer")
+        audioRadio.setVolume(0)
+        check(VLCMediaPlayer.latest.audio?.volume == 0 && audioRadio.effectiveOutputVolume == 0, "Stumm liefert Signal")
+        audioRadio.setVolume(.nan)
+        check(VLCMediaPlayer.latest.audio?.volume == 0, "Ungültige globale Lautstärke ist nicht stumm")
+        audio.equalizerEnabled = false; audioRadio.configureAudio(audio)
+        check(VLCMediaPlayer.latest.equalizer == nil, "Deaktivierter EQ bleibt im Audiopfad")
+        audioRadio.stop()
+
         let radio = RadioPlayer(reconnect: PlaybackReconnect(delays: []))
         radio.play(Station(name: "A", url: "https://fixture.invalid/a"))
         await waitFor { radio.currentStreamURL?.lastPathComponent == "a" }

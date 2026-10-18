@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.16 — 2026-10-18
+
+- Store manual gain adjustments per local station and cap the resulting playback volume at 100%. Keep recordings and exports unprocessed.
+- Add shared audio settings for the main and mini player, with an optional ten-band VLCKit equalizer, four presets and custom settings. Apply headroom for boosted bands and preserve neutral volume when enabling a flat equalizer.
+- Preserve the previous audio settings after a failed save and protect unknown, damaged or externally changed settings files.
+
 ## 1.9.15 — 2026-10-18
 
 - Preview a recorded track, adjust its start and end within the available audio, and choose a hard cut or fade before saving. Preview and save use the same rendered M4A file; recordings and history remain unchanged.

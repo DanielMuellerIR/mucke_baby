@@ -39,6 +39,7 @@ open "build/Mucke, Baby!.app"                    # launch
 
 - **Headless regression tests:** `bash Tests/run-tests.sh` runs the existing harnesses on Apple Silicon macOS, without launching the app or downloading VLCKit. HTTP fixtures use loopback only. The macOS CI workflow runs the same command.
 - **Export codec and position checks:** `python3 Tests/export-codecs.py` and `python3 Tests/export-positions.py` generate temporary audio fixtures and independently decode exports with FFmpeg. The position check compares marked cuts with and without fades and verifies that preview and saved files have identical bytes. Both commands require FFmpeg; source codec support depends on the macOS version.
+- **Equalizer signal check:** `python3 Tests/audio-effects.py` measures the pinned VLCKit equalizer through its PCM file output, independently decoded with FFmpeg. It checks neutral gain, a selective band cut and headroom. The file output does not implement volume control, so it does not replace CoreAudio volume, mute or listening checks.
 - **Automatic theme screenshots:** set `MUCKE_SHOTS=<dir>` — the app cycles through all themes, writes one PNG per theme and quits. `MUCKE_SHOT_W=<points>` overrides the window width; the layout baseline uses 940 and 660 macOS points.
   ```bash
   MUCKE_SHOTS=/tmp/shots "build/Mucke, Baby!.app/Contents/MacOS/MuckeBaby"
@@ -71,6 +72,7 @@ open "build/Mucke, Baby!.app"                    # launch
 - **Preview and trim exports** — Recorded-track exports open an editor with start/end adjustments and optional fades. Preview uses the exact prepared M4A file that will be saved. ⌘⇧P starts or stops preview; Escape closes the editor. Preview asks before stopping live radio, and radio resumes only when you start it manually. Changes affect the exported selection, leaving the original recording and history intact.
 
 - **Mini player** — a compact window shares the live player, station selection, volume, bookmarks and recording controls. Keep it on top optionally and return to the main window without restarting playback.
+- **Audio settings** — save a manual gain correction from −12 to +12 dB per local station. Adjusted playback volume is capped at 100%. An optional ten-band equalizer offers four presets, custom bands and headroom. Main and mini player open the same settings window; recordings and exports stay unprocessed. There is no automatic loudness matching.
 - **Optional stream recording** (off by default) — records the playing stream to `~/Music/MuckeBaby/Aufnahmen/`, with per‑song extraction; auto‑stops when less than 10 GiB is free.
 - **Live recording controls** — turn recording on or off while listening and see the effective status in the main window and menu bar. Recording begins only when audio data is successfully written; waiting, storage and write errors remain visible. It uses the existing metadata connection, which stays open for stations without song titles, and stops below 10 GiB of free storage. Ogg, Opus and FLAC renew that metadata connection for complete file headers while the audio player continues.
 - **One‑click links** from the history to look a track up on Apple Music or Spotify.
