@@ -13,7 +13,7 @@ final class PlayerWindowState: ObservableObject {
         guard let window else { return }
         guard self.window !== window else {
             refresh()
-            if wantsFullScreen && window.isVisible { enterFullScreen() }
+            if wantsFullScreen && window.isVisible { scheduleFullScreen() }
             return
         }
         detach(); self.window = window
@@ -33,7 +33,7 @@ final class PlayerWindowState: ObservableObject {
                     if note.name == NSWindow.didExitFullScreenNotification, let action = self.returnAction {
                         self.returnAction = nil; self.window?.close(); action()
                     }
-                    if self.wantsFullScreen && self.window?.isVisible == true { self.enterFullScreen() }
+                    if self.wantsFullScreen && self.window?.isVisible == true { self.scheduleFullScreen() }
                 }
             })
         }
@@ -41,15 +41,16 @@ final class PlayerWindowState: ObservableObject {
             observers.append(center.addObserver(forName: name, object: NSApp, queue: .main) { [weak self] _ in self?.refresh() })
         }
         refresh()
-        if wantsFullScreen { enterFullScreen() }
+        if wantsFullScreen { scheduleFullScreen() }
     }
 
     func showFullScreen(open: OpenWindowAction) {
-        wantsFullScreen = true
         open(id: "visualizer")
+        wantsFullScreen = true
         if let window, window.isVisible || window.isMiniaturized {
-            window.deminiaturize(nil); window.makeKeyAndOrderFront(nil); enterFullScreen()
+            window.deminiaturize(nil); window.makeKeyAndOrderFront(nil)
         }
+        scheduleFullScreen()
     }
 
     func toggleFullScreen() { window?.toggleFullScreen(nil) }
@@ -65,10 +66,13 @@ final class PlayerWindowState: ObservableObject {
         else { returnToMain(action) }
     }
 
-    private func enterFullScreen() {
-        guard wantsFullScreen else { return }
-        wantsFullScreen = false
-        if window?.styleMask.contains(.fullScreen) == false { window?.toggleFullScreen(nil) }
+    private func scheduleFullScreen() {
+        // SwiftUI muss die Wiederöffnung abschließen, bevor AppKit den Space wechselt.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.wantsFullScreen, let window = self.window, window.isVisible else { return }
+            self.wantsFullScreen = false
+            if !window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) }
+        }
     }
 
     private func refresh() {
