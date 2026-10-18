@@ -7,20 +7,42 @@ enum MusicRecognitionSymbol {
         ? "waveform" : "waveform.badge.magnifyingglass"
 }
 
+struct MusicRecognitionButton: View {
+    @Environment(\.theme) private var theme
+    let identifier: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: MusicRecognitionSymbol.name)
+                .font(.system(size: 16)).frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).foregroundStyle(theme.palette.textSecondary)
+        .help("Musik erkennen").accessibilityLabel("Musik erkennen")
+        .accessibilityIdentifier(identifier)
+    }
+}
+
 struct MusicRecognitionView: View {
     @EnvironmentObject private var recognition: MusicRecognitionService
+    @EnvironmentObject private var bookmarks: BookmarkStore
+    @EnvironmentObject private var player: RadioPlayer
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     let availableWidth: CGFloat
     let availableHeight: CGFloat
+    @State private var errorMessage: String?
 
     private var ink: Color { theme.id == .retro ? Color(hex: "#2A2018") : theme.palette.textPrimary }
     private var dim: Color { theme.id == .retro ? Color(hex: "#5C4A38") : theme.palette.textSecondary }
     private var unavailable: RecognitionFailure? {
         if case .failed(let reason) = recognition.phase, reason == recognition.availability { return nil }
         return recognition.availability
+    }
+    private var preferredHeight: CGFloat {
+        recognition.currentResult == nil ? min(460, 300 * max(1, scale)) : min(600, 460 * max(1, scale))
     }
 
     var body: some View {
@@ -35,6 +57,10 @@ struct MusicRecognitionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     status
+                    if recognition.currentAdoption != nil, recognition.currentResult == nil {
+                        Button("Sendertext verwenden") { recognition.useRadioTitle() }
+                            .accessibilityIdentifier("recognition-use-radio")
+                    }
                     if !recognition.phase.isBusy, let reason = unavailable {
                         Text(reason.localizedDescription).font(theme.font(.body, size: 13 * scale))
                             .accessibilityIdentifier("recognition-unavailable")
@@ -59,11 +85,14 @@ struct MusicRecognitionView: View {
         }
         .padding(16).foregroundStyle(ink)
         .frame(width: max(320, min(560, availableWidth)),
-               height: max(280, min(availableHeight, min(460, 300 * max(1, scale)))))
+               height: max(280, min(availableHeight, preferredHeight)))
         .background { SongListSurface() }
         .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
         .onAppear { recognition.refresh() }
         .onDisappear { recognition.cancel() }
+        .alert("Merkliste", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(errorMessage ?? "") }
     }
 
     @ViewBuilder private var status: some View {
@@ -90,6 +119,9 @@ struct MusicRecognitionView: View {
                     Link("In Apple Music öffnen", destination: url)
                         .accessibilityIdentifier("recognition-apple-music")
                 }
+                if let result = recognition.currentResult {
+                    resultActions(result)
+                }
             }
         case .noMatch:
             Text("Kein passender Titel gefunden. Versuche einen anderen Ausschnitt.")
@@ -103,6 +135,49 @@ struct MusicRecognitionView: View {
                 .textSelection(.enabled)
                 .accessibilityIdentifier("recognition-status")
         }
+    }
+
+    private func resultActions(_ result: RecognitionResult) -> some View {
+        let song = result.song(station: player.currentStation?.name ?? "")
+        let marked = bookmarks.contains(song)
+        let adopted = recognition.currentAdoption == result
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Quelle: Shazam").font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
+                .accessibilityIdentifier("recognition-source")
+            Text("Sendertext: \(result.context.title.isEmpty ? String(localized: "Kein Sendertext") : result.context.title)")
+                .font(theme.font(.body, size: 12 * scale)).textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("recognition-original")
+            Text("Katalogtreffer können eine andere Version nennen. Prüfe Titel und Mix vor dem Merken.")
+                .font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                recognition.adoptCurrentResult()
+            } label: {
+                Text(adopted ? String(localized: "Für Anzeige übernommen") : String(localized: "Für Anzeige übernehmen"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .disabled(adopted).keyboardShortcut(.return, modifiers: .command)
+            .help("Für Anzeige übernehmen: ⌘↵").accessibilityIdentifier("recognition-adopt")
+            Button {
+                guard let current = recognition.currentResult, let station = player.currentStation,
+                      station.id == current.context.stationID else { return }
+                do { try bookmarks.add(current.song(station: station.name)) }
+                catch { errorMessage = error.localizedDescription }
+            } label: {
+                Text(marked ? String(localized: "Gemerkt") : String(localized: "Titel merken"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .disabled(marked || bookmarks.isReadOnly).keyboardShortcut("s", modifiers: .command)
+            .help("Titel merken: ⌘S").accessibilityIdentifier("recognition-bookmark")
+            if adopted {
+                Button("Sendertext verwenden") { recognition.useRadioTitle() }
+                    .accessibilityIdentifier("recognition-use-radio")
+            }
+            if bookmarks.isReadOnly, let notice = bookmarks.notice {
+                Text(notice).font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
+            }
+        }
+        .font(theme.font(.body, size: 13 * scale))
     }
 
     private func progress(_ message: String) -> some View {

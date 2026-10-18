@@ -77,7 +77,7 @@ enum BookmarkHarness {
         let future = root.appendingPathComponent("future")
         try fm.createDirectory(at: future, withIntermediateDirectories: true)
         let futureURL = future.appendingPathComponent("bookmarks.json")
-        let futureData = Data("{\"formatVersion\":2,\"futureFields\":[\"do not overwrite\"]}".utf8)
+        let futureData = Data("{\"formatVersion\":3,\"futureFields\":[\"do not overwrite\"]}".utf8)
         try futureData.write(to: futureURL)
         let futureStore = BookmarkStore(directory: future)
         check(futureStore.isReadOnly && futureStore.notice != nil, "Unbekannte Version nicht gesperrt")

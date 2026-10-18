@@ -240,6 +240,9 @@ struct PreferencesView: View {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "muckebaby-bibliothek.json"
+        if bookmarks.entries.contains(where: { $0.recognition != nil }) {
+            panel.message = String(localized: "Enthält erkannte Titel. Der Import erfordert eine App-Version, die Shazam-Herkunft unterstützt.")
+        }
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try LibraryExchange.export(store: store, bookmarks: bookmarks, to: url, recordingDirectory: recordingsDir)

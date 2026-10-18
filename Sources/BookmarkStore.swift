@@ -8,23 +8,31 @@ struct SongBookmark: Identifiable, Codable, Equatable {
     var title: String?
     var heardAt: Date
     var savedAt: Date
+    var recognition: SongRecognition? = nil
 
     var song: SongEntry {
         SongEntry(id: id, station: station, raw: raw, artist: artist, title: title,
-                  start: heardAt, end: heardAt)
+                  start: heardAt, end: heardAt, recognition: recognition)
     }
 }
 
 struct BookmarkDocument: Codable {
     let formatVersion: Int
     let entries: [SongBookmark]
-    init(entries: [SongBookmark]) { formatVersion = 1; self.entries = entries }
+    init(entries: [SongBookmark]) {
+        formatVersion = entries.contains { $0.recognition != nil } ? 2 : 1
+        self.entries = entries
+    }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         formatVersion = try container.decode(Int.self, forKey: .formatVersion)
         entries = try container.decode([SongBookmark].self, forKey: .entries)
-        guard Set(entries.map(\.id)).count == entries.count,
-              entries.allSatisfy({ !$0.raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+        guard [1, 2].contains(formatVersion),
+              formatVersion == 2 || entries.allSatisfy({ $0.recognition == nil }),
+              Set(entries.map(\.id)).count == entries.count,
+              entries.allSatisfy({ !$0.raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                  && ($0.recognition?.isValid ?? true)
+                  && ($0.recognition == nil || !($0.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }) else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid bookmark entries"))
         }
     }
@@ -34,6 +42,7 @@ private enum BookmarkLoadVersionError: Error { case unsupported }
 struct BookmarkIdentity: Hashable {
     let artist: String
     let title: String
+    let recognizedOriginal: String?
 
     init(_ song: SongEntry) {
         func normalized(_ value: String) -> String {
@@ -48,6 +57,8 @@ struct BookmarkIdentity: Hashable {
             artist = ""
             title = normalized(song.raw)
         }
+        // Ein allgemeiner Katalogtitel darf unterschiedliche Radio-Mixangaben nicht verschmelzen.
+        recognizedOriginal = song.recognition.map { normalized($0.originalICY) }
     }
 }
 
@@ -88,7 +99,7 @@ final class BookmarkStore: ObservableObject {
             let existed = FileManager.default.fileExists(atPath: fileURL.path)
             if let loaded = try JSONFileRecovery.loadSnapshot(BookmarkDocument.self, from: fileURL,
                                                               decoder: ExchangeCodec.dateDecoder(), validate: { data in
-                if let header = try? JSONDecoder().decode(Header.self, from: data), header.formatVersion != 1 {
+                if let header = try? JSONDecoder().decode(Header.self, from: data), ![1, 2].contains(header.formatVersion) {
                     throw BookmarkLoadVersionError.unsupported
                 }
             }) {
@@ -121,7 +132,8 @@ final class BookmarkStore: ObservableObject {
             return existing.id
         }
         let bookmark = SongBookmark(id: UUID(), station: song.station, raw: song.raw,
-                                    artist: song.artist, title: song.title, heardAt: song.start, savedAt: date)
+                                    artist: song.artist, title: song.title, heardAt: song.start, savedAt: date,
+                                    recognition: song.recognition)
         try persist(entries + [bookmark])
         return bookmark.id
     }
@@ -172,8 +184,15 @@ final class BookmarkStore: ObservableObject {
         switch format {
         case .text:
             text = entries.map { entry in
-                [entry.raw, entry.station, date.string(from: entry.heardAt), date.string(from: entry.savedAt)]
-                    .joined(separator: "\n")
+                var fields = [entry.raw, entry.station, date.string(from: entry.heardAt), date.string(from: entry.savedAt)]
+                if let recognition = entry.recognition {
+                    fields.insert([entry.artist, entry.title].compactMap { $0 }.joined(separator: " – "), at: 0)
+                    fields += ["source: shazam", "recognized_at: " + date.string(from: recognition.recognizedAt),
+                               "original_icy: " + recognition.originalICY, "station_id: " + recognition.stationID.uuidString]
+                    if let id = recognition.shazamID { fields.append("shazam_id: " + id) }
+                    if let url = recognition.appleMusicURL { fields.append("apple_music_url: " + url.absoluteString) }
+                }
+                return fields.joined(separator: "\n")
             }.joined(separator: "\n\n") + (entries.isEmpty ? "" : "\n")
         case .csv:
             func quoted(_ value: String) -> String {
@@ -184,12 +203,21 @@ final class BookmarkStore: ObservableObject {
                 }
                 return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
             }
+            let hasRecognition = entries.contains { $0.recognition != nil }
             let rows = entries.map { entry in
-                [entry.artist ?? "", entry.title ?? entry.raw, entry.raw, entry.station,
-                 date.string(from: entry.heardAt), date.string(from: entry.savedAt)]
-                    .map(quoted).joined(separator: ",")
+                var fields = [entry.artist ?? "", entry.title ?? entry.raw, entry.raw, entry.station,
+                              date.string(from: entry.heardAt), date.string(from: entry.savedAt)]
+                if hasRecognition {
+                    let recognition = entry.recognition
+                    fields += [recognition?.source ?? "", recognition.map { date.string(from: $0.recognizedAt) } ?? "",
+                               recognition?.stationID.uuidString ?? "", recognition?.originalICY ?? "",
+                               recognition?.shazamID ?? "", recognition?.appleMusicURL?.absoluteString ?? ""]
+                }
+                return fields.map(quoted).joined(separator: ",")
             }
-            text = (["artist,title,original,station,heard_at,saved_at"] + rows).joined(separator: "\r\n") + "\r\n"
+            let header = "artist,title,original,station,heard_at,saved_at"
+                + (hasRecognition ? ",source,recognized_at,station_id,original_icy,shazam_id,apple_music_url" : "")
+            text = ([header] + rows).joined(separator: "\r\n") + "\r\n"
         }
         return Data(text.utf8)
     }

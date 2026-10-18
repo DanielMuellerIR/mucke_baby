@@ -16,16 +16,28 @@ struct RecognizedTrack: Equatable, Sendable {
         let cleanTitle = Self.clean(title)
         guard !cleanTitle.isEmpty else { return nil }
         self.title = cleanTitle; self.artist = Self.clean(artist)
-        let id = Self.clean(shazamID); self.shazamID = id.isEmpty ? nil : id
-        if let url = appleMusicURL, url.scheme?.lowercased() == "https", url.host?.lowercased() == "music.apple.com",
-           url.user == nil, url.password == nil, url.port == nil || url.port == 443 { self.appleMusicURL = url }
-        else { self.appleMusicURL = nil }
+        let id = Self.clean(shazamID, byteLimit: 256); self.shazamID = id.isEmpty ? nil : id
+        self.appleMusicURL = SongRecognition.safeAppleMusicURL(appleMusicURL)
     }
 
-    private static func clean(_ value: String?) -> String {
-        String((value ?? "").unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.map(String.init).joined().prefix(256))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func clean(_ value: String?, byteLimit: Int = 1024) -> String {
+        let filtered = (value ?? "").unicodeScalars.prefix(4096)
+            .filter { !CharacterSet.controlCharacters.contains($0) }.map(String.init).joined()
+        var result = "", bytes = 0
+        for character in filtered.prefix(256) {
+            let count = String(character).utf8.count
+            guard bytes + count <= byteLimit else { break }
+            result.append(character); bytes += count
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
+
+struct RecognitionResult: Equatable, Sendable {
+    let track: RecognizedTrack
+    let context: RecognitionContext
+    let capturedAt: Date
+    let recognizedAt: Date
 }
 
 enum RecognitionFailure: Error, LocalizedError, Equatable, Sendable {

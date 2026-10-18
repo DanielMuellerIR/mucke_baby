@@ -9,6 +9,7 @@ import Combine
 @MainActor final class MusicRecognitionService: ObservableObject {
     @Published private(set) var phase: RecognitionPhase = .idle
     @Published private(set) var availability: RecognitionFailure?
+    @Published private(set) var adoptedResult: RecognitionResult?
     private let capture: RecognitionCapture
     private let sampleRate: () -> Double?
     private let context: () -> RecognitionContext?
@@ -19,6 +20,8 @@ import Combine
     private var request: UUID?
     private var captureToken: UUID?
     private var requestContext: RecognitionContext?
+    private var capturedAt: Date?
+    private var recognizedAt: Date?
     private var work: Task<Void, Never>?
     private var deadline: Task<Void, Never>?
     private var audit: Task<Void, Error>?
@@ -32,9 +35,10 @@ import Combine
     }
 
     func refresh() {
+        if let adoptedResult, adoptedResult.context != context() { self.adoptedResult = nil }
         if let previous = requestContext, previous != context() {
             let busy = phase.isBusy
-            stopWork(); requestContext = nil
+            stopWork(); requestContext = nil; capturedAt = nil; recognizedAt = nil
             phase = busy ? .failed(.playbackChanged) : .idle
         }
         let reason: RecognitionFailure?
@@ -46,6 +50,27 @@ import Combine
         if phase.isBusy, let reason { stopWork(); phase = .failed(reason) }
     }
 
+    var currentResult: RecognitionResult? {
+        guard case .matched(let track) = phase, let previous = requestContext,
+              previous == context(), let capturedAt, let recognizedAt else { return nil }
+        return RecognitionResult(track: track, context: previous, capturedAt: capturedAt, recognizedAt: recognizedAt)
+    }
+
+    var currentAdoption: RecognitionResult? {
+        guard let adoptedResult, adoptedResult.context == context() else { return nil }
+        return adoptedResult
+    }
+
+    @discardableResult
+    func adoptCurrentResult() -> Bool {
+        refresh()
+        guard let result = currentResult else { return false }
+        adoptedResult = result
+        return true
+    }
+
+    func useRadioTitle() { adoptedResult = nil }
+
     func start() {
         guard !phase.isBusy else { return }
         refresh()
@@ -56,7 +81,7 @@ import Combine
         let id = UUID()
         do { captureToken = try capture.begin(sampleRate: rate) }
         catch { phase = .failed(.audioUnavailable); return }
-        request = id; requestContext = current; phase = .listening
+        request = id; requestContext = current; capturedAt = Date(); recognizedAt = nil; phase = .listening
         deadline = Task { [weak self] in
             guard let self else { return }
             do { try await Task.sleep(nanoseconds: UInt64(self.timeout * 1_000_000_000)) }
@@ -84,7 +109,9 @@ import Combine
                     guard self.context() == current else { self.stopWork(); self.phase = .failed(.playbackChanged); return }
                     self.stopWork()
                     switch result {
-                    case .success(let track): self.phase = track.map(RecognitionPhase.matched) ?? .noMatch
+                    case .success(let track):
+                        self.recognizedAt = track == nil ? nil : Date()
+                        self.phase = track.map(RecognitionPhase.matched) ?? .noMatch
                     case .failure(let failure): self.phase = .failed(failure)
                     }
                 }

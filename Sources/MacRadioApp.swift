@@ -121,6 +121,7 @@ struct MacRadioApp: App {
                 .environmentObject(player)
                 .environmentObject(bookmarks)
                 .environmentObject(audioTap)
+                .environmentObject(services.recognition)
                 .environment(\.uiFontScale, Self.scale(uiZoom))
                 .environment(\.theme, theme)
                 .preferredColorScheme(effectiveScheme)
@@ -646,7 +647,7 @@ struct ContentView: View {
     /// Status — plus Merkliste, Laufzeit und Lautstärke.
     private var nowPlayingFooter: some View {
         HStack(spacing: 12) {
-            if player.nowPlayingTitle.isEmpty {
+            if player.nowPlayingTitle.isEmpty && recognition.currentAdoption == nil {
                 nowPlayingFooterText
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -658,15 +659,8 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Button { showingRecognition = true } label: {
-                Image(systemName: MusicRecognitionSymbol.name)
-                    .font(.system(size: 16)).frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain).foregroundStyle(theme.palette.textSecondary)
-            .help("Musik erkennen").accessibilityLabel("Musik erkennen")
-            .accessibilityIdentifier("recognition-open")
-            if let song = player.currentSong { BookmarkButton(song: song) }
+            MusicRecognitionButton(identifier: "recognition-open") { showingRecognition = true }
+            if let song = currentDisplaySong { BookmarkButton(song: song) }
             Button { showingBookmarks = true } label: {
                 Image(systemName: "heart.text.square")
                     .font(.system(size: 16)).frame(width: 28, height: 28)
@@ -700,11 +694,20 @@ struct ContentView: View {
 
     private var nowPlayingFooterText: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(player.currentStation?.name ?? String(localized: "Kein Sender"))
-                .font(theme.font(.label, size: 11 * uiFontScale))
-                .foregroundStyle(theme.palette.textSecondary)
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                Text(player.currentStation?.name ?? String(localized: "Kein Sender"))
+                if recognition.currentAdoption != nil {
+                    Text("Shazam").accessibilityIdentifier("current-recognition-source")
+                }
+            }
+            .font(theme.font(.label, size: 11 * uiFontScale))
+            .foregroundStyle(theme.palette.textSecondary).lineLimit(1)
             nowPlayingFooterTitle
+            if recognition.currentAdoption != nil {
+                Text("Sendertext: \(player.nowPlayingTitle.isEmpty ? String(localized: "Kein Sendertext") : player.nowPlayingTitle)")
+                    .font(theme.font(.label, size: 11 * uiFontScale)).foregroundStyle(theme.palette.textSecondary)
+                    .accessibilityIdentifier("current-original-radio-title")
+            }
         }
         .textSelection(.enabled)
     }
@@ -712,8 +715,11 @@ struct ContentView: View {
     /// Aktueller Titel (Interpret fett + Titel) oder Status als ein kopierbarer Text.
     @ViewBuilder
     private var nowPlayingFooterTitle: some View {
-        if !player.nowPlayingTitle.isEmpty {
-            let (artist, title) = SongEntry.split(player.nowPlayingTitle)
+        if !player.nowPlayingTitle.isEmpty || recognition.currentAdoption != nil {
+            let metadata: (artist: String?, title: String?) = recognition.currentAdoption.map {
+                ($0.track.artist.isEmpty ? nil : $0.track.artist, $0.track.title)
+            } ?? SongEntry.split(player.nowPlayingTitle)
+            let (artist, title) = metadata
             if let a = artist, let t = title {
                 (Text(a).font(theme.font(.body, size: 16 * uiFontScale, weight: .bold))
                  + Text("   ").font(theme.font(.body, size: 15 * uiFontScale))
@@ -730,6 +736,13 @@ struct ContentView: View {
                 .font(theme.font(.body, size: 15 * uiFontScale))
                 .foregroundStyle(theme.palette.textPrimary)
         }
+    }
+
+    private var currentDisplaySong: SongEntry? {
+        if let result = recognition.currentAdoption, let station = player.currentStation {
+            return result.song(station: station.name)
+        }
+        return player.currentSong
     }
 
     // MARK: 3-Spalten-Layout (alle Themes: Stations | Stage+Visualizer | Verlauf)

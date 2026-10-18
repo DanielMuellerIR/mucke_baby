@@ -94,18 +94,31 @@ struct BookmarkLibrary: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(visible) { bookmark in
-                        HStack(spacing: 4) {
-                            Button { selection = bookmark.id } label: {
-                                SongRow(entry: bookmark.song, showsInterval: false)
-                                    .padding(.horizontal, 6)
-                                    .contentShape(Rectangle())
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack(spacing: 4) {
+                                Button { selection = bookmark.id } label: {
+                                    SongRow(entry: bookmark.song, showsInterval: false)
+                                        .padding(.horizontal, 6)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(selection == bookmark.id ? [.isSelected] : [])
+                                .accessibilityIdentifier("bookmark-song-\(bookmark.id)")
+                                BookmarkButton(song: bookmark.song, identifier: "bookmark-remove-\(bookmark.id)",
+                                               tint: theme.id == .retro ? secondaryInk : nil)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(selection == bookmark.id ? [.isSelected] : [])
-                            .accessibilityIdentifier("bookmark-song-\(bookmark.id)")
-                            BookmarkButton(song: bookmark.song, identifier: "bookmark-remove-\(bookmark.id)",
-                                           tint: theme.id == .retro ? secondaryInk : nil)
+                            if let recognition = bookmark.recognition {
+                                HStack(spacing: 8) {
+                                    Text("Quelle: Shazam").accessibilityIdentifier("bookmark-source-\(bookmark.id)")
+                                    Text(recognition.recognizedAt, format: .dateTime.year().month().day().hour().minute())
+                                }
+                                Text("Sendertext: \(recognition.originalICY.isEmpty ? String(localized: "Kein Sendertext") : recognition.originalICY)")
+                                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("bookmark-original-\(bookmark.id)")
+                            }
                         }
+                        .font(theme.font(.label, size: 11 * scale)).foregroundStyle(secondaryInk)
+                        .padding(.bottom, bookmark.recognition == nil ? 0 : 8)
                         .background(selection == bookmark.id ? theme.palette.selection : .clear)
                         Rectangle().fill(theme.palette.divider.opacity(0.5)).frame(height: 1)
                     }

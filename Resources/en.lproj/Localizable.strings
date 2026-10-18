@@ -566,3 +566,20 @@
 "Musikerkennung ist derzeit nicht verfügbar. Bitte später erneut versuchen." = "Music identification is currently unavailable. Please try again later.";
 "Die Musikerkennung hat zu lange gedauert. Bitte erneut versuchen." = "Music identification took too long. Please try again.";
 "Die Wiedergabe oder der Titel hat sich geändert. Bitte erneut erkennen." = "Playback or the track changed. Please identify again.";
+
+"Kein Sendertext" = "No station text";
+"Quelle: Shazam" = "Source: Shazam";
+"Sendertext: %@" = "Station text: %@";
+"Katalogtreffer können eine andere Version nennen. Prüfe Titel und Mix vor dem Merken." = "Catalog matches may name a different version. Check the title and mix before bookmarking.";
+"Für Anzeige übernehmen" = "Use for display";
+"Für Anzeige übernommen" = "Used for display";
+"Sendertext verwenden" = "Use station text";
+"Gemerkt" = "Bookmarked";
+
+"Shazam" = "Shazam";
+
+"Für Anzeige übernehmen: ⌘↵" = "Use for display: ⌘↵";
+"Titel merken: ⌘S" = "Bookmark track: ⌘S";
+
+"Enthält erkannte Titel. Der Import erfordert eine App-Version, die Shazam-Herkunft unterstützt." = "Contains identified tracks. Import requires an app version that supports Shazam provenance.";
+"Erkannt: %@" = "Identified: %@";

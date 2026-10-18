@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.23 — 2026-10-18
+
+- Identify live radio from the main player and miniplayer. Use a catalog suggestion for the current display only after an explicit choice, while retaining the original station text.
+- Bookmark recognized tracks with their Shazam source, recognition time, original ICY text and safe catalog link. Keep different radio mixes and existing bookmarks separate; failed writes show no success.
+- Preserve recognition provenance in text, CSV and version 2 library files. Continue reading and writing version 1 when no recognition provenance is present; older applications reject version 2 instead of silently removing it.
+
 ## 1.9.22 — 2026-10-18
 
 - Add explicit ShazamKit music identification from a bounded excerpt of the app's actual audio output, with cancellation, timeout and clear failure states.

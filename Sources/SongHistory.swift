@@ -14,6 +14,7 @@ struct SongEntry: Identifiable, Codable, Equatable, Sendable {
     // ICY-Titel). Optional, damit eine alte verlauf.json ohne dieses Feld weiter laedt.
     var placeholder: Bool? = nil
     var sessionID: UUID? = nil
+    var recognition: SongRecognition? = nil
 
     var isPlaceholder: Bool { placeholder == true }
 

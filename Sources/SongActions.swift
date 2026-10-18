@@ -2,9 +2,11 @@ import AppKit
 
 @MainActor
 enum SongActions {
-    // Apple Music: exakten Track via iTunes-API finden (mit Zusatz-Stripping),
-    // in der Musik-App öffnen; ohne App im Browser.
+    // Einen gespeicherten Kataloglink bevorzugen; sonst den Titel mit der bestehenden Suche finden.
     static func openInMusic(_ song: SongEntry) {
+        if let url = SongRecognition.safeAppleMusicURL(song.recognition?.appleMusicURL) {
+            openURL(url, inApp: "com.apple.Music"); return
+        }
         Task {
             let url = await SongLink.appleMusic(artist: song.artist, title: song.title, raw: song.raw)
             openURL(url, inApp: "com.apple.Music")

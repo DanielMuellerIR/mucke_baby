@@ -17,28 +17,48 @@ struct MiniPlayerView: View {
     @EnvironmentObject private var player: RadioPlayer
     @EnvironmentObject private var store: Store
     @EnvironmentObject private var startup: StartupSettings
+    @EnvironmentObject private var recognition: MusicRecognitionService
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
     @Environment(\.openWindow) private var openWindow
     @AppStorage("volume") private var volume = 0.77
     @AppStorage("miniPlayerFloating") private var floating = false
     @State private var quickSelection = false
+    @State private var showingRecognition = false
+    @State private var recognitionWidth: CGFloat = 388
     private var active: Bool { player.isPlaying || player.isLoading }
     private var current: Station? { store.enabledStations.first { $0.id == player.currentStation?.id } }
     private var normalizedVolume: Double { volume.isFinite ? min(1, max(0, volume)) : 0.77 }
     private var volumeBinding: Binding<Double> {
         Binding(get: { normalizedVolume }, set: { volume = min(1, max(0, $0)) })
     }
+    private var displayedTitle: String {
+        guard let result = recognition.currentAdoption else { return player.nowPlayingTitle }
+        return [result.track.artist, result.track.title].filter { !$0.isEmpty }.joined(separator: " – ")
+    }
+    private var currentDisplaySong: SongEntry? {
+        if let result = recognition.currentAdoption, let station = player.currentStation {
+            return result.song(station: station.name)
+        }
+        return player.currentSong
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             VStack(alignment: .leading, spacing: 5) {
-                Text(player.nowPlayingTitle.isEmpty ? String(localized: "Noch kein Titel") : player.nowPlayingTitle)
+                Text(displayedTitle.isEmpty ? String(localized: "Noch kein Titel") : displayedTitle)
                     .font(theme.font(.title, size: 16 * scale, weight: .semibold))
-                    .lineLimit(2).textSelection(.enabled).help(player.nowPlayingTitle)
+                    .lineLimit(2).textSelection(.enabled).help(displayedTitle)
                     .frame(maxWidth: .infinity, minHeight: 40 * scale, alignment: .leading)
                     .accessibilityIdentifier("mini-title")
+                if recognition.currentAdoption != nil {
+                    Text("Shazam").font(theme.font(.label, size: 11 * scale)).foregroundStyle(theme.palette.textSecondary)
+                        .accessibilityIdentifier("mini-recognition-source")
+                    Text("Sendertext: \(player.nowPlayingTitle.isEmpty ? String(localized: "Kein Sendertext") : player.nowPlayingTitle)")
+                        .font(theme.font(.label, size: 11 * scale)).foregroundStyle(theme.palette.textSecondary)
+                        .lineLimit(2).help(player.nowPlayingTitle).accessibilityIdentifier("mini-original-radio-title")
+                }
                 Text(player.statusText).font(theme.font(.label, size: 11 * scale))
                     .foregroundStyle(theme.palette.textSecondary).fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("mini-status")
@@ -63,14 +83,18 @@ struct MiniPlayerView: View {
                     .accessibilityValue("\(Int(normalizedVolume * 100)) %").accessibilityIdentifier("mini-volume")
                 Text("\(Int(normalizedVolume * 100)) %").font(theme.font(.label, size: 10 * scale)).monospacedDigit()
                     .frame(minWidth: 40, alignment: .trailing)
-                if let song = player.history.entries.last, song.end == nil {
+                if let song = currentDisplaySong {
                     BookmarkButton(song: song, identifier: "mini-bookmark")
                 } else {
                     Image(systemName: "heart").frame(width: 28, height: 28).foregroundStyle(theme.palette.textDim)
                         .accessibilityLabel("Titel merken").accessibilityIdentifier("mini-bookmark-unavailable")
                 }
             }
-            RecordingControl(identifier: "mini-recording")
+            HStack {
+                RecordingControl(identifier: "mini-recording")
+                Spacer()
+                MusicRecognitionButton(identifier: "mini-recognition-open") { showingRecognition = true }
+            }
         }
         .padding(16)
         .foregroundStyle(theme.palette.textPrimary)
@@ -81,6 +105,15 @@ struct MiniPlayerView: View {
         .onChange(of: volume) { _, _ in applyVolume() }
         .onChange(of: player.currentStation?.id) { _, id in if let id { startup.rememberStation(id) } }
         .sheet(isPresented: $quickSelection) { StationQuickSelectionView() }
+        .background {
+            GeometryReader { geometry in
+                Color.clear.onAppear { recognitionWidth = geometry.size.width - 32 }
+                    .onChange(of: geometry.size.width) { _, width in recognitionWidth = width - 32 }
+            }
+        }
+        .sheet(isPresented: $showingRecognition) {
+            MusicRecognitionView(availableWidth: recognitionWidth, availableHeight: 580)
+        }
         .focusedSceneValue(\.openStationQuickSelection, { quickSelection = true })
     }
 

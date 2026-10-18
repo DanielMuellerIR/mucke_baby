@@ -59,7 +59,7 @@ open "build/Mucke, Baby!.app"                    # starten
 
 ## Funktionen
 
-- **Musik erkennen** — die Wellenform-Suche im Spielerfuß öffnen und „Erkennen“ wählen. Shazam erhält einen akustischen Fingerabdruck von bis zu 12 Sekunden der laufenden Musik; die Audiodatei wird nicht übertragen. Audiofreigabe und Internetverbindung sind erforderlich. Jederzeit abbrechen; Ergebnisse ersetzen keine Radiometadaten und legen keine Merklisteneinträge an. Bei eigenen Builds muss ShazamKit unter „App Services“ der signierten App-ID aktiviert sein.
+- **Musik erkennen** — die Wellenform-Suche im Spielerfuß öffnen und „Erkennen“ wählen. Shazam erhält einen akustischen Fingerabdruck von bis zu 12 Sekunden der laufenden Musik; die Audiodatei wird nicht übertragen. Audiofreigabe und Internetverbindung sind erforderlich. Jederzeit abbrechen. Hauptfenster und Miniplayer bieten dieselbe Erkennung. Einen Katalogvorschlag bewusst für die aktuelle Anzeige übernehmen oder separat merken; ursprünglicher Sendertext und Shazam-Herkunft bleiben sichtbar. ⌘↵ übernimmt den Vorschlag für die Anzeige, ⌘S merkt ihn und Escape schließt den Dialog. Titel- und Senderwechsel beenden die Anzeigeübernahme. Katalogtreffer können eine andere Mix-Version nennen. Verlauf und Aufnahmen bleiben unverändert. Gemerkte Erkennungsergebnisse verwenden Austauschversion 2; ältere Apps können diese Dateien noch nicht importieren. Bei eigenen Builds muss ShazamKit unter „App Services“ der signierten App-ID aktiviert sein.
 
 - Native macOS-Kurzbefehle können gespeicherte Sender starten, Radio stoppen, die Lautstärke setzen, den aktuellen Titel abfragen und merken. Parameter und Aufnahmeverhalten stehen unter [Kurzbefehle](docs/shortcuts.md).
 

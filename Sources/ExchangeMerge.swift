@@ -182,12 +182,18 @@ struct ExchangeMergePlan {
     private static func describe(_ entry: SongBookmark) -> String {
         let date = ISO8601DateFormatter()
         date.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        var lines = [entry.raw]
+        var lines = entry.recognition == nil ? [entry.raw] : []
         if let artist = entry.artist { lines.append(String(localized: "Interpret: \(artist)")) }
         if let title = entry.title { lines.append(String(localized: "Titel: \(title)")) }
         lines.append(String(localized: "Sender: \(entry.station)"))
         lines.append(String(localized: "Gehört: \(date.string(from: entry.heardAt))"))
         lines.append(String(localized: "Gemerkt: \(date.string(from: entry.savedAt))"))
+        if let recognition = entry.recognition {
+            lines.append(String(localized: "Quelle: Shazam"))
+            lines.append(String(localized: "Erkannt: \(date.string(from: recognition.recognizedAt))"))
+            lines.append(String(localized: "Sendertext: \(recognition.originalICY.isEmpty ? String(localized: "Kein Sendertext") : recognition.originalICY)"))
+            if let url = recognition.appleMusicURL { lines.append("Apple Music: " + url.absoluteString) }
+        }
         return lines.joined(separator: "\n")
     }
 }
