@@ -3,7 +3,7 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## 1.9.24
+## 1.9.24 — 2026-10-18
 
 - Open a shared theme visualizer in a dedicated window or native fullscreen, with track information, playback, volume, hideable controls and a clear return to the main player.
 - Pause visualizer animation when stopped, hidden, occluded or using reduced motion. Give the large visualizer priority over the main stage and cap animation at 30 frames per second.
