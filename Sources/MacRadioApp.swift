@@ -487,7 +487,7 @@ struct ContentView: View {
                     HStack(spacing: 5) {
                         Image(systemName: (player.isPlaying || player.isLoading) ? "stop.fill" : "play.fill")
                             .font(.system(size: 13, weight: .semibold))
-                        Text((player.isPlaying || player.isLoading) ? "Stopp" : "Abspielen")
+                        Text((player.isPlaying || player.isLoading) ? String(localized: "Stopp") : String(localized: "Abspielen"))
                             .font(theme.font(.label, size: 11 * uiFontScale, weight: .semibold))
                             .lineLimit(1)         // kein .fixedSize() — verhindert künstliches Aufblähen
                     }
@@ -501,7 +501,7 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .disabled(player.currentStation == nil)
-            .help((player.isPlaying || player.isLoading) ? "Stopp" : "Abspielen")
+            .help((player.isPlaying || player.isLoading) ? String(localized: "Stopp") : String(localized: "Abspielen"))
 
             // Laufzeit + Lautstaerke sitzen jetzt im Fuß (neben der Zeit) — in der Titelregion
             // der Kopfleiste fing der native Fenster-Drag den Knopf-Mouse-Down ab.

@@ -431,3 +431,4 @@
 
 "Die Audioeinstellungsdatei wurde außerhalb der App geändert. Bitte die App neu starten." = "The audio settings file changed outside the app. Restart the app to reload it.";
 "Bitte gültige Sekundenwerte mit „%@“ eingeben; keine Tausendertrennzeichen." = "Enter valid seconds using “%@”; no thousands separators.";
+"Stopp" = "Stop";
