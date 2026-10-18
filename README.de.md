@@ -24,7 +24,7 @@ Lieber selbst aus dem Quellcode bauen? Siehe [Starten](#starten-kommandozeile--h
 
 ## Starten (Kommandozeile / headless-tauglich)
 
-Kein Xcode-Projekt — die App wird mit `swiftc` zu einem `.app`-Bundle kompiliert. Es genügen die Command Line Tools. Die gesamte Toolchain ist skriptbar (praktisch für Automatisierung und KI-Agenten):
+Kein Xcode-Projekt — die App wird mit `swiftc` zu einem `.app`-Bundle kompiliert. Erforderlich ist Xcode mit den Werkzeugen für App-Intents-Metadaten. Die gesamte Toolchain ist skriptbar (praktisch für Automatisierung und KI-Agenten):
 
 ```bash
 ./build.sh                                       # baut "build/Mucke, Baby!.app" (lädt VLCKit einmalig, ~84 MB)
@@ -116,7 +116,7 @@ Vollständige Aufstellung in [`THIRD-PARTY.md`](THIRD-PARTY.md). Kurz:
 
 ## Voraussetzungen
 
-macOS **14.2+**, Apple Silicon, Xcode (including the App Intents metadata tools).
+macOS **14.2+**, Apple Silicon, Xcode einschließlich der Werkzeuge für App-Intents-Metadaten.
 
 ---
 
