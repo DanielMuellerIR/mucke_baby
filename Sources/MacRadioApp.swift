@@ -32,6 +32,7 @@ struct MacRadioApp: App {
     // „Standard dark-Inhalt + helle Toolbar" nach Wechsel von Black MIDI). Loesung: IMMER
     // einen expliziten Scheme uebergeben (nie nil), fuer `schlicht` den echten System-Scheme.
     @StateObject private var sysAppearance = SystemAppearance()
+    @StateObject private var visualizerWindow = PlayerWindowState()
 
     /// Aktuelles Theme-Objekt aus dem gespeicherten Rohwert.
     private var theme: Theme { Theme.theme(raw: selectedThemeRaw) }
@@ -52,6 +53,8 @@ struct MacRadioApp: App {
                 .environmentObject(health)           // Sender-Healthcheck
                 .environmentObject(audioTap)         // Audio-Reaktivität
                 .environmentObject(services.recognition)
+                .environmentObject(visualizerWindow)
+                .modifier(VisualizerMotionFixture())
                 .environment(\.uiFontScale, Self.scale(uiZoom))
                 // Theme und ColorScheme ins Environment injizieren
                 .environment(\.theme, theme)
@@ -93,6 +96,8 @@ struct MacRadioApp: App {
                     .keyboardShortcut("-", modifiers: .command)
                 Button("Originalgröße") { uiZoom = 0; uiLog.notice("zoom0") }
                     .keyboardShortcut("0", modifiers: .command)
+                Divider()
+                VisualizerOpenButton(presentation: visualizerWindow)
             }
             // Thema-Menue: IMMER erreichbar (unabhaengig vom Layout). Haken beim aktiven
             // Theme; ⌘⇧T schaltet zum naechsten. Zusaetzlich zum Pill/Toolbar-Button.
@@ -129,6 +134,21 @@ struct MacRadioApp: App {
         .defaultSize(width: 420, height: 240)
         .windowResizability(.contentMinSize)
         .keyboardShortcut("m", modifiers: [.command, .shift])
+
+        Window("Visualizer", id: "visualizer") {
+            VisualizerWindowView()
+                .modifier(VisualizerMotionFixture())
+                .environmentObject(store)
+                .environmentObject(player)
+                .environmentObject(audioTap)
+                .environmentObject(services.recognition)
+                .environmentObject(visualizerWindow)
+                .environment(\.uiFontScale, Self.scale(uiZoom))
+                .environment(\.theme, theme)
+                .preferredColorScheme(effectiveScheme)
+        }
+        .defaultSize(width: 940, height: 620)
+        .windowResizability(.contentMinSize)
 
         Window("Audioeinstellungen", id: "audio-settings") {
             AudioSettingsView()
@@ -345,6 +365,8 @@ struct ContentView: View {
     // Reglerwert, um die Analyse wieder auf Originalpegel zu normalisieren.
     @EnvironmentObject private var audioTap: AudioTap
     @EnvironmentObject private var recognition: MusicRecognitionService
+    @EnvironmentObject private var visualizerWindow: PlayerWindowState
+    @StateObject private var mainWindow = PlayerWindowState()
 
     // Kopf-Vordergrund: Bei GuitarAmp liegt die Kopfleiste auf einer HELLEN Goldplatte → die
     // normalen Theme-Töne (cremefarbener Titel, goldene Icons) verschwinden darauf. Deshalb
@@ -452,6 +474,8 @@ struct ContentView: View {
         // Fenster so konfigurieren, dass die Kopfleiste den Titelbalken-Bereich einnimmt
         // (Ampel-Buttons inline). Unsichtbar.
         .background(WindowConfigurator().frame(width: 0, height: 0))
+        .background(PlayerWindowObserver(state: mainWindow).frame(width: 0, height: 0))
+        .environment(\.visualizerRenderingEnabled, mainWindow.isVisible && !visualizerWindow.isVisible)
     }
 
     private func autoplayIfNeeded() {

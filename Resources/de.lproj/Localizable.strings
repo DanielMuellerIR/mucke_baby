@@ -583,3 +583,14 @@
 
 "Enthält erkannte Titel. Der Import erfordert eine App-Version, die Shazam-Herkunft unterstützt." = "Enthält erkannte Titel. Der Import erfordert eine App-Version, die Shazam-Herkunft unterstützt.";
 "Erkannt: %@" = "Erkannt: %@";
+
+// Vollbild-Visualizer
+"Visualizer im Vollbild" = "Visualizer im Vollbild";
+"Vollbild beenden" = "Vollbild beenden";
+"Vollbild" = "Vollbild";
+"Bedienung ausblenden" = "Bedienung ausblenden";
+"Bedienung einblenden" = "Bedienung einblenden";
+"Bewegung reduziert" = "Bewegung reduziert";
+"Kein Sender ausgewählt" = "Kein Sender ausgewählt";
+"Visualizer" = "Visualizer";
+"Darstellung" = "Darstellung";

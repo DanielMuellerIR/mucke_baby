@@ -67,6 +67,7 @@ open "build/Mucke, Baby!.app"                    # launch
 
 - Plays **all codecs** via VLCKit/libVLC (mp3, aac, **ogg, opus**, flac, …).
 - **Seven themes**, each with its own layout, textures and visualizer: Standard, Acid Rave, Retro, Fanzine, GuitarAmp, Danish, Black MIDI.
+- **Fullscreen visualizer:** Open **View → Fullscreen visualizer** (⌘⇧V) for a larger view of the current theme. ⌘B shows or hides the controls; Space starts or stops playback. Escape leaves fullscreen, and Escape in the window returns to the main player. The window shares the current title, playback and volume. Hidden or covered visualizers pause their animation; macOS Reduced Motion uses a still view.
 - **Audio‑reactive visualizers** — analog VU needles, oscilloscope, spectrum bars and a piano‑roll — driven by a **CoreAudio process tap** on the app's own output. The tapped signal is normalized before analysis, so lowering the app volume does not shrink the visuals; the picture stays perfectly in sync and smooth (~90 Hz).
 - **Now‑playing** artist/title via a built‑in ICY metadata reader (selectable & copyable), with correct decoding of non‑UTF‑8 stations (UTF‑8 → Shift‑JIS/CP932 → Latin‑1, e.g. Japanese senders).
 - **History panel** ("Verlauf") — every track with its date, start/end times and station, kept across station switches. Search titles or artists and combine station and date filters. Date ranges cover whole calendar days, including tracks still playing during them.

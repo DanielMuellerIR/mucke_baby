@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.24
+
+- Open a shared theme visualizer in a dedicated window or native fullscreen, with track information, playback, volume, hideable controls and a clear return to the main player.
+- Pause visualizer animation when stopped, hidden, occluded or using reduced motion. Give the large visualizer priority over the main stage and cap animation at 30 frames per second.
+- Keep the waveform flat when no audio signal is available.
+
 ## 1.9.23 — 2026-10-18
 
 - Identify live radio from the main player and miniplayer. Use a catalog suggestion for the current display only after an explicit choice, while retaining the original station text.

@@ -583,3 +583,14 @@
 
 "Enthält erkannte Titel. Der Import erfordert eine App-Version, die Shazam-Herkunft unterstützt." = "Contains identified tracks. Import requires an app version that supports Shazam provenance.";
 "Erkannt: %@" = "Identified: %@";
+
+// Vollbild-Visualizer
+"Visualizer im Vollbild" = "Fullscreen visualizer";
+"Vollbild beenden" = "Exit fullscreen";
+"Vollbild" = "Fullscreen";
+"Bedienung ausblenden" = "Hide controls";
+"Bedienung einblenden" = "Show controls";
+"Bewegung reduziert" = "Reduced motion";
+"Kein Sender ausgewählt" = "No station selected";
+"Visualizer" = "Visualizer";
+"Darstellung" = "View";

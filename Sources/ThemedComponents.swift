@@ -709,7 +709,7 @@ public struct VisualizerView: View {
 /// −1…1) zentriert als Kurve — wie ein Winamp-Scope / Hi-Fi-Sichtgerät.
 /// Acid-Modus: Neon-Glow (Gradient visualizer1→visualizer2).
 /// Fanzine-Modus (.stamp): gezackte schwarze Tinte, quantisiert, kein Glow.
-/// Kein echtes Signal (`!reactive`): ruhige Idle-Linie statt totem Strich.
+/// Kein echtes Signal (`!reactive`): flache Mittellinie ohne erfundenen Ausschlag.
 private struct WaveformVisualizer: View {
 
     let isPlaying: Bool
@@ -719,11 +719,10 @@ private struct WaveformVisualizer: View {
     let audioTap: AudioTap
 
     var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            // Echtes Audio anliegen → gemessene Kurve; sonst sanfte Idle-Welle.
+        VisualizerTimeline(isPlaying: isPlaying) { date in
+            // Ohne Signal bleibt die Kurve flach, auch bei laufender Wiedergabe.
             let reactive = audioTap.reactive && isPlaying
-            let samples = reactive ? audioTap.waveform : idleWave(t: t)
+            let samples = reactive ? audioTap.waveform : [Float](repeating: 0, count: 120)
             GeometryReader { geo in
                 ZStack {
                     // Null-Achse (Mittellinie) des Oszilloskops
@@ -771,14 +770,7 @@ private struct WaveformVisualizer: View {
         }
     }
 
-    /// Ruhige, leicht atmende Linie, wenn kein echtes Signal anliegt.
-    private func idleWave(t: Double) -> [Float] {
-        let n = 120
-        return (0..<n).map { i in
-            let phase = Double(i) / Double(n) * .pi * 2
-            return Float(sin(phase * 2 + t * 1.2) * 0.05)
-        }
-    }
+
 }
 
 /// Oszilloskop-Kurve aus rohen Wellenform-Samples (−1…1). Zeichnet sie zentriert
@@ -834,8 +826,8 @@ private struct VUMeterVisualizer: View {
     let audioTap: AudioTap
 
     var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        VisualizerTimeline(isPlaying: isPlaying) { date in
+            let t = date.timeIntervalSinceReferenceDate
             GeometryReader { geo in
                 // L/R-Orientierung nach Zellen-Aspekt: Ein VU-Bogen ist LANDSCAPE (breiter als
                 // hoch). Nebeneinander halbiert die Breite → schmale Hochkant-Zellen → Bogen
@@ -930,6 +922,7 @@ private struct SingleVUMeter: View {
     /// Attack (hoch) schnell, Release (runter) langsamer — aber IMMER sofort sinkend (kein Halten),
     /// nur die Sink-GESCHWINDIGKEIT ist geringer als die maximale Steig-Geschwindigkeit.
     private func advanceNeedle() -> Double {
+        guard isPlaying else { ball.value = 0; ball.lastT = t; return 0 }
         let dt = ball.lastT == 0 ? (1.0 / 60.0) : max(0, min(0.1, t - ball.lastT))   // ≥0: kein Rückwärts-Hängen
         ball.lastT = t
         let target = targetLevel
@@ -1141,18 +1134,18 @@ private struct MidiNotesVisualizer: View {
     @State private var spectro = SpectrogramBuffer()    // scrollende Energie-Historie je Band
 
     var body: some View {
-        TimelineView(.animation) { context in
-            let t = isPlaying ? context.date.timeIntervalSinceReferenceDate : 0
+        VisualizerTimeline(isPlaying: isPlaying) { date in
+            let t = isPlaying ? date.timeIntervalSinceReferenceDate : 0
             let active = audioTap.reactive
             let bands = audioTap.bands
 
             // Eine Energie pro Frequenz-Band (echtes Spektrum, sonst 0), geglättet. Dieselben
             // Werte speisen OBEN das Spektrogramm UND UNTEN die Balken → wo unten Ausschlag ist,
             // entsteht oben eine Linie; wo 0 ist, bleibt es leer.
-            let barTargets: [Float] = (active && !bands.isEmpty)
+            let barTargets: [Float] = (isPlaying && active && !bands.isEmpty)
                 ? (0..<barLanes).map { min(1, max(0, bands[min(bands.count - 1, $0 * bands.count / barLanes)])) }
                 : [Float](repeating: 0, count: barLanes)
-            let barVals = barSmoother.step(toward: barTargets, t: t, attack: 38, release: 12)
+            let barVals = isPlaying ? barSmoother.step(toward: barTargets, t: t, attack: 38, release: 12) : [CGFloat](repeating: 0, count: barLanes)
 
             VStack(spacing: 0) {
                 Canvas { ctx, size in
@@ -1269,10 +1262,10 @@ private struct BarsVisualizer: View {
     @State private var smoother = ArraySmoother()
 
     var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        VisualizerTimeline(isPlaying: isPlaying) { date in
+            let t = date.timeIntervalSinceReferenceDate
             // Echte Bänder als Ziel; ArraySmoother interpoliert frame-weise (gegen Ruckeln).
-            let eased = smoother.step(toward: targetBars(), t: t, attack: 38, release: 12)
+            let eased = isPlaying ? smoother.step(toward: targetBars(), t: t, attack: 38, release: 12) : [CGFloat](repeating: 0.03, count: barCount)
             GeometryReader { geo in
                 let barSpacing = geo.size.width / CGFloat(barCount)
                 let barWidth = barSpacing * 0.65
