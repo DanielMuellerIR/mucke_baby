@@ -263,13 +263,14 @@ struct VisualizerWindowView: View {
         .background { ThemedSurface(.window) }
         .frame(minWidth: 440, minHeight: controlsVisible ? max(360, 300 * scale) : 240)
         .background(PlayerWindowObserver(state: presentation, visualizer: true).frame(width: 0, height: 0))
-        .onExitCommand { presentation.escape { PlayerWindowRouter.showMain(open: openWindow) } }
         .onChange(of: player.currentStation?.id) { _, id in if let id { startup.rememberStation(id) } }
         .background {
             Button("") { togglePlayback() }.keyboardShortcut(.space, modifiers: [])
                 .opacity(0).accessibilityHidden(true)
             Button("") { presentation.toggleFullScreen() }.keyboardShortcut("f", modifiers: [.control, .command])
                 .opacity(0).accessibilityHidden(true)
+            Button("") { presentation.escape { PlayerWindowRouter.showMain(open: openWindow) } }
+                .keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true)
         }
     }
 
