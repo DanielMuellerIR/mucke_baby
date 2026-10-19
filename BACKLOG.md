@@ -56,5 +56,12 @@
     sind dafür nicht verfügbar. Frischer echter Systemschlaf mit pausiertem
     Produktionspuffer bleibt zusätzlich zur geprüften Handlerintegration offen.
 
+14. Seit v1.9.30 bindet die bewusste Musikerkennung ihre Ergebnisse an die
+    tatsächliche Ausgabe, einschließlich Pufferposition und Empfangszeit.
+    Neue Herkunft verwendet Merklisten-/Austauschformat V3. Die verlustfreie
+    Mac/iPhone-V3-Übertragung bleibt separat zu prüfen; ältere Empfänger
+    müssen die neue Version schützen. Reale Hör- und Mindest-macOS-Abnahmen
+    werden durch kontrollierte Audiofixtures nicht ersetzt.
+
 Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
 Theme-Entwürfe sind kein Backlog.

@@ -132,6 +132,7 @@ private func fails(_ expected: RecognitionFailure, _ action: () throws -> Void) 
         require(service.adoptedResult == nil && !service.adoptCurrentResult(), "Stopp behält alte Übernahme")
         context = runningContext
         await begin(); fake.completions.last?(.success(track))
+        require(!service.adoptCurrentResult(expected: adopted), "Veraltete Ergebniszeile übernimmt einen neueren Vorschlag")
         require(service.adoptCurrentResult(), "Neue Übernahme nach erneutem Wiedergabekontext")
         context = RecognitionContext(generation: 3, stationID: context!.stationID, title: "Neuer Titel")
         require(service.currentAdoption == nil && !service.adoptCurrentResult(), "Veraltete Übernahme vor refresh möglich")
@@ -158,6 +159,38 @@ private func fails(_ expected: RecognitionFailure, _ action: () throws -> Void) 
         service.start(); volume = 0; service.refresh()
         require(service.phase == .failed(.muted), "Stummschaltung während Sammlung")
         require(context?.title == "Anderer Sender", "Erkennung schreibt Player-Titel")
+
+        let outputID = UUID(), stationID = UUID(), reception = Date(timeIntervalSince1970: 1_790_000_000)
+        func at(_ position: Double, revision: UInt64 = 20) -> RecognitionContext {
+            RecognitionContext(generation: revision, stationID: stationID, title: "DJ - Original (Live Mix)",
+                listening: RecognitionListeningContext(outputID: outputID, revision: revision,
+                    position: position, receivedAt: reception.addingTimeInterval(position)))
+        }
+        volume = 0.5; context = at(4)
+        await begin()
+        context = at(8); service.refresh()
+        require(service.phase == .matching, "Normales Weiterhören verwirft den eingefrorenen Aufruf")
+        fake.completions.last?(.success(track))
+        require(service.currentResult?.context.listening?.position == 4
+                && service.currentResult?.context.listening?.receivedAt == reception.addingTimeInterval(4),
+                "Fortschreitende Uhr überschreibt Quellposition")
+        require(service.adoptCurrentResult(), "Zeitversatz lässt sich nicht übernehmen")
+        let frozen = service.currentAdoption
+        context = at(10); service.refresh()
+        require(service.currentAdoption == frozen, "Normales Weiterhören verändert Übernahme")
+        // Kein refresh zwischen Pause und Fortsetzen: die monotone Revision
+        // muss auch einen nur vorübergehend ungültigen Kontext sperren.
+        context = nil; context = at(10, revision: 21)
+        require(service.currentResult == nil && service.currentAdoption == nil && !service.adoptCurrentResult(),
+                "Pause/Fortsetzen reaktiviert alten Treffer")
+        for revision: UInt64 in 22...26 {
+            context = at(4, revision: revision)
+            await begin(); let late = fake.completions.last!
+            context = at(4, revision: revision + 1)
+            late(.success(track))
+            require(service.currentResult == nil && service.currentAdoption == nil,
+                    "Gleicher Titel und gleiche Position lassen veralteten Treffer zu")
+        }
         print("Musikerkennung: PCM-Grenzen/Format/Abbruch, lokale SDK-Signaturen, explizite Aufrufe, Fehler und veraltete Ergebnisse OK")
     }
 

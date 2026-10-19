@@ -8,6 +8,6 @@ extension RecognitionResult {
                          start: capturedAt,
                          recognition: SongRecognition(recognizedAt: recognizedAt, stationID: context.stationID,
                                                       originalICY: context.title, shazamID: track.shazamID,
-                                                      appleMusicURL: track.appleMusicURL))
+                                                      appleMusicURL: track.appleMusicURL, listening: context.listening))
     }
 }

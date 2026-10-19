@@ -488,6 +488,7 @@
 "Titel: %@" = "Titel: %@";
 "Sender: %@" = "Sender: %@";
 "Gehört: %@" = "Gehört: %@";
+"Audio empfangen: %@" = "Audio empfangen: %@";
 "Gemerkt: %@" = "Gemerkt: %@";
 
 "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen." = "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen.";
@@ -555,7 +556,7 @@
 "In Apple Music öffnen" = "In Apple Music öffnen";
 "Kein passender Titel gefunden. Versuche einen anderen Ausschnitt." = "Kein passender Titel gefunden. Versuche einen anderen Ausschnitt.";
 "Erkennung abgebrochen." = "Erkennung abgebrochen.";
-"Starte einen Sender, um Musik zu erkennen." = "Starte einen Sender, um Musik zu erkennen.";
+"Für die Erkennung muss Audio spielen. Starte einen Sender oder setze die Wiedergabe fort." = "Für die Erkennung muss Audio spielen. Starte einen Sender oder setze die Wiedergabe fort.";
 "Die Wiedergabe ist stumm. Erhöhe die Lautstärke für die Erkennung." = "Die Wiedergabe ist stumm. Erhöhe die Lautstärke für die Erkennung.";
 "Audiozugriff nicht verfügbar. Prüfe die Audiofreigabe in den Systemeinstellungen und starte den Sender erneut." = "Audiozugriff nicht verfügbar. Prüfe die Audiofreigabe in den Systemeinstellungen und starte den Sender erneut.";
 "Der Audiozugriff wurde unterbrochen. Bitte erneut versuchen." = "Der Audiozugriff wurde unterbrochen. Bitte erneut versuchen.";

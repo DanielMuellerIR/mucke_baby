@@ -2,12 +2,12 @@
 
 The JSON exchange file carries stations, named groups and bookmarked tracks between devices. It contains no recordings, listening history, quick slots, startup selection, audio settings or other preferences.
 
-Versions 1 and 2 use the following top-level fields. Version 2 is required when a bookmark includes recognition provenance; otherwise exports remain version 1. All six fields are required; arrays may be empty.
+Versions 1, 2 and 3 use the following top-level fields. Version 2 is required when a bookmark includes recognition provenance; version 3 is required when it includes a listening context. Exports without recognition remain version 1. All six fields are required; arrays may be empty.
 
 | Field | Value |
 | --- | --- |
 | `format` | `"mucke-baby-library"` |
-| `formatVersion` | `1` or `2` |
+| `formatVersion` | `1`, `2` or `3` |
 | `exportedAt` | ISO-8601 timestamp |
 | `stations` | Station records in display order |
 | `groups` | Group records in display order |
@@ -24,6 +24,8 @@ Groups contain a required UUID `id`, `name` and ordered `stationIDs` array. Each
 Bookmarks contain a required UUID `id`, original `raw` track text, `station`, `heardAt` and `savedAt`. Optional `artist` and `title` preserve the parsed metadata. Different mixes remain distinct. Dates use ISO-8601 with seconds or fractional seconds and a timezone. Exports use UTC with millisecond precision.
 
 Version 2 bookmarks may include a `recognition` object with required `source` (`"shazam"`), `recognizedAt`, `stationID` and `originalICY`. Optional `shazamID` and `appleMusicURL` retain the catalog reference. The title is required for recognized bookmarks. Recognition and listening timestamps remain separate. The original ICY string may be empty for a station that supplied no title; in that case `raw` contains the recognized display title and `originalICY` remains empty. Historical station IDs need not occur in the exported station list.
+
+Version 3 adds an optional `recognition.listening` object with required UUID `outputID` and unsigned `revision`. Optional `position` (finite, nonnegative media seconds) and `receivedAt` (ISO-8601 audio-reception timestamp) must occur together for buffered playback; both are absent for direct playback. `heardAt` is the wall-clock time of the explicit recognition request, while `receivedAt` locates the heard audio in its earlier reception session. This is provenance, not a retained audio file. Versions 1/2 cannot carry this object. Older readers reject version 3 rather than silently dropping these fields. Existing version 2 recognition data remains readable and is not assigned invented output provenance.
 
 Catalog links must use HTTPS on `music.apple.com`, without user information or a nonstandard port. Recognition originals have the same 4,096-byte and control-character limits as bookmark originals; catalog IDs are limited to 256 bytes. Invalid recognition data rejects the whole import. A version 1 document cannot carry recognition provenance. Readers that support only version 1 reject version 2 before modifying local data; a compatible recipient is required for exchanging recognized bookmarks.
 

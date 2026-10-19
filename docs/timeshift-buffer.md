@@ -147,3 +147,36 @@ timer expiry, wake handlers, a dropped connection, low-disk recovery, full buffe
 pause, supported/direct-only formats, HLS and the actual buffered equalizer.
 Its sleep callbacks are an integration check, not proof of full system sleep.
 Native run belongs in the resource FIFO; no installation is performed.
+
+## Explicit music identification
+
+Identification captures the current output through the process audio tap, including
+local VLC playback. The request freezes the heard ICY text, station, wall-clock
+listening time and output identity/revision. Buffered requests also freeze media
+position and the frame's reception date. Normal clock advancement keeps that request
+valid. Pause/resume, seeks (even within one title), Live, title changes, expiration,
+station changes and metadata reconnection permanently invalidate old results and
+display choices. Returning to the same title or position cannot reactivate them.
+
+A catalog match remains a suggestion. Display adoption and bookmarking are separate
+explicit actions; neither rewrites received history or permanent recordings. New
+bookmarks retain this provenance in format version 3; existing version 1/2 files
+remain readable. A compatible recipient is required for exchange.
+
+`Tests/timeshift-recognition.py prepare ROOT` builds controlled MP3, AAC-LC,
+HE-AAC and direct-container fixtures with the actual player and shared views.
+Run native `run` only through the resource FIFO. The test feeds the actual VLC
+file output into the same recognition capture/service and uses a deterministic
+local tone matcher; an independent PCM filter check verifies the heard tones.
+The core and direct-container runs use separate fresh app instances; direct
+recognition uses the production twelve-second collection period. It exercises
+explicit native actions, stale replies, pause, seeks, Live,
+expiration (a test-only 60-second retention window), reconnects and data protection.
+This does not replace public catalog acceptance, the process-tap permission test,
+human listening or the real macOS 14.2 and production-buffer sleep checks.
+
+For a targeted follow-up, `run-direct ROOT` checks Vorbis/Opus/FLAC in DE/EN,
+including a buffered HE-AAC transition, without repeating the core or views.
+`verify-core ROOT` and `verify-direct ROOT` retain separate results; `verify ROOT`
+requires both. The core check independently proves that reception already carried
+880 Hz while the heard PCM, displayed text and saved provenance describe 440 Hz.

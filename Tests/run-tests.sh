@@ -212,13 +212,17 @@ import csv
 from pathlib import Path
 with Path('build/tests/recognition-bookmarks.csv').open(encoding='utf-8', newline='') as file:
     rows = list(csv.DictReader(file))
-assert len(rows) == 2
+assert len(rows) == 3
 assert rows[0]['source'] == '' and rows[0]['original'] == 'Björk - Grüße'
 assert rows[1]['source'] == 'shazam' and rows[1]['artist'] == 'Björk' and rows[1]['title'] == 'Grüße'
 assert rows[1]['original'] == rows[1]['original_icy'] == 'DJ - Grüße (Rare Live Remix)'
 assert rows[1]['station'] == 'Eigener Sender — 東京' and rows[1]['shazam_id'] == '123'
 assert rows[1]['apple_music_url'] == 'https://music.apple.com/de/song/123'
 assert rows[1]['recognized_at'] and rows[1]['station_id']
+assert rows[0]['output_id'] == rows[1]['output_id'] == ''
+assert rows[2]['output_id'] and rows[2]['output_revision'] == '42'
+assert rows[2]['buffer_position'] == '12.345'
+assert rows[2]['audio_received_at'] < rows[2]['heard_at'] < rows[2]['recognized_at']
 print('Erkennung CSV: unabhängiger Unicode-/Herkunfts-Roundtrip OK')
 CHECK_CSV
 

@@ -32,6 +32,9 @@
         let local = VLCMediaPlayer.latest!
         local.timeEvent(); await wait { player.isPlaying }
         let recognitionGeneration = player.recognitionContext?.generation
+        let firstContext = player.recognitionContext!
+        check(firstContext.listening?.position == player.timeshiftTransport.position
+              && firstContext.listening?.receivedAt == player.listeningReceivedAt, "Erkennung verliert tatsächliche Quellposition")
         check(player.timeshiftTransport.timeline.oldest >= 1, "Kalter Netzwerkanfang ist als Hörziel verfügbar")
         check(player.timeshiftTransport.delay >= 3 && player.nowPlayingTitle == "First - A", "Startreserve oder Titel falsch")
         icy.boundary?("Second - B", firstDate.addingTimeInterval(5))
@@ -41,7 +44,12 @@
         check(player.nowPlayingTitle == "First - A", "Vorauslaufender Empfang ersetzt gehörten Titel")
         local.time.intValue = 6000
         local.timeEvent(); await wait { player.nowPlayingTitle == "Second - B" }
+        let beforePause = player.recognitionContext!
         player.pause(); check(player.isPaused && !player.isPlaying && player.hasPlaybackIntent, "Pause verliert Absicht")
+        check(player.recognitionContext == nil, "Pause bietet Audioerkennung an")
+        player.resume(); local.timeEvent(); await wait { player.isPlaying }
+        check(!beforePause.isCurrent(player.recognitionContext), "Pause/Fortsetzen reaktiviert alten Kontext")
+        player.pause()
         local.time.intValue = 9000
         try? await Task.sleep(for: .milliseconds(150))
         check(player.timeshiftTransport.position < 9, "Pause folgt Decoderzeit")

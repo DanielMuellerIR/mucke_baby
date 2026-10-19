@@ -40,6 +40,40 @@ import Foundation
         check(!store.contains(song) && store.contains(otherMix) && store.contains(legacy), "Entfernen verwechselt Radio-Mix oder Altbestand")
         try store.add(song, at: date)
 
+        let listening = RecognitionListeningContext(outputID: UUID(), revision: 42, position: 12.345,
+            receivedAt: date.addingTimeInterval(-80))
+        let buffered = RecognitionResult(track: track,
+            context: RecognitionContext(generation: 42, stationID: station.id, title: "DJ - Grüße (Buffered Mix)", listening: listening),
+            capturedAt: date, recognizedAt: date.addingTimeInterval(12)).song(station: station.name)
+        try store.add(buffered, at: date)
+        try check(try version(Data(contentsOf: store.fileURL)) == 3, "Hörkontext fehlt Versionsschutz")
+        let reloaded = BookmarkStore(directory: store.fileURL.deletingLastPathComponent())
+        check(reloaded.entries == store.entries && reloaded.entries.last?.heardAt == date
+              && reloaded.entries.last?.recognition?.listening == listening,
+              "Persistenz verliert Hörzeit, Ausgabegeneration oder Pufferempfang")
+        let bufferedLibrary = ExchangeLibrary(stations: [station], groups: [], bookmarks: reloaded.entries)
+        let bufferedData = try ExchangeCodec.encode(bufferedLibrary, at: date)
+        try check(try version(bufferedData) == 3 && ExchangeCodec.decode(bufferedData) == bufferedLibrary,
+                  "V3-Roundtrip verliert Hörkontext")
+        var downgraded = try JSONSerialization.jsonObject(with: bufferedData) as! [String: Any]
+        downgraded["formatVersion"] = 2
+        do { _ = try ExchangeCodec.decode(JSONSerialization.data(withJSONObject: downgraded)); fatalError("V2 akzeptiert Hörkontext") }
+        catch {}
+        let bufferedIndex = bufferedLibrary.bookmarks.firstIndex { $0.recognition?.listening != nil }!
+        for invalid: [String: Any] in [
+            ["outputID": listening.outputID.uuidString, "revision": 42, "position": -1, "receivedAt": "2026-10-19T00:00:00Z"],
+            ["outputID": listening.outputID.uuidString, "revision": 42, "position": 12],
+            ["outputID": "invalid", "revision": 42]
+        ] {
+            var damaged = try JSONSerialization.jsonObject(with: bufferedData) as! [String: Any]
+            var entries = damaged["bookmarks"] as! [[String: Any]]
+            var provenance = entries[bufferedIndex]["recognition"] as! [String: Any]
+            provenance["listening"] = invalid; entries[bufferedIndex]["recognition"] = provenance; damaged["bookmarks"] = entries
+            do { _ = try ExchangeCodec.decode(JSONSerialization.data(withJSONObject: damaged)); fatalError("Ungültiger Hörkontext akzeptiert") }
+            catch {}
+        }
+        try store.toggle(buffered)
+
         let titleless = RecognitionResult(track: track, context: RecognitionContext(generation: 9, stationID: station.id, title: ""), capturedAt: date, recognizedAt: date.addingTimeInterval(12)).song(station: station.name)
         try store.add(titleless, at: date)
         check(titleless.raw == "Björk - Grüße" && titleless.recognition?.originalICY == "", "Titelloser Sender erhält erfundenen Originaltext")
@@ -111,7 +145,9 @@ import Foundation
         check(store.contains(failureSong), "Speichern nach behobenem Schreibfehler nicht möglich")
 
         let recognized = store.entries.first { $0.recognition?.originalICY == raw }!
-        let csv = BookmarkStore.exportData([legacyEntry, recognized], format: .csv)
+        let bufferedBookmark = SongBookmark(id: UUID(), station: station.name, raw: buffered.raw, artist: buffered.artist,
+            title: buffered.title, heardAt: buffered.start, savedAt: date, recognition: buffered.recognition)
+        let csv = BookmarkStore.exportData([legacyEntry, recognized, bufferedBookmark], format: .csv)
         if let path = ProcessInfo.processInfo.environment["MUCKE_RECOGNITION_EXPORT_FIXTURE"] {
             try csv.write(to: URL(fileURLWithPath: path))
         }

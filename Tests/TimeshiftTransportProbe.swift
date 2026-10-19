@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 import MediaPlayer
+import Combine
+import VLCKit
 
 // Isolierter LaunchServices-Prüfhost mit den unveränderten Produktansichten.
 @main @MainActor final class TimeshiftTransportProbe: NSObject, NSApplicationDelegate {
@@ -19,6 +21,9 @@ import MediaPlayer
     var mainWindow: NSWindow!
     var miniWindow: NSWindow!
     var observations: [[String: Any]] = []
+    var recognitionOutput: TimeshiftRecognitionOutput?
+    var recognitionMatcher: TimeshiftRecognitionMatcher?
+    var recognitionSubscriptions = Set<AnyCancellable>()
 
     static func main() {
         let delegate = TimeshiftTransportProbe(), app = NSApplication.shared
@@ -33,10 +38,15 @@ import MediaPlayer
             UserDefaults.standard.set(true, forKey: "didShowWelcome")
             let captureRoot = root!
             let capacity = self.capacity
-            player = RadioPlayer(recorder: Recorder(directory: root.appendingPathComponent("recordings"),
+            if ProcessInfo.processInfo.environment["MUCKE_RECOGNITION_TRANSPORT"] == "1" {
+                recognitionOutput = TimeshiftRecognitionOutput(root: root)
+            }
+            let output = recognitionOutput
+            player = RadioPlayer(makePlayer: { output?.makePlayer() ?? VLCMediaPlayer() }, recorder: Recorder(directory: root.appendingPathComponent("recordings"),
                 availableCapacity: { capacity.available(at: captureRoot) }, capacityCheckInterval: 0.2),
                 history: SongHistory(directory: root.appendingPathComponent("history")), timeshiftRoot: root.appendingPathComponent("buffers"),
                 makeTimeshiftBuffer: { try TimeshiftSegments(root: captureRoot.appendingPathComponent("buffers"),
+                    limits: TimeshiftSegmentLimits(duration: output == nil ? 300 : 60),
                     freeBytes: { capacity.available(at: $0) }) })
             store = Store(directory: root.appendingPathComponent("store"), seedURL: nil)
             let station = Station(name: url.lastPathComponent == "aac" ? "Fixture • AAC" : "Fixture • MP3", url: url.absoluteString)
@@ -47,8 +57,19 @@ import MediaPlayer
             _ = startup.claimAutoplay()
             bookmarks = BookmarkStore(directory: store.dir)
             settings = AudioSettingsStore(directory: store.dir)
-            recognition = MusicRecognitionService(capture: tap.recognitionCapture, sampleRate: { nil },
-                context: { [weak player] in player?.recognitionContext }, volume: { 0 }, matcher: ShazamRecognitionClient())
+            if let output {
+                let matcher = TimeshiftRecognitionMatcher(root: root)
+                recognitionMatcher = matcher
+                recognition = MusicRecognitionService(capture: output.capture, sampleRate: { 48_000 },
+                    context: { [weak player] in player?.recognitionContext }, volume: { 1 }, matcher: matcher,
+                    captureWait: ProcessInfo.processInfo.environment["MUCKE_RECOGNITION_DIRECT_ONLY"] == "1" ? 12 : 5, timeout: 30)
+                player.objectWillChange.sink { [weak recognition] in
+                    Task { @MainActor in recognition?.refresh() }
+                }.store(in: &recognitionSubscriptions)
+            } else {
+                recognition = MusicRecognitionService(capture: tap.recognitionCapture, sampleRate: { nil },
+                    context: { [weak player] in player?.recognitionContext }, volume: { 0 }, matcher: ShazamRecognitionClient())
+            }
             media = SystemMediaBinding(player: player, store: store)
             mainWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 620),
                 styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
@@ -57,7 +78,7 @@ import MediaPlayer
                 styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
             miniWindow.title = "Mucke, Baby! — Mini"
             install(theme: .schlicht, width: 940, dark: false)
-            player.setVolume(0); player.setRecordingRequested(true); player.setTimeshiftRequested(true)
+            player.setVolume(output == nil ? 0 : 0.77); player.setRecordingRequested(true); player.setTimeshiftRequested(true)
             player.play(station)
             mainWindow.center(); mainWindow.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             Task { do { try await run() } catch { try? Data(String(describing: error).utf8).write(to: root.appendingPathComponent("failure.txt")) }; NSApp.terminate(nil) }
@@ -91,6 +112,13 @@ import MediaPlayer
             "history": player.history.entries.count, "recording": String(describing: player.recordingState.phase),
             "systemTitle": MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyTitle] ?? "",
             "systemState": MPNowPlayingInfoCenter.default().playbackState.rawValue])
+        if recognitionOutput != nil {
+            observations[observations.count - 1]["status"] = player.statusText
+            observations[observations.count - 1]["metadata"] = player.metadataStatus ?? ""
+            observations[observations.count - 1]["recognition"] = String(describing: recognition.phase)
+            observations[observations.count - 1]["vlcState"] = String(describing: recognitionOutput?.latest?.state)
+            observations[observations.count - 1]["vlcTime"] = recognitionOutput?.latest?.time.intValue
+        }
         try JSONSerialization.data(withJSONObject: observations, options: [.prettyPrinted, .sortedKeys]).write(to: root.appendingPathComponent("observations.json"), options: .atomic)
     }
     func mark(_ name: String) throws { try Data(name.utf8).write(to: root.appendingPathComponent(name + ".txt")) }
@@ -103,6 +131,7 @@ import MediaPlayer
         throw NSError(domain: "TimeshiftTransport", code: 1, userInfo: [NSLocalizedDescriptionKey: "Zustand fehlt"])
     }
     func run() async throws {
+        if recognitionOutput != nil { try await runRecognition(); return }
         if ProcessInfo.processInfo.environment["MUCKE_TRANSPORT_INTEGRATION"] == "1" {
             try await runIntegration(); return
         }

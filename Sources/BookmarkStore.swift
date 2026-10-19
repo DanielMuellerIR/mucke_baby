@@ -20,15 +20,16 @@ struct BookmarkDocument: Codable {
     let formatVersion: Int
     let entries: [SongBookmark]
     init(entries: [SongBookmark]) {
-        formatVersion = entries.contains { $0.recognition != nil } ? 2 : 1
+        formatVersion = entries.contains { $0.recognition?.listening != nil } ? 3 : (entries.contains { $0.recognition != nil } ? 2 : 1)
         self.entries = entries
     }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         formatVersion = try container.decode(Int.self, forKey: .formatVersion)
         entries = try container.decode([SongBookmark].self, forKey: .entries)
-        guard [1, 2].contains(formatVersion),
-              formatVersion == 2 || entries.allSatisfy({ $0.recognition == nil }),
+        guard [1, 2, 3].contains(formatVersion),
+              formatVersion >= 2 || entries.allSatisfy({ $0.recognition == nil }),
+              formatVersion >= 3 || entries.allSatisfy({ $0.recognition?.listening == nil }),
               Set(entries.map(\.id)).count == entries.count,
               entries.allSatisfy({ !$0.raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                   && ($0.recognition?.isValid ?? true)
@@ -99,7 +100,7 @@ final class BookmarkStore: ObservableObject {
             let existed = FileManager.default.fileExists(atPath: fileURL.path)
             if let loaded = try JSONFileRecovery.loadSnapshot(BookmarkDocument.self, from: fileURL,
                                                               decoder: ExchangeCodec.dateDecoder(), validate: { data in
-                if let header = try? JSONDecoder().decode(Header.self, from: data), ![1, 2].contains(header.formatVersion) {
+                if let header = try? JSONDecoder().decode(Header.self, from: data), ![1, 2, 3].contains(header.formatVersion) {
                     throw BookmarkLoadVersionError.unsupported
                 }
             }) {
@@ -191,6 +192,11 @@ final class BookmarkStore: ObservableObject {
                                "original_icy: " + recognition.originalICY, "station_id: " + recognition.stationID.uuidString]
                     if let id = recognition.shazamID { fields.append("shazam_id: " + id) }
                     if let url = recognition.appleMusicURL { fields.append("apple_music_url: " + url.absoluteString) }
+                    if let listening = recognition.listening {
+                        fields += ["output_id: " + listening.outputID.uuidString, "output_revision: \(listening.revision)"]
+                        if let position = listening.position { fields.append("buffer_position: \(position)") }
+                        if let received = listening.receivedAt { fields.append("audio_received_at: " + date.string(from: received)) }
+                    }
                 }
                 return fields.joined(separator: "\n")
             }.joined(separator: "\n\n") + (entries.isEmpty ? "" : "\n")
@@ -204,6 +210,7 @@ final class BookmarkStore: ObservableObject {
                 return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
             }
             let hasRecognition = entries.contains { $0.recognition != nil }
+            let hasListening = entries.contains { $0.recognition?.listening != nil }
             let rows = entries.map { entry in
                 var fields = [entry.artist ?? "", entry.title ?? entry.raw, entry.raw, entry.station,
                               date.string(from: entry.heardAt), date.string(from: entry.savedAt)]
@@ -213,10 +220,17 @@ final class BookmarkStore: ObservableObject {
                                recognition?.stationID.uuidString ?? "", recognition?.originalICY ?? "",
                                recognition?.shazamID ?? "", recognition?.appleMusicURL?.absoluteString ?? ""]
                 }
+                if hasListening {
+                    let listening = entry.recognition?.listening
+                    fields += [listening?.outputID.uuidString ?? "", listening.map { String($0.revision) } ?? "",
+                               listening?.position.map { String($0) } ?? "",
+                               listening?.receivedAt.map { date.string(from: $0) } ?? ""]
+                }
                 return fields.map(quoted).joined(separator: ",")
             }
             let header = "artist,title,original,station,heard_at,saved_at"
                 + (hasRecognition ? ",source,recognized_at,station_id,original_icy,shazam_id,apple_music_url" : "")
+                + (hasListening ? ",output_id,output_revision,buffer_position,audio_received_at" : "")
             text = ([header] + rows).joined(separator: "\r\n") + "\r\n"
         }
         return Data(text.utf8)

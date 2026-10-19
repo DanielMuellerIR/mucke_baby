@@ -4,6 +4,15 @@ struct RecognitionContext: Equatable, Sendable {
     let generation: UInt64
     let stationID: UUID
     let title: String
+    var listening: RecognitionListeningContext? = nil
+
+    // Position und Empfangszeit sind ein eingefrorener Beleg des Aufrufs.
+    // Normales Weiterhören ändert sie, aber beendet nicht denselben Ausschnitt.
+    func isCurrent(_ current: RecognitionContext?) -> Bool {
+        guard let current else { return false }
+        return generation == current.generation && stationID == current.stationID
+            && title == current.title && listening?.outputID == current.listening?.outputID
+    }
 }
 
 struct RecognizedTrack: Equatable, Sendable {
@@ -44,7 +53,7 @@ enum RecognitionFailure: Error, LocalizedError, Equatable, Sendable {
     case noPlayback, muted, audioUnavailable, audioChanged, notEnoughAudio, invalidAudio, silent, offline, serviceUnavailable, timedOut, playbackChanged
     var errorDescription: String? {
         switch self {
-        case .noPlayback: return String(localized: "Starte einen Sender, um Musik zu erkennen.")
+        case .noPlayback: return String(localized: "Für die Erkennung muss Audio spielen. Starte einen Sender oder setze die Wiedergabe fort.")
         case .muted: return String(localized: "Die Wiedergabe ist stumm. Erhöhe die Lautstärke für die Erkennung.")
         case .audioUnavailable: return String(localized: "Audiozugriff nicht verfügbar. Prüfe die Audiofreigabe in den Systemeinstellungen und starte den Sender erneut.")
         case .audioChanged: return String(localized: "Der Audiozugriff wurde unterbrochen. Bitte erneut versuchen.")

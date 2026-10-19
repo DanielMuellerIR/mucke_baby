@@ -36,7 +36,7 @@ def prepare(root, probe='TimeshiftTransportProbe.swift'):
     sparkle = repo / '.vendor/Sparkle-2.9.4'
     subprocess.run(['swiftc', '-whole-module-optimization', '-parse-as-library', '-target', 'arm64-apple-macos14.2',
         '-module-cache-path', str(repo / 'build/module-cache'), '-F', str(vlc), '-framework', 'VLCKit', '-F', str(sparkle), '-framework', 'Sparkle',
-        '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', *map(str, sources.glob('*.swift')), str(root / 'Probe.swift'), str(repo / 'Tests/TimeshiftIntegration.swift'), '-o', str(binary)], check=True, timeout=300)
+        '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', *map(str, sources.glob('*.swift')), str(root / 'Probe.swift'), str(repo / 'Tests/TimeshiftIntegration.swift'), str(repo / 'Tests/TimeshiftRecognition.swift'), '-o', str(binary)], check=True, timeout=300)
     for name, parent in [('VLCKit', vlc), ('Sparkle', sparkle)]:
         shutil.copytree(parent / (name + '.framework'), app / ('Contents/Frameworks/' + name + '.framework'), symlinks=True)
     resources = app / 'Contents/Resources'

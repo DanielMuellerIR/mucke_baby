@@ -144,6 +144,14 @@ struct MusicRecognitionView: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text("Quelle: Shazam").font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
                 .accessibilityIdentifier("recognition-source")
+            Text("Gehört: \(result.capturedAt.formatted(date: .abbreviated, time: .standard))")
+                .font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
+                .accessibilityIdentifier("recognition-heard-at")
+            if let received = result.context.listening?.receivedAt {
+                Text("Audio empfangen: \(received.formatted(date: .abbreviated, time: .standard))")
+                    .font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
+                    .accessibilityIdentifier("recognition-received-at")
+            }
             Text("Sendertext: \(result.context.title.isEmpty ? String(localized: "Kein Sendertext") : result.context.title)")
                 .font(theme.font(.body, size: 12 * scale)).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("recognition-original")
@@ -151,7 +159,7 @@ struct MusicRecognitionView: View {
                 .font(theme.font(.label, size: 12 * scale)).foregroundStyle(dim)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
-                recognition.adoptCurrentResult()
+                recognition.adoptCurrentResult(expected: result)
             } label: {
                 Text(adopted ? String(localized: "Für Anzeige übernommen") : String(localized: "Für Anzeige übernehmen"))
                     .fixedSize(horizontal: false, vertical: true)
@@ -160,7 +168,7 @@ struct MusicRecognitionView: View {
             .help("Für Anzeige übernehmen: ⌘↵").accessibilityIdentifier("recognition-adopt")
             Button {
                 guard let current = recognition.currentResult, let station = player.currentStation,
-                      station.id == current.context.stationID else { return }
+                      station.id == current.context.stationID, current == result else { return }
                 do { try bookmarks.add(current.song(station: station.name)) }
                 catch { errorMessage = error.localizedDescription }
             } label: {

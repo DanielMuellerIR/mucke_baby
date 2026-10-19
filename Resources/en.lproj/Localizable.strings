@@ -488,6 +488,7 @@
 "Titel: %@" = "Title: %@";
 "Sender: %@" = "Station: %@";
 "Gehört: %@" = "Heard: %@";
+"Audio empfangen: %@" = "Audio received: %@";
 "Gemerkt: %@" = "Bookmarked: %@";
 
 "Die lokale Bibliothek enthält Einträge, die nicht in das Austauschformat passen. Sie bleibt unverändert. Bitte Namen, Senderadressen und Gruppenbezüge prüfen." = "The local library contains entries that do not fit the exchange format. It is preserved. Check names, station URLs and group references.";
@@ -555,7 +556,7 @@
 "In Apple Music öffnen" = "Open in Apple Music";
 "Kein passender Titel gefunden. Versuche einen anderen Ausschnitt." = "No matching track found. Try another excerpt.";
 "Erkennung abgebrochen." = "Identification cancelled.";
-"Starte einen Sender, um Musik zu erkennen." = "Play a station to identify music.";
+"Für die Erkennung muss Audio spielen. Starte einen Sender oder setze die Wiedergabe fort." = "Audio must be playing to identify music. Start a station or resume playback.";
 "Die Wiedergabe ist stumm. Erhöhe die Lautstärke für die Erkennung." = "Playback is muted. Turn up the volume to identify music.";
 "Audiozugriff nicht verfügbar. Prüfe die Audiofreigabe in den Systemeinstellungen und starte den Sender erneut." = "Audio access is unavailable. Check the audio permission in System Settings and restart the station.";
 "Der Audiozugriff wurde unterbrochen. Bitte erneut versuchen." = "Audio access was interrupted. Please try again.";

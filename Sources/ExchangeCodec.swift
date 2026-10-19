@@ -101,9 +101,10 @@ enum ExchangeCodec {
                 try validate(library)
                 return library
             }
-            guard header.format == format, [1, 2].contains(header.formatVersion) else { throw ExchangeFormatError.unsupportedVersion }
+            guard header.format == format, [1, 2, 3].contains(header.formatVersion) else { throw ExchangeFormatError.unsupportedVersion }
             let document = try decoder.decode(Document.self, from: data)
-            guard header.formatVersion == 2 || document.bookmarks.allSatisfy({ $0.recognition == nil }) else {
+            guard (header.formatVersion >= 2 || document.bookmarks.allSatisfy({ $0.recognition == nil })),
+                  (header.formatVersion >= 3 || document.bookmarks.allSatisfy({ $0.recognition?.listening == nil })) else {
                 throw ExchangeFormatError.invalidData
             }
             let library = ExchangeLibrary(stations: try document.stations.map { try $0.station(requireID: true) },
@@ -117,7 +118,7 @@ enum ExchangeCodec {
     static func encode(_ library: ExchangeLibrary, at date: Date = Date()) throws -> Data {
         try validate(library)
         let encoder = dateEncoder()
-        let version = library.bookmarks.contains { $0.recognition != nil } ? 2 : 1
+        let version = library.bookmarks.contains { $0.recognition?.listening != nil } ? 3 : (library.bookmarks.contains { $0.recognition != nil } ? 2 : 1)
         let data = try encoder.encode(Document(format: format, formatVersion: version, exportedAt: date,
                                                stations: library.stations.map(StationRecord.init),
                                                groups: library.groups, bookmarks: library.bookmarks))

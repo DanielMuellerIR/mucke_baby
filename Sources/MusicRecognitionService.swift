@@ -35,8 +35,8 @@ import Combine
     }
 
     func refresh() {
-        if let adoptedResult, adoptedResult.context != context() { self.adoptedResult = nil }
-        if let previous = requestContext, previous != context() {
+        if let adoptedResult, !adoptedResult.context.isCurrent(context()) { self.adoptedResult = nil }
+        if let previous = requestContext, !previous.isCurrent(context()) {
             let busy = phase.isBusy
             stopWork(); requestContext = nil; capturedAt = nil; recognizedAt = nil
             phase = busy ? .failed(.playbackChanged) : .idle
@@ -52,19 +52,19 @@ import Combine
 
     var currentResult: RecognitionResult? {
         guard case .matched(let track) = phase, let previous = requestContext,
-              previous == context(), let capturedAt, let recognizedAt else { return nil }
+              previous.isCurrent(context()), let capturedAt, let recognizedAt else { return nil }
         return RecognitionResult(track: track, context: previous, capturedAt: capturedAt, recognizedAt: recognizedAt)
     }
 
     var currentAdoption: RecognitionResult? {
-        guard let adoptedResult, adoptedResult.context == context() else { return nil }
+        guard let adoptedResult, adoptedResult.context.isCurrent(context()) else { return nil }
         return adoptedResult
     }
 
     @discardableResult
-    func adoptCurrentResult() -> Bool {
+    func adoptCurrentResult(expected: RecognitionResult? = nil) -> Bool {
         refresh()
-        guard let result = currentResult else { return false }
+        guard let result = currentResult, expected == nil || expected == result else { return false }
         adoptedResult = result
         return true
     }
@@ -102,11 +102,11 @@ import Combine
                 self.audit = nil
                 self.refresh()
                 guard self.request == id else { return }
-                guard self.context() == current else { self.stopWork(); self.phase = .failed(.playbackChanged); return }
+                guard current.isCurrent(self.context()) else { self.stopWork(); self.phase = .failed(.playbackChanged); return }
                 self.phase = .matching
                 self.matcher.match(pcm) { [weak self] result in
                     guard let self, self.request == id else { return }
-                    guard self.context() == current else { self.stopWork(); self.phase = .failed(.playbackChanged); return }
+                    guard current.isCurrent(self.context()) else { self.stopWork(); self.phase = .failed(.playbackChanged); return }
                     self.stopWork()
                     switch result {
                     case .success(let track):

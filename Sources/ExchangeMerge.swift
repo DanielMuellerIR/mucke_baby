@@ -191,6 +191,9 @@ struct ExchangeMergePlan {
         if let recognition = entry.recognition {
             lines.append(String(localized: "Quelle: Shazam"))
             lines.append(String(localized: "Erkannt: \(date.string(from: recognition.recognizedAt))"))
+            if let received = recognition.listening?.receivedAt {
+                lines.append(String(localized: "Audio empfangen: \(date.string(from: received))"))
+            }
             lines.append(String(localized: "Sendertext: \(recognition.originalICY.isEmpty ? String(localized: "Kein Sendertext") : recognition.originalICY)"))
             if let url = recognition.appleMusicURL { lines.append("Apple Music: " + url.absoluteString) }
         }

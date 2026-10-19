@@ -1,5 +1,23 @@
 import Foundation
 
+struct RecognitionListeningContext: Codable, Equatable, Sendable {
+    let outputID: UUID
+    let revision: UInt64
+    let position: TimeInterval?
+    let receivedAt: Date?
+
+    var isValid: Bool {
+        (position.map { $0.isFinite && $0 >= 0 } ?? true)
+            && (receivedAt.map { Self.validDate($0) } ?? true)
+            && ((position == nil) == (receivedAt == nil))
+    }
+
+    static func validDate(_ date: Date) -> Bool {
+        date.timeIntervalSince1970.isFinite
+            && (-62_135_596_800...253_402_300_799).contains(date.timeIntervalSince1970)
+    }
+}
+
 struct SongRecognition: Codable, Equatable, Sendable {
     let source: String
     let recognizedAt: Date
@@ -7,15 +25,17 @@ struct SongRecognition: Codable, Equatable, Sendable {
     let originalICY: String
     let shazamID: String?
     let appleMusicURL: URL?
+    let listening: RecognitionListeningContext?
 
     init(recognizedAt: Date, stationID: UUID, originalICY: String,
-         shazamID: String?, appleMusicURL: URL?) {
+         shazamID: String?, appleMusicURL: URL?, listening: RecognitionListeningContext? = nil) {
         source = "shazam"; self.recognizedAt = recognizedAt; self.stationID = stationID
         self.originalICY = originalICY; self.shazamID = shazamID
         self.appleMusicURL = Self.safeAppleMusicURL(appleMusicURL)
+        self.listening = listening
     }
 
-    enum CodingKeys: CodingKey { case source, recognizedAt, stationID, originalICY, shazamID, appleMusicURL }
+    enum CodingKeys: CodingKey { case source, recognizedAt, stationID, originalICY, shazamID, appleMusicURL, listening }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         source = try c.decode(String.self, forKey: .source)
@@ -24,6 +44,7 @@ struct SongRecognition: Codable, Equatable, Sendable {
         originalICY = try c.decode(String.self, forKey: .originalICY)
         shazamID = try c.decodeIfPresent(String.self, forKey: .shazamID)
         appleMusicURL = try c.decodeIfPresent(URL.self, forKey: .appleMusicURL)
+        listening = try c.decodeIfPresent(RecognitionListeningContext.self, forKey: .listening)
         guard isValid else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
                                                     debugDescription: "Invalid music recognition provenance"))
@@ -31,8 +52,8 @@ struct SongRecognition: Codable, Equatable, Sendable {
     }
 
     var isValid: Bool {
-        source == "shazam" && recognizedAt.timeIntervalSince1970.isFinite
-            && (-62_135_596_800...253_402_300_799).contains(recognizedAt.timeIntervalSince1970)
+        source == "shazam" && RecognitionListeningContext.validDate(recognizedAt)
+            && (listening?.isValid ?? true)
             && originalICY.utf8.count <= 4096
             && !originalICY.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) && ![9, 10, 13].contains($0.value) }
             && (shazamID.map { !$0.isEmpty && $0.utf8.count <= 256 && !$0.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) } ?? true)

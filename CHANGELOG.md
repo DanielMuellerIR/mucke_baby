@@ -3,6 +3,13 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.30 — 2026-10-19
+
+- Bind explicit music identification, display adoption and bookmarks to the heard output context, including buffered MP3 and AAC-ADTS playback.
+- Reject stale results after pause/resume, seeks within the same title, Live, title changes and metadata reconnection.
+- Preserve listening time, original ICY text, output identity and buffered reception position in version 3 bookmarks and library exchange; retain version 1/2 compatibility.
+- Show listening and buffered reception times separately without rewriting history or recordings.
+
 ## 1.9.29 — 2026-10-19
 
 - Add bounded AAC-ADTS timeshift alongside MP3, with decoder-rate validation for LC, HE-AAC and HE-AAC v2 and codec-specific output timing.

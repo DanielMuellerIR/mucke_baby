@@ -40,10 +40,14 @@ final class PlayerDelegateShim: NSObject, VLCMediaPlayerDelegate {
 @MainActor
 final class RadioPlayer: ObservableObject {
     @Published private(set) var currentStation: Station?
-    @Published private(set) var isPlaying = false
+    @Published private(set) var isPlaying = false {
+        didSet { if oldValue != isPlaying { outputRevision &+= 1 } }
+    }
     @Published private(set) var isLoading = false
     @Published private(set) var statusText = String(localized: "Bereit")
-    @Published private(set) var nowPlayingTitle = ""
+    @Published private(set) var nowPlayingTitle = "" {
+        didSet { if oldValue != nowPlayingTitle { outputRevision &+= 1 } }
+    }
     // B2: Zeitpunkt, ab dem der aktuelle Sender wirklich spielt (erstes Audio).
     // Footer zeigt daraus die laufende Sender-Laufzeit. nil = spielt nicht.
     @Published private(set) var playStartedAt: Date?
@@ -119,7 +123,13 @@ final class RadioPlayer: ObservableObject {
 
     var recognitionContext: RecognitionContext? {
         guard isPlaying, let station = currentStation, currentStreamURL != nil else { return nil }
-        return RecognitionContext(generation: outputRevision, stationID: station.id, title: nowPlayingTitle)
+        let local = timeshiftReader != nil
+        let position = local ? timeshiftTransport.position : nil
+        let receivedAt = local ? listeningReceivedAt : nil
+        guard !local || receivedAt != nil else { return nil }
+        return RecognitionContext(generation: outputRevision, stationID: station.id, title: nowPlayingTitle,
+            listening: RecognitionListeningContext(outputID: outputGeneration, revision: outputRevision,
+                position: position, receivedAt: receivedAt))
     }
 
     init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil, sleepTimer: SleepTimerController? = nil, history: SongHistory? = nil, timeshiftRoot: URL = TimeshiftSegments.defaultRoot, makeTimeshiftBuffer: (() throws -> TimeshiftSegments)? = nil) {
@@ -542,6 +552,7 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func startMetadata(url: URL, retry: Bool = false) {
+        outputRevision &+= 1
         // Container wie Ogg/FLAC benötigen beim Dateibeginn ihre Streamheader.
         // Die alte Metadatenverbindung zuerst schließen; VLC bleibt unverändert.
         let wasLocal = timeshiftReader != nil || timeshiftTransport.holdsPlayback
@@ -627,6 +638,7 @@ final class RadioPlayer: ObservableObject {
 
     private func metadataEnded(at date: Date) {
         guard desiredStation != nil, currentStreamURL != nil, metadataReconnect.desiredStationID != nil else { return }
+        outputRevision &+= 1
         metadataGeneration &+= 1
         let endedAt = icy.stop() ?? date
         let wasLocal = timeshiftReader != nil || timeshiftTransport.holdsPlayback
