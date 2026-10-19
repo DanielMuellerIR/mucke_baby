@@ -62,3 +62,17 @@ Dateizuordnung, echte Timer-/Medientastenbedienung, Wiederverbindung, Disk-Gate,
 vollen Pufferüberlauf, DE/EN-Ansichten, Exporte und den tatsächlichen Puffer-EQ.
 `verify ROOT` prüft Exporte, Verbindungen und Frequenzwirkung unabhängig.
 Schlafcallbacks ersetzen keinen echten Systemschlaf; alle Daten sind isoliert.
+
+## Mac/iPhone-Austausch
+
+`bash Tests/exchange-interop.sh ../baby_mucke` kompiliert beide tatsächlichen
+Produktions-Codecs getrennt und prüft V1/V2/V3 in beiden Roundtrip-Richtungen. Das
+iPhone-Repo muss die V3-Unterstützung enthalten. Der Test erhält eigene Namen,
+Gruppen, Favoriten und getrennte Radio-Mixe, prüft direkte/gepufferte Hörkontexte
+mit maximaler UInt64-Revision und weist ungültige Kontexte sowie unbekannte oder
+falsch deklarierte Versionen ab. Die Konfliktvorschau muss reine
+Hörkontextunterschiede sichtbar machen. Die JSON-Gegenprüfung erfolgt unabhängig
+in Python. Ergebnisdatei: `build/tests/exchange-interop/result.json`.
+
+Der Test belegt Dateikompatibilität. Reale AirDrop-/Dateien-/Teilen-Übergaben
+zwischen Mac und iPhone bleiben eine eigene Geräteprüfung.

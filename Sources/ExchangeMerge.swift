@@ -194,6 +194,13 @@ struct ExchangeMergePlan {
             if let received = recognition.listening?.receivedAt {
                 lines.append(String(localized: "Audio empfangen: \(date.string(from: received))"))
             }
+            if let listening = recognition.listening {
+                lines.append(String(localized: "Audioausgabe: \(listening.outputID.uuidString)"))
+                lines.append(String(localized: "Ausgaberevision: \(String(listening.revision))"))
+                if let position = listening.position {
+                    lines.append(String(localized: "Pufferposition: \(String(position)) s"))
+                }
+            }
             lines.append(String(localized: "Sendertext: \(recognition.originalICY.isEmpty ? String(localized: "Kein Sendertext") : recognition.originalICY)"))
             if let url = recognition.appleMusicURL { lines.append("Apple Music: " + url.absoluteString) }
         }

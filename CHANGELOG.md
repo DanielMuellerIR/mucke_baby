@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.31 — 2026-10-19
+
+- Show output identity, revision and buffer position when comparing bookmarked listening contexts during library import.
+- Verify version 1/2/3 exchange with both Mac and iPhone production codecs, including invalid contexts and repeated imports.
+
 ## 1.9.30 — 2026-10-19
 
 - Bind explicit music identification, display adoption and bookmarks to the heard output context, including buffered MP3 and AAC-ADTS playback.

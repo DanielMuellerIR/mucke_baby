@@ -652,3 +652,7 @@
 
 "Zeitversatz gestoppt: Audioformat ist beschädigt oder wird nicht unterstützt." = "Timeshift stopped: the audio format is damaged or unsupported.";
 "Zeitversatz gestoppt: Das Audioformat hat sich geändert. Mit Live fortsetzen." = "Timeshift stopped: the audio format changed. Select Live to continue.";
+
+"Audioausgabe: %@" = "Audio output: %@";
+"Ausgaberevision: %@" = "Output revision: %@";
+"Pufferposition: %@ s" = "Buffer position: %@ s";
