@@ -10,10 +10,10 @@ struct TimeshiftControlsView: View {
     @State private var editing = false
     private var transport: TimeshiftTransport { player.timeshiftTransport }
     private var timeline: MetadataTimeline { transport.timeline }
-    private var available: Bool { timeline.canStart && player.hasPlaybackIntent }
+    private var available: Bool { player.canSeekTimeshift && player.hasPlaybackIntent }
 
     var body: some View {
-        if player.timeshiftRequested {
+        if player.timeshiftRequested && !player.isHLSStream {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
                     Button { player.togglePause() } label: {
@@ -54,7 +54,7 @@ struct TimeshiftControlsView: View {
                 HStack {
                     Text("Puffer: −\(Self.time(timeline.live - timeline.oldest))")
                     Spacer()
-                    Text("Live: mindestens 3 s Reserve")
+                    Text("Live-Start: mindestens 3 s Reserve")
                 }.monospacedDigit().foregroundStyle(theme.palette.textSecondary)
                 Canvas { context, size in
                     let duration = max(0.001, timeline.live - timeline.oldest)
@@ -73,9 +73,12 @@ struct TimeshiftControlsView: View {
                         }
                     } label: {
                         Label("Titelzeitleiste", systemImage: "list.bullet")
+                            .foregroundStyle(theme.palette.textPrimary)
                     }.menuStyle(.borderlessButton).accessibilityIdentifier("timeshift-titles")
                 } else {
-                    Text(player.timeshiftStatus).foregroundStyle(theme.palette.textSecondary)
+                    Text(timeline.canStart && !player.canSeekTimeshift
+                         ? String(localized: "Zeitversatz wartet auf das AAC-Decoderformat. Die Live-Wiedergabe läuft weiter.")
+                         : player.timeshiftStatus).foregroundStyle(theme.palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if transport.phase == .expired && !compact {

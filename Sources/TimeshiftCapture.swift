@@ -44,10 +44,10 @@ final class TimeshiftCapture {
     func noteTitle(_ title: String, at date: Date? = nil, session id: UUID) {
         locked { if session == id { buffer?.noteTitle(title, at: date) } }
     }
-    func append(_ bytes: Data, session id: UUID) {
+    func append(_ bytes: Data, at date: Date? = nil, session id: UUID) {
         locked {
             guard session == id, let buffer else { return }
-            do { try buffer.append(bytes) }
+            do { try buffer.append(bytes, at: date) }
             catch { fail(error) }
         }
     }
@@ -58,19 +58,22 @@ final class TimeshiftCapture {
             if removed { publish(enabled ? .waiting : .off) }
         }
     }
-    func makeReader(delay: TimeInterval) throws -> TimeshiftSegmentStream {
+    func makeReader(delay: TimeInterval, decodedSampleRate: Int? = nil) throws -> TimeshiftSegmentStream {
         try locked {
             guard let buffer else { throw TimeshiftFailure.notReady }
-            return try buffer.makeReader(delay: delay)
+            return try buffer.makeReader(delay: delay, decodedSampleRate: decodedSampleRate)
         }
     }
     var metrics: TimeshiftSegments.Metrics? { locked { buffer?.metrics } }
     var timeline: MetadataTimeline { locked { buffer?.timeline ?? MetadataTimeline() } }
     var currentState: State { locked { state } }
-    func makeReader(at position: TimeInterval) throws -> TimeshiftSegmentStream {
+    var requiresDecodedSampleRate: Bool { locked { buffer?.requiresDecodedSampleRate == true } }
+    func receivedAt(position: TimeInterval) -> Date? { locked { buffer?.receivedAt(position: position) } }
+    func rejectPlayback(_ error: Error) { locked { fail(error) } }
+    func makeReader(at position: TimeInterval, decodedSampleRate: Int? = nil) throws -> TimeshiftSegmentStream {
         try locked {
             guard let buffer else { throw TimeshiftFailure.notReady }
-            return try buffer.makeReader(at: position)
+            return try buffer.makeReader(at: position, decodedSampleRate: decodedSampleRate)
         }
     }
     func cancelReaders() { locked { buffer?.cancelReaders(); retired?.cancelReaders() } }
@@ -98,11 +101,19 @@ final class TimeshiftCapture {
         let message: String
         switch error {
         case TimeshiftFailure.unsupportedFormat:
-            message = String(localized: "Zeitversatz: Der Puffer unterstützt derzeit nur MP3.")
+            message = StreamCapturePolicy.isHLS(contentType)
+                ? String(localized: "Zeitversatz ist für HLS nicht verfügbar. Die Live-Wiedergabe läuft weiter.")
+                : String(localized: "Zeitversatz unterstützt MP3 und AAC-ADTS. Andere Formate spielen weiterhin live.")
         case TimeshiftFailure.lowDisk:
             message = String(localized: "Zeitversatz gestoppt: weniger als 10 GiB frei.")
+        case TimeshiftFailure.invalidAudio:
+            message = String(localized: "Zeitversatz gestoppt: Audioformat ist beschädigt oder wird nicht unterstützt.")
+        case TimeshiftSegmentFailure.formatChanged:
+            message = String(localized: "Zeitversatz gestoppt: Das Audioformat hat sich geändert. Mit Live fortsetzen.")
         case TimeshiftSegmentFailure.readerOverrun:
             message = String(localized: "Zeitversatz gestoppt: Der Leser hat die Puffergrenze erreicht.")
+        case TimeshiftSegmentFailure.decoderFormat:
+            message = String(localized: "Zeitversatz gestoppt: AAC-Decoderformat passt nicht zum Puffer.")
         default:
             message = String(localized: "Zeitversatz gestoppt: Audio oder Pufferspeicher nicht verfügbar.")
         }

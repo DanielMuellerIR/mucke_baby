@@ -247,3 +247,23 @@ struct MP3FrameHeader {
         format = rate * 10 + version * 2 + (header[3] >> 6 == 3 ? 1 : 0)
     }
 }
+
+struct ADTSFrameHeader {
+    let bytes: Int
+    let duration: TimeInterval
+    let format: Int
+
+    init?(_ header: [UInt8]) {
+        guard header.count >= 7, header[0] == 0xff, header[1] & 0xf6 == 0xf0,
+              header[2] >> 6 == 1, header[6] & 3 == 0 else { return nil }
+        let rates = [96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000, 7_350]
+        let index = Int((header[2] >> 2) & 15)
+        let channels = Int((header[2] & 1) << 2 | header[3] >> 6)
+        guard index < rates.count, (1...2).contains(channels) else { return nil }
+        bytes = Int(header[3] & 3) << 11 | Int(header[4]) << 3 | Int(header[5] >> 5)
+        guard bytes > (header[1] & 1 == 0 ? 9 : 7) else { return nil }
+        // HE-AAC verdoppelt Ausgaberate und Samples; die ADTS-Kernzeit bleibt gleich.
+        duration = 1024 / Double(rates[index])
+        format = rates[index] * 10 + Int((header[1] >> 3) & 1) * 4 + channels
+    }
+}

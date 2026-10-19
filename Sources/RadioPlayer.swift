@@ -58,6 +58,7 @@ final class RadioPlayer: ObservableObject {
     let recorder: Recorder
     @Published private(set) var recordingRequested: Bool
     @Published private(set) var timeshiftRequested = false
+    @Published private(set) var isHLSStream = false
     @Published private(set) var timeshiftStatus = String(localized: "Zeitversatz ist aus.")
     @Published private(set) var timeshiftTransport = TimeshiftTransport()
     private var timeshiftReader: TimeshiftSegmentStream?
@@ -65,17 +66,20 @@ final class RadioPlayer: ObservableObject {
     private var outputGeneration = UUID()
     private var outputRevision: UInt64 = 0
     private var receivedTitle = ""
+    private var decodedSampleRate: Int?
     var isPaused: Bool { timeshiftTransport.isPaused }
     var hasPlaybackIntent: Bool { desiredStation != nil }
     var canPause: Bool { timeshiftReader != nil && isPlaying }
-    private let timeshiftRoot: URL
-    private lazy var timeshift: TimeshiftCapture = TimeshiftCapture(makeBuffer: { [timeshiftRoot] in try TimeshiftSegments(root: timeshiftRoot) }, onState: { [weak self] _ in
+    var listeningReceivedAt: Date? { timeshift.receivedAt(position: timeshiftTransport.position) }
+    var canSeekTimeshift: Bool { timeshiftTransport.timeline.canStart && (!timeshift.requiresDecodedSampleRate || decodedSampleRate != nil) }
+    private let makeTimeshiftBuffer: () throws -> TimeshiftSegments
+    private lazy var timeshift: TimeshiftCapture = TimeshiftCapture(makeBuffer: makeTimeshiftBuffer, onState: { [weak self] _ in
         DispatchQueue.main.async {
             guard let self else { return }
             switch self.timeshift.currentState {
             case .off: self.timeshiftStatus = String(localized: "Zeitversatz ist aus.")
-            case .waiting: self.timeshiftStatus = String(localized: "Zeitversatz wartet auf einen MP3-Stream.")
-            case .buffering: self.timeshiftStatus = String(localized: "Temporärer MP3-Puffer aktiv.")
+            case .waiting: self.timeshiftStatus = String(localized: "Zeitversatz wartet auf einen MP3- oder AAC-ADTS-Stream.")
+            case .buffering: self.timeshiftStatus = String(localized: "Temporärer MP3-/AAC-Puffer aktiv.")
             case .failed(let message): self.timeshiftStatus = message
             }
             if case .failed = self.timeshift.currentState, self.timeshiftReader != nil {
@@ -106,6 +110,7 @@ final class RadioPlayer: ObservableObject {
     private var metadataGeneration: UInt64 = 0
     private var metadataActivityUptime: TimeInterval = 0
     private var sleepingStationID: UUID?
+    private var sleepingPlaybackHeld = false
     private let workspaceNotifications = NSWorkspace.shared.notificationCenter
     private var systemObservers: [NSObjectProtocol] = []
     private var desiredStation: Station?
@@ -117,8 +122,9 @@ final class RadioPlayer: ObservableObject {
         return RecognitionContext(generation: outputRevision, stationID: station.id, title: nowPlayingTitle)
     }
 
-    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil, sleepTimer: SleepTimerController? = nil, history: SongHistory? = nil, timeshiftRoot: URL = TimeshiftSegments.defaultRoot) {
-        self.history = history ?? SongHistory(); self.timeshiftRoot = timeshiftRoot
+    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil, sleepTimer: SleepTimerController? = nil, history: SongHistory? = nil, timeshiftRoot: URL = TimeshiftSegments.defaultRoot, makeTimeshiftBuffer: (() throws -> TimeshiftSegments)? = nil) {
+        self.history = history ?? SongHistory()
+        self.makeTimeshiftBuffer = makeTimeshiftBuffer ?? { try TimeshiftSegments(root: timeshiftRoot) }
         self.sleepTimer = sleepTimer ?? SleepTimerController()
         self.preferences = preferences
         self.recordingRequested = preferences.object(forKey: "recordStreams") as? Bool ?? false
@@ -166,15 +172,23 @@ final class RadioPlayer: ObservableObject {
     func prepareForSleep() {
         guard sleepingStationID == nil, let desiredStation else { return }
         sleepingStationID = desiredStation.id
+        sleepingPlaybackHeld = timeshiftTransport.holdsPlayback
         reconnect.cancel(); stopMonitoringNetwork(); stopAttempt()
         nowPlayingTitle = ""; statusText = String(localized: "Wiedergabe ruht bis zum Aufwachen.")
     }
 
     func resumeAfterWake() {
         guard let id = sleepingStationID else { return }
+        let held = sleepingPlaybackHeld
         sleepingStationID = nil
+        sleepingPlaybackHeld = false
         sleepTimer.refresh()
         guard let station = desiredStation, station.id == id else { return }
+        if held {
+            timeshiftTransport.phase = .expired
+            statusText = String(localized: "Pufferposition nicht mehr verfügbar. Mit Live fortsetzen.")
+            return
+        }
         play(station)
     }
 
@@ -192,7 +206,10 @@ final class RadioPlayer: ObservableObject {
                 Task { @MainActor in self?.refreshTimeshift() }
             }
         }
-        if wasLocal, let url = currentStreamURL { startLiveOutput(url: url, generation: requests.current) }
+        if wasLocal {
+            if let url = currentStreamURL { startLiveOutput(url: url, generation: requests.current) }
+            else if !enabled, let station = desiredStation { play(station) }
+        }
     }
 
     func pause() {
@@ -227,9 +244,10 @@ final class RadioPlayer: ObservableObject {
     }
 
     func returnToLive() {
-        guard desiredStation != nil, let url = currentStreamURL else { return }
+        guard let station = desiredStation else { return }
+        guard let url = currentStreamURL else { play(station); return }
         let timeline = timeshift.timeline
-        if timeshiftRequested, timeline.canStart {
+        if timeshiftRequested, timeline.canStart, !timeshift.requiresDecodedSampleRate || decodedSampleRate != nil {
             startTimeshift(at: timeline.latestStart, paused: false, live: true)
         } else {
             closeTimeshiftReader(); timeshiftTransport = TimeshiftTransport()
@@ -261,9 +279,11 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func startTimeshift(at position: TimeInterval, paused: Bool, live: Bool) {
+        guard !timeshift.requiresDecodedSampleRate || decodedSampleRate != nil else { return }
+        let wasLocal = timeshiftReader != nil || timeshiftTransport.holdsPlayback
         closeTimeshiftReader()
         do {
-            let reader = try timeshift.makeReader(at: position)
+            let reader = try timeshift.makeReader(at: position, decodedSampleRate: decodedSampleRate)
             player.delegate = nil; player.audio?.volume = 0; player.stop()
             invalidateOutput()
             let ticket = outputGeneration
@@ -289,13 +309,20 @@ final class RadioPlayer: ObservableObject {
             // Beim Seek in Pause bleibt der neue Leser ungestartet und gepinnt.
             if !paused { next.play() }
         } catch {
-            timeshiftStatus = String(localized: "Pufferposition nicht mehr verfügbar. Mit Live fortsetzen.")
-            expireTimeshift()
+            timeshift.rejectPlayback(error)
+            if wasLocal { expireTimeshift() }
         }
     }
 
     private func localTimeAdvanced(ticket: UUID) {
         guard ticket == outputGeneration, timeshiftReader != nil, !isPaused else { return }
+        if timeshift.requiresDecodedSampleRate, player.time.intValue > 500,
+           let known = decodedSampleRate, let actual = reportedAudioRate, known != actual {
+            decodedSampleRate = nil
+            timeshift.rejectPlayback(TimeshiftSegmentFailure.decoderFormat)
+            expireTimeshift()
+            return
+        }
         reconnect.playing(); reconnect.activity()
         if !isPlaying { isPlaying = true }
         if isLoading { isLoading = false }
@@ -321,7 +348,8 @@ final class RadioPlayer: ObservableObject {
             }
             let title = timeline.title(at: transport.position)
             if nowPlayingTitle != title { nowPlayingTitle = title }
-        } else if !timeshiftTransport.holdsPlayback, currentStreamURL != nil, timeline.canStart {
+        } else if !timeshiftTransport.holdsPlayback, currentStreamURL != nil, timeline.canStart,
+                  !timeshift.requiresDecodedSampleRate || decodedSampleRate != nil {
             startTimeshift(at: timeline.latestStart, paused: false, live: true)
             return
         }
@@ -422,6 +450,7 @@ final class RadioPlayer: ObservableObject {
     func play(_ station: Station) {
         sleepTimer.refresh()
         sleepingStationID = nil
+        sleepingPlaybackHeld = false
         desiredStation = station
         reconnect.beginIntent(stationID: station.id)
         monitorNetwork()
@@ -480,6 +509,7 @@ final class RadioPlayer: ObservableObject {
 
     private func startLiveOutput(url: URL, generation: UInt64) {
         closeTimeshiftReader()
+        decodedSampleRate = nil
         invalidateOutput()
         let outputTicket = outputGeneration
         // Ein wiederverwendeter VLC-Player kann die Herkunft spaeter Events
@@ -515,6 +545,8 @@ final class RadioPlayer: ObservableObject {
         // Container wie Ogg/FLAC benötigen beim Dateibeginn ihre Streamheader.
         // Die alte Metadatenverbindung zuerst schließen; VLC bleibt unverändert.
         let wasLocal = timeshiftReader != nil || timeshiftTransport.holdsPlayback
+        decodedSampleRate = nil
+        isHLSStream = false
         closeTimeshiftReader()
         timeshiftTransport = TimeshiftTransport()
         if wasLocal { expireTimeshift() }
@@ -534,6 +566,10 @@ final class RadioPlayer: ObservableObject {
         timeshift.begin(streamID)
         recorder.configureCapture(station: stationName, streamID: streamID,
                                   enabled: recordingRequested, revision: recordingRevision, preserveFailure: retry)
+        if StreamCapturePolicy.isHLS(nil, url: url) {
+            hlsCaptureUnavailable(ticket: ticket, streamID: streamID)
+            return
+        }
         icy.start(url: url, allowAudioOnly: true,
                   onStart: { contentType, _ in
                       recorder.captureFormat(contentType, streamID: streamID)
@@ -545,7 +581,7 @@ final class RadioPlayer: ObservableObject {
                   },
                   onAudioAt: { [weak self] data, date, uptime in
                       recorder.captureAudio(data, at: date, receivedUptime: uptime, streamID: streamID)
-                      timeshift.append(data, session: streamID)
+                      timeshift.append(data, at: date, session: streamID)
                       DispatchQueue.main.async { self?.metadataActivity(ticket: ticket, uptime: uptime) }
                   },
                   onCompletion: { [weak self] date in
@@ -555,13 +591,26 @@ final class RadioPlayer: ObservableObject {
                       }
                       recorder.finishCapture(streamID: streamID, at: date)
                       timeshift.end(streamID)
+                  }, onUnsupportedFormat: { [weak self] _ in
+                      DispatchQueue.main.async { self?.hlsCaptureUnavailable(ticket: ticket, streamID: streamID) }
                   })
     }
 
+    private func hlsCaptureUnavailable(ticket: UInt64, streamID: UUID) {
+        guard metadataGeneration == ticket, recordingSessionID == streamID else { return }
+        isHLSStream = true
+        metadataReconnect.cancel(); icy.stop()
+        metadataStatus = String(localized: "Für HLS sind Aufnahme und Zeitversatz nicht verfügbar. Die Live-Wiedergabe läuft weiter.")
+        recorder.captureFormat(StreamCapturePolicy.hlsContentType, streamID: streamID)
+        timeshift.accept(StreamCapturePolicy.hlsContentType, session: streamID)
+    }
+
     private func stopMetadata() -> Date? {
+        isHLSStream = false
         closeTimeshiftReader()
         timeshiftTransport = TimeshiftTransport()
         receivedTitle = ""
+        decodedSampleRate = nil
         metadataGeneration &+= 1; metadataReconnect.cancel(); metadataStatus = nil
         let ended = icy.stop()
         timeshift.end()
@@ -605,6 +654,7 @@ final class RadioPlayer: ObservableObject {
 
     func stop() {
         sleepingStationID = nil
+        sleepingPlaybackHeld = false
         desiredStation = nil
         reconnect.cancel()
         stopMonitoringNetwork()
@@ -656,6 +706,7 @@ final class RadioPlayer: ObservableObject {
         // und wuerde sonst "Wiedergabe" fuer den neuen Sender melden, obwohl noch der
         // alte hoerbar ist.
         guard generation == installedGeneration, requests.accepts(generation), currentStreamURL != nil else { return }
+        decodedSampleRate = reportedAudioRate ?? decodedSampleRate
         reconnect.activity()
         guard !isPlaying else { return }
         reconnect.playing()
@@ -664,6 +715,13 @@ final class RadioPlayer: ObservableObject {
         playStartedAt = Date()       // B2: Laufzeit ab erstem Audio
         statusText = String(localized: "Wiedergabe")
         log.notice("status=playing \(self.currentStation?.name ?? "?", privacy: .public)")
+    }
+
+    private var reportedAudioRate: Int? {
+        for case let track as [String: Any] in player.media?.tracksInformation ?? [] {
+            if let rate = (track[VLCMediaTracksInformationAudioRate] as? NSNumber)?.intValue, rate > 0 { return rate }
+        }
+        return nil
     }
 
     private func handleState(_ state: VLCMediaPlayerState, generation: UInt64) {

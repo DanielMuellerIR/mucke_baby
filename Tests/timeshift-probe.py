@@ -60,7 +60,7 @@ def prepare(root):
     app = root / "TimeshiftProbe.app"
     binary = app / "Contents/MacOS/TimeshiftProbe"
     binary.parent.mkdir(parents=True)
-    sources = [repo / "Sources" / (name + ".swift") for name in ["TimeshiftBuffer", "TimeshiftPlayback", "ICYMetadataReader", "Safety"]]
+    sources = [repo / "Sources" / (name + ".swift") for name in ["TimeshiftBuffer", "TimeshiftPlayback", "ICYMetadataReader", "RecordingState", "Safety"]]
     sources.append(repo / "Tests/TimeshiftProbe.swift")
     subprocess.run(["swiftc", "-parse-as-library", "-target", "arm64-apple-macos14.2", "-F", str(framework),
                     "-framework", "VLCKit", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",

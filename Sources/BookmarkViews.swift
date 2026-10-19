@@ -174,11 +174,15 @@ extension RadioPlayer {
     var currentSong: SongEntry? {
         guard let station = currentStation, !nowPlayingTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         let receivedAt = timeshiftTransport.timeline.anchor(at: timeshiftTransport.position)?.receivedAt
-        if let receivedAt,
-           let entry = history.entries.last(where: { $0.station == station.name && $0.raw == nowPlayingTitle && abs($0.start.timeIntervalSince(receivedAt)) < 0.01 }) {
-            return entry
+        let buffered = timeshiftRequested && (timeshiftTransport.timeline.canStart || timeshiftTransport.holdsPlayback)
+        if buffered, let date = listeningReceivedAt {
+            // Aufnahme an/aus kann denselben Titel in mehrere Dateien teilen.
+            // Maßgeblich ist der Empfang des gehörten Frames, nicht nur der Titelanfang.
+            if let entry = history.entries.last(where: {
+                $0.station == station.name && $0.raw == nowPlayingTitle && $0.start <= date && ($0.end == nil || date <= $0.end!)
+            }) { return entry }
         }
-        if receivedAt == nil, let entry = history.entries.last, !entry.isPlaceholder,
+        if !buffered, let entry = history.entries.last, !entry.isPlaceholder,
            entry.station == station.name, entry.raw == nowPlayingTitle { return entry }
         let (artist, title) = SongEntry.split(nowPlayingTitle)
         return SongEntry(station: station.name, raw: nowPlayingTitle, artist: artist, title: title,

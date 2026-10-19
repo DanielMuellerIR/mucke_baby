@@ -32,7 +32,7 @@ def prepare(root):
     root.mkdir(parents=True, exist_ok=False)
     repo = Path(__file__).resolve().parents[1]
     framework = repo / ".vendor/VLCKit.xcframework/macos-arm64_x86_64"
-    common = ["MetadataTimeline", "TimeshiftBuffer", "TimeshiftSegments"]
+    common = ["MetadataTimeline", "TimeshiftBuffer", "TimeshiftSegments", "RecordingState"]
     link = ["swiftc", "-parse-as-library", "-target", "arm64-apple-macos14.2", "-F", str(framework), "-framework", "VLCKit"]
     subprocess.run([*link, *[str(repo / "Sources" / (name + ".swift")) for name in common],
                     str(repo / "Tests/TimeshiftContinuousHarness.swift"), "-o", str(root / "decode")], check=True, timeout=120)
@@ -40,7 +40,7 @@ def prepare(root):
     binary = app / "Contents/MacOS/TimeshiftSettingsProbe"
     binary.parent.mkdir(parents=True)
     names = common + ["TimeshiftCapture", "TimeshiftSettingsView", "RadioPlayer", "Recorder", "Models", "SongHistory",
-        "SongRecognition", "RecognitionModels", "RecordingState", "AudioSettings", "SleepTimer", "SleepTimerController",
+        "SongRecognition", "RecognitionModels", "AudioSettings", "SleepTimer", "SleepTimerController",
         "PlaybackReconnect", "ICYMetadataReader", "PlaylistResolver", "Safety", "Theme"]
     subprocess.run([*link, "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",
                     *[str(repo / "Sources" / (name + ".swift")) for name in names],
@@ -217,10 +217,10 @@ def settings(root):
                     wait(lambda: toggle().get("AXValue"))
                     (target / "ui-enabled.txt").write_text("enabled")
                     wait(lambda: (target / "buffering.txt").exists())
-                    wait(lambda: len(connections()["active"]) == 2)
+                    wait(lambda: len(connections()["active"]) == 1)
                     command("press", "timeshift-enable")
                     wait(lambda: (target / "disabled.txt").exists())
-                    assert len(connections()["active"]) == 2
+                    wait(lambda: len(connections()["active"]) == 2)
                     command("press", "timeshift-enable")
                     command("click", "action-button-1")
                     assert launcher.wait(timeout=45) == 0
@@ -233,7 +233,7 @@ def settings(root):
                     if launcher.poll() is None:
                         launcher.terminate(); launcher.wait(timeout=5)
             (root / "settings-result.json").write_text(json.dumps({"passed": True, "languages": ["de", "en"], "screenshots": 56,
-                "confirmationCancelAndAccept": True, "connectionsDuringCapture": 2, "connectionsAfterQuit": 0}))
+                "confirmationCancelAndAccept": True, "connectionsDuringBufferedPlayback": 1, "connectionsAfterDisablingBuffer": 2, "connectionsAfterQuit": 0}))
         finally:
             cleanup(root)
             server.wait(timeout=5)

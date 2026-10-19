@@ -4,20 +4,21 @@ import MediaPlayer
 
 // Isolierter LaunchServices-Prüfhost mit den unveränderten Produktansichten.
 @main @MainActor final class TimeshiftTransportProbe: NSObject, NSApplicationDelegate {
-    private var root: URL!
-    private var player: RadioPlayer!
-    private var store: Store!
-    private var startup: StartupSettings!
-    private var bookmarks: BookmarkStore!
-    private var settings: AudioSettingsStore!
-    private var recognition: MusicRecognitionService!
-    private var media: SystemMediaBinding!
-    private let tap = AudioTap()
-    private let health = StationHealth(probe: { _ in .ok })
-    private let visualizer = PlayerWindowState()
-    private var mainWindow: NSWindow!
-    private var miniWindow: NSWindow!
-    private var observations: [[String: Any]] = []
+    var root: URL!
+    var player: RadioPlayer!
+    var store: Store!
+    var startup: StartupSettings!
+    var bookmarks: BookmarkStore!
+    var settings: AudioSettingsStore!
+    var recognition: MusicRecognitionService!
+    var media: SystemMediaBinding!
+    let capacity = TimeshiftTestCapacity()
+    let tap = AudioTap()
+    let health = StationHealth(probe: { _ in .ok })
+    let visualizer = PlayerWindowState()
+    var mainWindow: NSWindow!
+    var miniWindow: NSWindow!
+    var observations: [[String: Any]] = []
 
     static func main() {
         let delegate = TimeshiftTransportProbe(), app = NSApplication.shared
@@ -30,10 +31,15 @@ import MediaPlayer
             let url = URL(string: CommandLine.arguments[2])!
             try Data(String(getpid()).utf8).write(to: root.appendingPathComponent("app.pid"))
             UserDefaults.standard.set(true, forKey: "didShowWelcome")
-            player = RadioPlayer(recorder: Recorder(directory: root.appendingPathComponent("recordings")),
-                history: SongHistory(directory: root.appendingPathComponent("history")), timeshiftRoot: root.appendingPathComponent("buffers"))
+            let captureRoot = root!
+            let capacity = self.capacity
+            player = RadioPlayer(recorder: Recorder(directory: root.appendingPathComponent("recordings"),
+                availableCapacity: { capacity.available(at: captureRoot) }, capacityCheckInterval: 0.2),
+                history: SongHistory(directory: root.appendingPathComponent("history")), timeshiftRoot: root.appendingPathComponent("buffers"),
+                makeTimeshiftBuffer: { try TimeshiftSegments(root: captureRoot.appendingPathComponent("buffers"),
+                    freeBytes: { capacity.available(at: $0) }) })
             store = Store(directory: root.appendingPathComponent("store"), seedURL: nil)
-            let station = Station(name: "Fixture • MP3", url: url.absoluteString)
+            let station = Station(name: url.lastPathComponent == "aac" ? "Fixture • AAC" : "Fixture • MP3", url: url.absoluteString)
             let stationData = try JSONEncoder().encode([station])
             try stationData.write(to: store.stationsURL)
             store.loadStations()
@@ -58,26 +64,26 @@ import MediaPlayer
         } catch { fatalError("Probe: \(error)") }
     }
 
-    private func environment<V: View>(_ view: V, theme: ThemeID, dark: Bool) -> some View {
+    func environment<V: View>(_ view: V, theme: ThemeID, dark: Bool) -> some View {
         view.environmentObject(player).environmentObject(store).environmentObject(startup).environmentObject(bookmarks)
             .environmentObject(player.history).environmentObject(tap).environmentObject(health).environmentObject(recognition)
             .environmentObject(visualizer).environmentObject(settings)
-            .environment(\.theme, Theme.theme(raw: theme.rawValue)).preferredColorScheme(dark ? .dark : .light)
+            .environment(\.theme, Theme.theme(raw: theme.rawValue)).preferredColorScheme(Theme.theme(theme).colorScheme ?? (dark ? .dark : .light))
     }
-    private func install(theme: ThemeID, width: Double, dark: Bool) {
+    func install(theme: ThemeID, width: Double, dark: Bool) {
         mainWindow.contentView = NSHostingView(rootView: environment(ContentView(), theme: theme, dark: dark))
         mainWindow.setContentSize(NSSize(width: width, height: 620))
         miniWindow.contentView = NSHostingView(rootView: environment(MiniPlayerView(), theme: theme, dark: dark))
         miniWindow.setContentSize(NSSize(width: 420, height: 390))
     }
-    private func shot(_ name: String, mini: Bool = false) throws {
+    func shot(_ name: String, mini: Bool = false) throws {
         let view = (mini ? miniWindow : mainWindow).contentView!
         view.layoutSubtreeIfNeeded()
         let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
         view.cacheDisplay(in: view.bounds, to: rep)
         try rep.representation(using: .png, properties: [:])!.write(to: root.appendingPathComponent(name + ".png"))
     }
-    private func record(_ name: String) throws {
+    func record(_ name: String) throws {
         let transport = player.timeshiftTransport
         observations.append(["stage": name, "at": Date().timeIntervalSince1970, "position": transport.position,
             "oldest": transport.timeline.oldest, "live": transport.timeline.live, "title": player.nowPlayingTitle,
@@ -87,8 +93,8 @@ import MediaPlayer
             "systemState": MPNowPlayingInfoCenter.default().playbackState.rawValue])
         try JSONSerialization.data(withJSONObject: observations, options: [.prettyPrinted, .sortedKeys]).write(to: root.appendingPathComponent("observations.json"), options: .atomic)
     }
-    private func mark(_ name: String) throws { try Data(name.utf8).write(to: root.appendingPathComponent(name + ".txt")) }
-    private func wait(seconds: Double = 40, _ condition: () -> Bool) async throws {
+    func mark(_ name: String) throws { try Data(name.utf8).write(to: root.appendingPathComponent(name + ".txt")) }
+    func wait(seconds: Double = 40, _ condition: () -> Bool) async throws {
         let until = Date().addingTimeInterval(seconds)
         while Date() < until {
             if condition() { return }
@@ -96,7 +102,10 @@ import MediaPlayer
         }
         throw NSError(domain: "TimeshiftTransport", code: 1, userInfo: [NSLocalizedDescriptionKey: "Zustand fehlt"])
     }
-    private func run() async throws {
+    func run() async throws {
+        if ProcessInfo.processInfo.environment["MUCKE_TRANSPORT_INTEGRATION"] == "1" {
+            try await runIntegration(); return
+        }
         try await wait { self.player.isPlaying && self.player.timeshiftTransport.timeline.live > 12 }
         try record("ready")
         for theme in ThemeID.allCases {
@@ -139,6 +148,10 @@ import MediaPlayer
             try await Task.sleep(for: .milliseconds(300))
             try record("media-key-resumed"); try mark("media-key-resumed")
             try await wait { FileManager.default.fileExists(atPath: self.root.appendingPathComponent("keys-done.txt").path) }
+            capacity.setLow(true)
+            try await wait { self.player.recordingState.phase == .lowDisk && !self.player.isPlaying }
+            try await Task.sleep(for: .milliseconds(500))
+            try record("quick-low-disk"); try shot("mini-low-disk", mini: true)
             player.stop(); try mark("passed"); return
         }
         // Deckt auch den normalen 30-s-Watchdog und das volle Produktionslimit ab.

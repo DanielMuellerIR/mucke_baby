@@ -50,8 +50,11 @@
     Der native Seek-PCM-Test bindet die Ausgabezeitkorrektur an das gepinnte VLCKit.
     Der durchgehende lokale VLC-Leser benötigt Startreserve und Decoder-Vorlauf;
     reale Hör-/Mindest-macOS-Abnahme der Produktionsfunktion bleibt erforderlich.
-    AAC benötigt ADTS-Framegrenzen; Ogg/Vorbis und Ogg/Opus benötigen eine eigene
-    Containerstrategie und bleiben für den Puffer gesperrt.
+    Seit v1.9.29 nutzt AAC-ADTS denselben Puffer mit geprüfter Decoderrate.
+    Ogg/Vorbis, Ogg/Opus und FLAC benötigen eine eigene Containerstrategie und
+    bleiben für den Puffer gesperrt. HLS spielt live; Aufnahme und Zeitversatz
+    sind dafür nicht verfügbar. Frischer echter Systemschlaf mit pausiertem
+    Produktionspuffer bleibt zusätzlich zur geprüften Handlerintegration offen.
 
 Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
 Theme-Entwürfe sind kein Backlog.

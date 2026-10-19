@@ -19,6 +19,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     private var onAudio: ((Data) -> Void)?
     private var onAudioAt: ((Data, Date, TimeInterval) -> Void)?
     private var onCompletion: ((Date) -> Void)?
+    private var onUnsupportedFormat: ((String) -> Void)?
     private var contentType: String?
     private var lastAudioAt: Date?
 
@@ -45,6 +46,10 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     private var metaLeft = 0
     private var buf = [UInt8]()
     private var lastTitle = ""
+    private var checkedAudioPrefix = false
+    private var rejectedAudio = false
+    private var audioPrefix = Data()
+    private var prefixReceipt: (Date, TimeInterval)?
 
     private let configuration: URLSessionConfiguration
     private let titleQueue: DispatchQueue
@@ -60,7 +65,8 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                onBoundary: ((String, Date) -> Void)? = nil,
                onAudio: ((Data) -> Void)? = nil,
                onAudioAt: ((Data, Date, TimeInterval) -> Void)? = nil,
-               onCompletion: ((Date) -> Void)? = nil) {
+               onCompletion: ((Date) -> Void)? = nil,
+               onUnsupportedFormat: ((String) -> Void)? = nil) {
         stop()
         let cfg = configuration
         cfg.timeoutIntervalForRequest = 20
@@ -84,9 +90,11 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.onAudio = onAudio
             self.onAudioAt = onAudioAt
             self.onCompletion = onCompletion
+            self.onUnsupportedFormat = onUnsupportedFormat
             self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
             self.inMeta = false; self.metaLeft = 0
+            self.checkedAudioPrefix = false; self.rejectedAudio = false; self.audioPrefix.removeAll(); self.prefixReceipt = nil
             // codereview-ok: removeAll-keepingCapacity-Nuance ist harmlos, kein Verhaltensunterschied im Fehlerfall (2026-07-01)
             self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
         }
@@ -110,9 +118,11 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.onStart = nil
             self.onAudio = nil; self.onAudioAt = nil; self.onBoundary = nil
             self.onCompletion = nil
+            self.onUnsupportedFormat = nil
             self.contentType = nil; self.lastAudioAt = nil
             self.metaint = 0; self.audioOnly = false; self.skip = 0
             self.inMeta = false; self.metaLeft = 0
+            self.checkedAudioPrefix = false; self.rejectedAudio = false; self.audioPrefix.removeAll(); self.prefixReceipt = nil
             self.buf.removeAll(keepingCapacity: false); self.lastTitle = ""
         }
         return endedAt
@@ -135,6 +145,13 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
                 return
             }
             self.contentType = contentType
+            // HLS-Playlists sind keine Audiobytes. VLC verfolgt ihre Segmente;
+            // die ICY-/Dateisenken dürfen weder Manifest noch TS-Daten speichern.
+            if StreamCapturePolicy.isHLS(contentType, url: response.url) {
+                self.rejectHLS()
+                completionHandler(.cancel)
+                return
+            }
             if let v = metaintHeader, let n = Int(v), n > 0 {
                 self.metaint = n; self.skip = n; self.inMeta = false; self.audioOnly = false
                 completionHandler(.allow)
@@ -177,11 +194,42 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     }
 
     private func emitAudio(_ data: Data, at date: Date, uptime: TimeInterval) {
-        guard !data.isEmpty else { return }
+        guard !data.isEmpty, !rejectedAudio else { return }
+        if !checkedAudioPrefix {
+            if prefixReceipt == nil { prefixReceipt = (date, uptime) }
+            audioPrefix.append(data)
+            var candidate = Array(audioPrefix.prefix(48))
+            if candidate.starts(with: [0xef, 0xbb, 0xbf]) { candidate.removeFirst(3) }
+            while let first = candidate.first, [9, 10, 13, 32].contains(first) { candidate.removeFirst() }
+            let marker = Array("#EXTM3U".utf8)
+            if candidate.starts(with: marker) {
+                rejectHLS()
+                parserTask?.cancel()
+                return
+            }
+            if (candidate.isEmpty || marker.starts(with: candidate) || [0xef, 0xbb, 0xbf].starts(with: candidate)),
+               audioPrefix.count < 48 { return }
+            checkedAudioPrefix = true
+            let pending = audioPrefix, receipt = prefixReceipt!
+            audioPrefix = Data(); prefixReceipt = nil
+            deliverAudio(pending, at: receipt.0, uptime: receipt.1)
+            return
+        }
+        deliverAudio(data, at: date, uptime: uptime)
+    }
+
+    private func deliverAudio(_ data: Data, at date: Date, uptime: TimeInterval) {
         if lastAudioAt == nil { onStart?(contentType, date) }
         lastAudioAt = date
         onAudio?(data)
         onAudioAt?(data, date, uptime)
+    }
+
+    private func rejectHLS() {
+        rejectedAudio = true; checkedAudioPrefix = true
+        audioPrefix.removeAll(); prefixReceipt = nil
+        onStart = nil; onAudio = nil; onAudioAt = nil; onBoundary = nil; onCompletion = nil
+        onUnsupportedFormat?(StreamCapturePolicy.hlsContentType)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -192,6 +240,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
             self.onCompletion?(self.lastAudioAt ?? Date())
             self.parserTask = nil
             self.onStart = nil; self.onAudio = nil; self.onAudioAt = nil; self.onBoundary = nil; self.onCompletion = nil
+            self.onUnsupportedFormat = nil
         }
         // Stream zu Ende / Fehler / Timeout -> die GERADE beendete Session freigeben
         // (sonst bliebe sie mit ihrer starken Referenz auf self samt Socket offen, bis
@@ -201,6 +250,7 @@ final class ICYMetadataReader: NSObject, URLSessionDataDelegate {
     }
 
     private func parse(_ bytes: [UInt8], at date: Date) {
+        guard !rejectedAudio else { return }
         // Die Marker `StreamTitle='` und `';` sind reines ASCII => direkt in den
         // Roh-Bytes suchen. So gehen die eigentlichen Titel-Bytes unangetastet
         // an den encoding-toleranten Decoder (wichtig fuer Shift-JIS u.ae.).

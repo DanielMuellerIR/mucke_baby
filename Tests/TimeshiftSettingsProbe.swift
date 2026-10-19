@@ -33,7 +33,7 @@ import AppKit
             Text("Einstellungen").font(.headline)
             Form { TimeshiftSettingsView() }.formStyle(.grouped)
         }.padding(20).environmentObject(player).environment(\.theme, Theme.theme(raw: theme.rawValue))
-            .preferredColorScheme(dark ? .dark : .light)
+            .preferredColorScheme(Theme.theme(theme).colorScheme ?? (dark ? .dark : .light))
         window.contentView = NSHostingView(rootView: view)
         window.setContentSize(NSSize(width: width, height: 480))
     }
@@ -61,15 +61,16 @@ import AppKit
         precondition(player.timeshiftRequested)
         player.setVolume(0); player.setRecordingRequested(true)
         player.play(Station(name: "Fixture A", url: streamURL.absoluteString))
-        try await wait { self.bufferDirectories().count == 1 && self.player.isPlaying }
+        try await wait { self.bufferDirectories().count == 1 && self.player.canPause }
         try await Task.sleep(nanoseconds: 3_000_000_000)
         let first = bufferDirectories()[0]
         precondition(!player.timeshiftStatus.contains("gestoppt"))
         try shot("buffering")
         try Data("buffering".utf8).write(to: root.appendingPathComponent("buffering.txt"))
-        try await wait { !self.player.timeshiftRequested }
+        try await wait { !self.player.timeshiftRequested && self.player.isPlaying }
         precondition(!FileManager.default.fileExists(atPath: first.path))
         precondition(player.recordingRequested && player.isPlaying)
+        try await Task.sleep(for: .milliseconds(250))
         try shot("disabled")
         try Data("disabled".utf8).write(to: root.appendingPathComponent("disabled.txt"))
         try await wait { self.player.timeshiftRequested }

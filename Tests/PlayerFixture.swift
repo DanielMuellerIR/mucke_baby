@@ -15,7 +15,11 @@ final class VLCAudioEqualizer {
 }
 final class VLCAudio { var volume: Int32 = 0 }
 final class VLCTime { var intValue: Int32 = 0 }
-final class VLCMedia { init(stream: InputStream) {}; init(url: URL) {}; func addOption(_ option: String) {} }
+let VLCMediaTracksInformationAudioRate = "rate"
+final class VLCMedia {
+    var tracksInformation: [Any] = [["rate": 48000]]
+    init(stream: InputStream) {}; init(url: URL) {}; func addOption(_ option: String) {}
+}
 final class VLCMediaPlayer {
     static var latest: VLCMediaPlayer!
     weak var delegate: VLCMediaPlayerDelegate?
@@ -69,12 +73,13 @@ final class ICYMetadataReader {
     var boundary: ((String, Date) -> Void)?
     var audioAt: ((Data, Date, TimeInterval) -> Void)?
     var completion: ((Date) -> Void)?
+    var unsupported: ((String) -> Void)?
     var lastAudioAt: Date?
     init() { Self.latest = self }
     var onTitle: ((String, Date) -> Void)?
     @discardableResult func stop() -> Date? { let end = lastAudioAt; lastAudioAt = nil; return end }
     func start(url: URL, allowAudioOnly: Bool, onStart: @escaping (String?, Date) -> Void,
-               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date, TimeInterval) -> Void, onCompletion: @escaping (Date) -> Void) { startCount += 1; format = onStart; boundary = onBoundary; audioAt = onAudioAt; completion = onCompletion }
+               onBoundary: @escaping (String, Date) -> Void, onAudioAt: @escaping (Data, Date, TimeInterval) -> Void, onCompletion: @escaping (Date) -> Void, onUnsupportedFormat: ((String) -> Void)? = nil) { unsupported = onUnsupportedFormat; startCount += 1; format = onStart; boundary = onBoundary; audioAt = onAudioAt; completion = onCompletion }
 }
 enum TestEvents {
     static let queue = DispatchQueue(label: "fixture.events", target: .main)

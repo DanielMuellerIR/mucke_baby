@@ -329,7 +329,7 @@ struct StationBrowserView: View {
         preview.stop(); catalog.load(CatalogSelection(query: catalog.selection.query, page: catalog.selection.page + delta))
     }
     private func startPreview(_ station: RBStation) {
-        if preview.currentID != station.stationuuid, player.isPlaying || player.isLoading { player.stop() }
+        if preview.currentID != station.stationuuid, player.hasPlaybackIntent { player.stop() }
         preview.toggle(station, volume: Float(volume))
     }
     private func add(_ station: RBStation) {

@@ -50,6 +50,15 @@ in die Ressourcen-FIFO. Details und Grenzen: [Audiopuffer](../docs/timeshift-buf
 
 `python3 Tests/timeshift-seek.py prepare ROOT` bereitet das native Seek-Gate vor.
 `run ROOT` gehört in den exklusiven nativen Prüfblock. `verify ROOT` vergleicht
-24 Framepositionen in CBR, VBR, MPEG-2 und MPEG-2.5 (8–48 kHz) mit direkter VLC-Dateidecodierung,
+Framepositionen in MP3 CBR/VBR/MPEG-2/MPEG-2.5 und AAC-LC/HE-AAC/HE-AAC v2 mit direkter VLC-Dateidecodierung,
 einschließlich der ersten Samples. Bei VLCKit-Wechsel oder einer Änderung der
 Ausgabezeitkorrektur muss dieses Gate erneut bestehen.
+
+
+`python3 Tests/timeshift-integration.py prepare ROOT` baut den gemeinsamen nativen
+Prüfhost und synthetische ICY-/HLS-Sender. `run ROOT` gehört in die Ressourcen-FIFO
+und benötigt `MUCKE_AX_TOOL`. Der Lauf prüft Aufnahmewechsel in Pause, gehörte
+Dateizuordnung, echte Timer-/Medientastenbedienung, Wiederverbindung, Disk-Gate,
+vollen Pufferüberlauf, DE/EN-Ansichten, Exporte und den tatsächlichen Puffer-EQ.
+`verify ROOT` prüft Exporte, Verbindungen und Frequenzwirkung unabhängig.
+Schlafcallbacks ersetzen keinen echten Systemschlaf; alle Daten sind isoliert.

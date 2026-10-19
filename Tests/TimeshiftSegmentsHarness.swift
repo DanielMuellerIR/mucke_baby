@@ -23,7 +23,7 @@ import Foundation
         let buffers = root.appendingPathComponent("buffers")
         let buffer = try TimeshiftSegments(root: buffers,
             limits: TimeshiftSegmentLimits(duration: 2, bytes: 131_072, segmentDuration: 0.25), freeBytes: { _ in Int64.max })
-        for type in [nil, "audio/aac", "audio/ogg", "audio/opus", "audio/flac", "text/plain"] as [String?] {
+        for type in [nil, "audio/ogg", "audio/opus", "audio/flac", "text/plain"] as [String?] {
             expect(TimeshiftFailure.unsupportedFormat) { try buffer.accept(contentType: type) }
         }
         try buffer.accept(contentType: "audio/mpeg")
@@ -149,6 +149,45 @@ import Foundation
         precondition(capture.metrics != nil)
         capture.setEnabled(true); capture.end(); precondition(capture.metrics == nil)
         check(try Data(contentsOf: recording) == sentinel, "Dauerhafte Aufnahme verändert")
+        func adts(_ rateIndex: UInt8 = 3) -> Data {
+            let length = 103
+            return Data([0xff, 0xf1, 0x40 | rateIndex << 2, 0x80 | UInt8(length >> 11),
+                         UInt8(length >> 3), UInt8((length & 7) << 5) | 0x1f, 0xfc] + [UInt8](repeating: 0, count: length - 7))
+        }
+        let aac = try TimeshiftSegments(root: buffers, freeBytes: { _ in Int64.max })
+        try aac.accept(contentType: "Audio/AACP; charset=binary")
+        let aacSource = (0..<300).reduce(into: Data()) { bytes, _ in bytes.append(adts()) }
+        let receiptA = Date(timeIntervalSince1970: 1_700_000_000), receiptB = Date(timeIntervalSince1970: 1_700_000_100)
+        for (index, byte) in aacSource.enumerated() {
+            try aac.append(Data([byte]), at: index < 150 * 103 + 3 ? receiptA : receiptB)
+        }
+        precondition(aac.receivedAt(position: 150 * 1024.0 / 48000) == receiptA, "Teilframe verliert ursprünglichen Empfang")
+        precondition(aac.receivedAt(position: 151 * 1024.0 / 48000) == receiptB, "Empfangszuordnung folgt nicht vollständigen Frames")
+        precondition(abs(aac.metrics.live - 6.4) < 0.00001 && aac.timeline.canStart)
+        expect(TimeshiftFailure.notReady) { _ = try aac.makeReader(at: 3.1) }
+        expect(TimeshiftSegmentFailure.decoderFormat) { _ = try aac.makeReader(at: 3.1, decodedSampleRate: 44_100) }
+        let aacReader = try aac.makeReader(at: 3.1, decodedSampleRate: 48_000)
+        aacReader.open()
+        precondition(aacReader.playbackStart <= 3.1 && aacReader.playbackStart > 3.1 - 1024.0 / 48000)
+        try aac.finishReception()
+        var aacBytes = Data()
+        while true {
+            let count = aacReader.read(&output, maxLength: output.count)
+            if count == 0 { break }
+            precondition(count > 0); aacBytes.append(contentsOf: output.prefix(count))
+        }
+        let firstFrame = Int((aacReader.start * 48000 / 1024).rounded())
+        precondition(aacBytes == aacSource.dropFirst(firstFrame * 103), "ADTS-Grenzen/Vorlauf verändern Audiobytes")
+        precondition(aac.index.allSatisfy { $0.file.hasSuffix(".aac") })
+        try aac.close(); aacReader.close()
+        let changedAAC = try TimeshiftSegments(root: buffers, freeBytes: { _ in Int64.max })
+        try changedAAC.accept(contentType: "audio/aac"); try changedAAC.append(adts())
+        expect(TimeshiftSegmentFailure.formatChanged) { try changedAAC.append(adts(4)) }
+        try changedAAC.close()
+        for (byte, value) in [(2, UInt8(0)), (2, UInt8(0x7c)), (6, UInt8(0xfd)), (3, UInt8(0xc0))] {
+            var invalid = Array(adts()); invalid[byte] = value
+            precondition(ADTSFrameHeader(Array(invalid.prefix(7))) == nil, "Nicht belegtes ADTS-Profil akzeptiert")
+        }
         print("Timeshift segments: Grenzen, Leser, Crash, Disk, Sessionwechsel und Datenerhalt OK")
     }
 }

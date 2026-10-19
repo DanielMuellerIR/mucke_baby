@@ -207,8 +207,9 @@ final class Recorder: @unchecked Sendable {
             self._close(at: date)
             self.captureRequested = enabled; self.captureRevision = revision
             self.captureBlocked = enabled && self.captureHasEnded ? .streamEnded : nil
-            if enabled, let capture = self.capture, capture.receivedAudio, !capture.canStartMidstream {
-                self.captureBlocked = .needsStreamHeader
+            if enabled, let capture = self.capture {
+                if StreamCapturePolicy.isHLS(capture.contentType) { self.captureBlocked = .unsupportedFormat }
+                else if capture.receivedAudio && !capture.canStartMidstream { self.captureBlocked = .needsStreamHeader }
             }
             self.captureBytes = 0; self.publishedBytes = -1
             self.capture?.enabledUptime = uptime; self.capture?.segmentID = UUID()
@@ -217,7 +218,13 @@ final class Recorder: @unchecked Sendable {
     }
 
     func captureFormat(_ contentType: String?, streamID: UUID) {
-        q.async { if self.capture?.streamID == streamID { self.capture?.contentType = contentType } }
+        q.async {
+            guard self.capture?.streamID == streamID else { return }
+            self.capture?.contentType = contentType
+            if StreamCapturePolicy.isHLS(contentType) {
+                self.captureBlocked = .unsupportedFormat; self.publishCapture()
+            }
+        }
     }
 
     func captureAudio(_ data: Data, at date: Date, receivedUptime: TimeInterval = ProcessInfo.processInfo.systemUptime, streamID: UUID) {

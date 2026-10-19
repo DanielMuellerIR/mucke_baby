@@ -1,6 +1,6 @@
 import Foundation
 
-// Ein gehoerter Titel: Sender, Roh-Text (ICY), aufgeteilt in Interpret/Titel,
+// Ein empfangener Titel: Sender, Roh-Text (ICY), aufgeteilt in Interpret/Titel,
 // plus Start/Ende. `end == nil` => laeuft gerade noch.
 struct SongEntry: Identifiable, Codable, Equatable, Sendable {
     var id = UUID()
@@ -30,7 +30,7 @@ struct SongEntry: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-// Fuehrt den Wiedergabe-Verlauf: pro gehoertem Titel ein Eintrag mit Zeitspanne.
+// Führt den Empfangsverlauf. Zeitversatz verändert weder diese Intervalle noch Dateien.
 // Beim Songwechsel/Senderwechsel/Stop wird der laufende Eintrag mit Endzeit
 // geschlossen. Persistiert nach Application Support, ueberlebt Neustarts.
 @MainActor

@@ -612,17 +612,14 @@
 
 /* Temporärer Audiopuffer */
 "Aktivieren und alte Puffersegmente entfernen" = "Aktivieren und alte Puffersegmente entfernen";
-"Der temporäre MP3-Puffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht." = "Der temporäre MP3-Puffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht.";
+"Der temporäre Audiopuffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht." = "Der temporäre Audiopuffer entfernt seine ältesten Segmente automatisch innerhalb der angezeigten Grenzen. Beim Abschalten, Senderwechsel und Beenden wird er verworfen. Vorhandene Aufnahmen und Verlauf werden nicht gelöscht.";
 "Temporären Audiopuffer aktivieren" = "Temporären Audiopuffer aktivieren";
-"Temporärer MP3-Puffer aktiv." = "Temporärer MP3-Puffer aktiv.";
 "Zeitversatz aktivieren?" = "Zeitversatz aktivieren?";
 "Zeitversatz gestoppt: Audio oder Pufferspeicher nicht verfügbar." = "Zeitversatz gestoppt: Audio oder Pufferspeicher nicht verfügbar.";
 "Zeitversatz gestoppt: Der Leser hat die Puffergrenze erreicht." = "Zeitversatz gestoppt: Der Leser hat die Puffergrenze erreicht.";
 "Zeitversatz gestoppt: weniger als 10 GiB frei." = "Zeitversatz gestoppt: weniger als 10 GiB frei.";
 "Zeitversatz ist aus." = "Zeitversatz ist aus.";
-"Zeitversatz wartet auf einen MP3-Stream." = "Zeitversatz wartet auf einen MP3-Stream.";
 "Zeitversatz-Puffer" = "Zeitversatz-Puffer";
-"Zeitversatz: Der Puffer unterstützt derzeit nur MP3." = "Zeitversatz: Der Puffer unterstützt derzeit nur MP3.";
 "Zeitversatz wartet auf das Schließen des vorherigen Lesers." = "Zeitversatz wartet auf das Schließen des vorherigen Lesers.";
 
 "Pausiert" = "Pausiert";
@@ -633,11 +630,24 @@
 "Hörposition im Puffer" = "Hörposition im Puffer";
 "Verzögerung" = "Verzögerung";
 "Live" = "Live";
-"Live: mindestens 3 s Reserve" = "Live: mindestens 3 s Reserve";
+"Live-Start: mindestens 3 s Reserve" = "Live-Start: mindestens 3 s Reserve";
 "Titelzeitleiste" = "Titelzeitleiste";
 "Pufferposition nicht mehr verfügbar. Mit Live fortsetzen." = "Pufferposition nicht mehr verfügbar. Mit Live fortsetzen.";
 "Puffer: −%@" = "Puffer: −%@";
 "−%@" = "−%@";
 "−%@ · %@" = "−%@ · %@";
 
-"Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition." = "Standardmäßig AUS. Nur MP3; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition.";
+
+"Zeitversatz wartet auf einen MP3- oder AAC-ADTS-Stream." = "Zeitversatz wartet auf einen MP3- oder AAC-ADTS-Stream.";
+"Temporärer MP3-/AAC-Puffer aktiv." = "Temporärer MP3-/AAC-Puffer aktiv.";
+"Zeitversatz ist für HLS nicht verfügbar. Die Live-Wiedergabe läuft weiter." = "Zeitversatz ist für HLS nicht verfügbar. Die Live-Wiedergabe läuft weiter.";
+"Zeitversatz unterstützt MP3 und AAC-ADTS. Andere Formate spielen weiterhin live." = "Zeitversatz unterstützt MP3 und AAC-ADTS. Andere Formate spielen weiterhin live.";
+"Für HLS sind Aufnahme und Zeitversatz nicht verfügbar. Die Live-Wiedergabe läuft weiter." = "Für HLS sind Aufnahme und Zeitversatz nicht verfügbar. Die Live-Wiedergabe läuft weiter.";
+"HLS-Aufnahme ist nicht verfügbar. Die Live-Wiedergabe läuft weiter; vorhandene Aufnahmen bleiben erhalten." = "HLS-Aufnahme ist nicht verfügbar. Die Live-Wiedergabe läuft weiter; vorhandene Aufnahmen bleiben erhalten.";
+"Standardmäßig AUS. MP3 und AAC-ADTS; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition. Ogg, Opus, FLAC und HLS bleiben live; HLS-Aufnahme ist nicht verfügbar." = "Standardmäßig AUS. MP3 und AAC-ADTS; höchstens 5 Minuten und 32 MiB Audio plus begrenzter Index. Alte Puffersegmente werden automatisch entfernt. Stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen den Puffer. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Die Wiedergabe wechselt nach mindestens 3 s Reserve auf den Puffer. Pause, Sprünge und Live stehen dann im Player bereit. Sprünge und Titel folgen der Hörposition. Ogg, Opus, FLAC und HLS bleiben live; HLS-Aufnahme ist nicht verfügbar.";
+
+"Zeitversatz wartet auf das AAC-Decoderformat. Die Live-Wiedergabe läuft weiter." = "Zeitversatz wartet auf das AAC-Decoderformat. Die Live-Wiedergabe läuft weiter.";
+"Zeitversatz gestoppt: AAC-Decoderformat passt nicht zum Puffer." = "Zeitversatz gestoppt: AAC-Decoderformat passt nicht zum Puffer.";
+
+"Zeitversatz gestoppt: Audioformat ist beschädigt oder wird nicht unterstützt." = "Zeitversatz gestoppt: Audioformat ist beschädigt oder wird nicht unterstützt.";
+"Zeitversatz gestoppt: Das Audioformat hat sich geändert. Mit Live fortsetzen." = "Zeitversatz gestoppt: Das Audioformat hat sich geändert. Mit Live fortsetzen.";

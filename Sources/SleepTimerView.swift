@@ -4,7 +4,7 @@ struct SleepTimerButton: View {
     @EnvironmentObject private var player: RadioPlayer
     var identifier = "sleep-timer"
     var body: some View {
-        SleepTimerControl(timer: player.sleepTimer, canStart: player.isPlaying || player.isLoading, identifier: identifier)
+        SleepTimerControl(timer: player.sleepTimer, canStart: player.hasPlaybackIntent, identifier: identifier)
     }
 }
 

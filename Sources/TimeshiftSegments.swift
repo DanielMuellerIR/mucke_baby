@@ -2,7 +2,19 @@ import Foundation
 import Darwin
 
 enum TimeshiftSegmentFailure: Error, Equatable {
-    case readerOverrun, formatChanged, tooManyReaders, invalidStorage
+    case readerOverrun, formatChanged, tooManyReaders, invalidStorage, decoderFormat
+}
+
+enum TimeshiftAudioCodec: String {
+    case mp3, aac
+    var headerSize: Int { self == .mp3 ? 4 : 7 }
+    var demux: String { self == .mp3 ? "mpga" : "aac" }
+
+    func header(_ bytes: [UInt8]) -> (bytes: Int, duration: TimeInterval, format: Int)? {
+        if self == .mp3, let frame = MP3FrameHeader(bytes) { return (frame.bytes, frame.duration, frame.format) }
+        if self == .aac, let frame = ADTSFrameHeader(bytes) { return (frame.bytes, frame.duration, frame.format) }
+        return nil
+    }
 }
 
 struct TimeshiftSegmentLimits {
@@ -31,7 +43,15 @@ struct TimeshiftSegment: Codable {
     let prefixDuration: TimeInterval
     var audioBytes: Int
     var titles: [TimeshiftTitleEntry]
+    var receipts: [TimeshiftReceipt] = []
     var fileBytes: Int { prefixBytes + audioBytes }
+    // Empfangszuordnung lebt nur mit dem aktuellen Puffer, nie in einer Recoverydatei.
+    enum CodingKeys: String, CodingKey { case id, file, start, end, prefixBytes, prefixDuration, audioBytes, titles }
+}
+
+struct TimeshiftReceipt {
+    let position: TimeInterval
+    let date: Date
 }
 
 struct TimeshiftTitleEntry: Codable {
@@ -65,6 +85,7 @@ final class TimeshiftSegments {
     private var format: Int?
     private var frameDuration: TimeInterval = 0
     private var accepted = false
+    private var codec = TimeshiftAudioCodec.mp3
     private var closed = false
     private var receptionEnded = false
     private var nextID = 0
@@ -74,6 +95,7 @@ final class TimeshiftSegments {
     private var pendingTitle = ""
     private var titleReceivedAt: Date?
     private var pendingTitleReceivedAt: Date?
+    private var pendingAudioDate: Date?
     private var discarded = 0
 
     static var defaultRoot: URL {
@@ -162,7 +184,11 @@ final class TimeshiftSegments {
         try locked {
             guard !closed && !receptionEnded else { throw TimeshiftFailure.closed }
             let type = contentType?.split(separator: ";").first?.trimmingCharacters(in: .whitespaces).lowercased()
-            guard type == "audio/mpeg" || type == "audio/mp3" else { throw TimeshiftFailure.unsupportedFormat }
+            switch type {
+            case "audio/mpeg", "audio/mp3": codec = .mp3
+            case "audio/aac", "audio/aacp", "audio/adts": codec = .aac
+            default: throw TimeshiftFailure.unsupportedFormat
+            }
             accepted = true
         }
     }
@@ -172,16 +198,18 @@ final class TimeshiftSegments {
         titleReceivedAt = date
     } }
 
-    func append(_ data: Data) throws {
+    func append(_ data: Data, at date: Date? = nil) throws {
         try locked {
             guard !closed && !receptionEnded else { throw TimeshiftFailure.closed }
             guard accepted else { throw TimeshiftFailure.unsupportedFormat }
             guard freeBytes(directory) >= limits.minimumFreeBytes else { throw TimeshiftFailure.lowDisk }
             for offset in stride(from: 0, to: data.count, by: 4096) {
-                if pending.isEmpty { pendingTitle = title; pendingTitleReceivedAt = titleReceivedAt }
+                if pending.isEmpty {
+                    pendingTitle = title; pendingTitleReceivedAt = titleReceivedAt; pendingAudioDate = date
+                }
                 pending.append(data.subdata(in: data.startIndex + offset..<data.startIndex + min(offset + 4096, data.count)))
-                while pending.count >= 4 {
-                    guard let header = MP3FrameHeader(Array(pending.prefix(4))) else {
+                while pending.count >= codec.headerSize {
+                    guard let header = codec.header(Array(pending.prefix(codec.headerSize))) else {
                         // Nur vor dem ersten Frame ist ein begrenzter Tag-/Header-Vorlauf erlaubt.
                         guard format == nil, discarded < 65_536 else { throw TimeshiftFailure.invalidAudio }
                         pending.removeFirst(); discarded += 1; continue
@@ -189,10 +217,11 @@ final class TimeshiftSegments {
                     guard format == nil || format == header.format else { throw TimeshiftSegmentFailure.formatChanged }
                     guard pending.count >= header.bytes else { break }
                     let frame = Data(pending.prefix(header.bytes))
-                    try store(frame, duration: header.duration, title: pendingTitle, receivedAt: pendingTitleReceivedAt)
+                    try store(frame, duration: header.duration, title: pendingTitle, receivedAt: pendingTitleReceivedAt, audioDate: pendingAudioDate)
                     format = header.format; pending.removeFirst(header.bytes); pendingTitle = title
                     frameDuration = header.duration
                     pendingTitleReceivedAt = titleReceivedAt
+                    pendingAudioDate = date
                 }
             }
             condition.broadcast()
@@ -204,6 +233,12 @@ final class TimeshiftSegments {
                 segments: segments.count, readers: cursors.count)
     } }
     var index: [TimeshiftSegment] { locked { segments } }
+    var requiresDecodedSampleRate: Bool { locked { codec == .aac } }
+
+    func receivedAt(position: TimeInterval) -> Date? { locked {
+        guard position.isFinite, let segment = segments.last(where: { $0.start <= position }), position <= segment.end else { return nil }
+        return segment.receipts.last(where: { $0.position <= position + 0.000001 })?.date
+    } }
 
     var timeline: MetadataTimeline { locked {
         var anchors: [MetadataAnchor] = []
@@ -212,8 +247,8 @@ final class TimeshiftSegments {
                 anchors.append(MetadataAnchor(position: segment.start + entry.offset, title: entry.raw, receivedAt: entry.receivedAt))
             }
         }
-        // Die erste Netzwerkaudiosekunde kann noch einen fremden MP3-Reservoir
-        // benötigen. Sie dient nur dem Decoder, nie als Produktions-Hörziel.
+        // Die erste Netzwerkaudiosekunde dient Reservoir und Decoderfiltern,
+        // nie als Produktions-Hörziel.
         let oldest = segments.first.map { first in
             min(live, first.start + (first.prefixDuration == 0 ? ceil(1 / frameDuration) * frameDuration : 0))
         } ?? live
@@ -224,16 +259,25 @@ final class TimeshiftSegments {
         return MetadataTimeline(oldest: oldest, live: live, bytes: storedBytes, titles: anchors)
     } }
 
-    func makeReader(delay: TimeInterval) throws -> TimeshiftSegmentStream {
+    func makeReader(delay: TimeInterval, decodedSampleRate: Int? = nil) throws -> TimeshiftSegmentStream {
         guard delay.isFinite, delay > 0 else { throw TimeshiftFailure.notReady }
-        return try makeReader(at: metrics.live - delay)
+        return try makeReader(at: metrics.live - delay, decodedSampleRate: decodedSampleRate)
     }
 
-    func makeReader(at position: TimeInterval) throws -> TimeshiftSegmentStream {
+    func makeReader(at position: TimeInterval, decodedSampleRate: Int? = nil) throws -> TimeshiftSegmentStream {
         try locked {
             guard !closed && !receptionEnded else { throw TimeshiftFailure.closed }
             guard position.isFinite, let first = segments.first else { throw TimeshiftFailure.notReady }
             guard cursors.isEmpty else { throw TimeshiftSegmentFailure.tooManyReaders }
+            var clockOffsetFrames = 2
+            if codec == .aac {
+                guard let decodedSampleRate, frameDuration > 0 else { throw TimeshiftFailure.notReady }
+                let coreRate = Int((1024 / frameDuration).rounded())
+                guard decodedSampleRate == coreRate || decodedSampleRate == coreRate * 2 else {
+                    throw TimeshiftSegmentFailure.decoderFormat
+                }
+                clockOffsetFrames = 0
+            }
             let reserve = min(MetadataTimeline.startReserve, limits.duration / 2)
             guard live - first.start + 0.000001 >= reserve else { throw TimeshiftFailure.notReady }
             let requested = min(live - reserve, max(first.start, position))
@@ -245,7 +289,7 @@ final class TimeshiftSegments {
             let id = UUID()
             cursors[id] = Cursor(segment: chosen.id, offset: 0)
             return TimeshiftSegmentStream(buffer: self, id: id, start: chosen.start - chosen.prefixDuration,
-                                          decoderPreroll: chosen.prefixDuration, playbackStart: target, frameDuration: frameDuration)
+                                          decoderPreroll: chosen.prefixDuration, playbackStart: target, frameDuration: frameDuration, codec: codec, clockOffsetFrames: clockOffsetFrames)
         }
     }
 
@@ -304,7 +348,7 @@ final class TimeshiftSegments {
         }
     }
 
-    private func store(_ frame: Data, duration: TimeInterval, title: String, receivedAt: Date?) throws {
+    private func store(_ frame: Data, duration: TimeInterval, title: String, receivedAt: Date?, audioDate: Date?) throws {
         let roll = segments.last.map { live - $0.start + duration > limits.segmentDuration || $0.audioBytes + frame.count > 65_536 } ?? true
         let prefix = roll ? preroll.reduce(into: Data()) { $0.append($1.0) } : Data()
         let added = frame.count + prefix.count
@@ -320,7 +364,7 @@ final class TimeshiftSegments {
         guard added <= limits.bytes else { throw TimeshiftFailure.notReady }
         if roll || writer == nil {
             try writer?.synchronize(); try writer?.close(); writer = nil
-            let name = String(format: "%08d.mp3", nextID)
+            let name = String(format: "%08d", nextID) + "." + codec.rawValue
             let url = directory.appendingPathComponent(name)
             guard FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
                 throw CocoaError(.fileWriteUnknown)
@@ -332,6 +376,10 @@ final class TimeshiftSegments {
             nextID += 1; storedBytes += prefix.count
         }
         let slot = segments.count - 1
+        if let audioDate, segments[slot].receipts.last?.date != audioDate {
+            guard segments[slot].receipts.count < 256 else { throw TimeshiftFailure.invalidAudio }
+            segments[slot].receipts.append(TimeshiftReceipt(position: live, date: audioDate))
+        }
         if segments[slot].titles.last?.raw != title && segments[slot].titles.count >= 64 { throw TimeshiftFailure.invalidAudio }
         try writer?.write(contentsOf: frame)
         if segments[slot].titles.last?.raw != title {
@@ -368,14 +416,16 @@ final class TimeshiftSegmentStream: InputStream {
     let decoderPreroll: TimeInterval
     let playbackStart: TimeInterval
     private let frameDuration: TimeInterval
+    private let codec: TimeshiftAudioCodec
+    private let clockOffsetFrames: Int
     var mediaOptions: [String] {
-        var options = [":demux=mpga", ":file-caching=1000"]
+        var options = [":demux=" + codec.demux, ":file-caching=1000"]
         let frames = Int(((playbackStart - start) / frameDuration).rounded())
         if frames > 0 {
             // Beim gepinnten VLC verschiebt audio-desync die Ausgabe nach der
-            // Decodierung. Zwei zusätzliche Frames kompensieren den gemessenen
-            // Startversatz; das native Seek-Gate prüft diese Bindung an VLCKit.
-            let milliseconds = Int((Double(frames + 2) * frameDuration * 1000).rounded(.down))
+            // Decodierung. MP3 braucht zwei zusätzliche Frames, ADTS keinen.
+            // Das native Seek-Gate prüft diese Bindung an das gepinnte VLCKit.
+            let milliseconds = Int((Double(frames + clockOffsetFrames) * frameDuration * 1000).rounded(.down))
             options.append(":audio-desync=-\(milliseconds)")
         }
         return options
@@ -383,9 +433,11 @@ final class TimeshiftSegmentStream: InputStream {
     private let state = NSLock()
     private var status: Stream.Status = .notOpen
     init(buffer: TimeshiftSegments, id: UUID, start: TimeInterval, decoderPreroll: TimeInterval,
-         playbackStart: TimeInterval, frameDuration: TimeInterval) {
+         playbackStart: TimeInterval, frameDuration: TimeInterval, codec: TimeshiftAudioCodec, clockOffsetFrames: Int) {
         self.buffer = buffer; self.id = id; self.start = start; self.decoderPreroll = decoderPreroll
         self.playbackStart = playbackStart; self.frameDuration = frameDuration
+        self.codec = codec
+        self.clockOffsetFrames = clockOffsetFrames
         super.init(data: Data())
     }
     deinit { close() }

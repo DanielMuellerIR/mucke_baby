@@ -18,7 +18,7 @@ import time
 import urllib.request
 
 
-def prepare(root):
+def prepare(root, probe='TimeshiftTransportProbe.swift'):
     root.mkdir(parents=True, exist_ok=False)
     repo = Path(__file__).resolve().parents[1]
     sources = root / 'sources'
@@ -28,7 +28,7 @@ def prepare(root):
         if file.name == 'MacRadioApp.swift':
             text = text.replace('@main\n', '', 1)
         (sources / file.name).write_text(text)
-    shutil.copy(repo / 'Tests/TimeshiftTransportProbe.swift', root / 'Probe.swift')
+    shutil.copy(repo / 'Tests' / probe, root / 'Probe.swift')
     app = root / 'TimeshiftTransportProbe.app'
     binary = app / 'Contents/MacOS/TimeshiftTransportProbe'
     binary.parent.mkdir(parents=True)
@@ -36,7 +36,7 @@ def prepare(root):
     sparkle = repo / '.vendor/Sparkle-2.9.4'
     subprocess.run(['swiftc', '-whole-module-optimization', '-parse-as-library', '-target', 'arm64-apple-macos14.2',
         '-module-cache-path', str(repo / 'build/module-cache'), '-F', str(vlc), '-framework', 'VLCKit', '-F', str(sparkle), '-framework', 'Sparkle',
-        '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', *map(str, sources.glob('*.swift')), str(root / 'Probe.swift'), '-o', str(binary)], check=True, timeout=300)
+        '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', *map(str, sources.glob('*.swift')), str(root / 'Probe.swift'), str(repo / 'Tests/TimeshiftIntegration.swift'), '-o', str(binary)], check=True, timeout=300)
     for name, parent in [('VLCKit', vlc), ('Sparkle', sparkle)]:
         shutil.copytree(parent / (name + '.framework'), app / ('Contents/Frameworks/' + name + '.framework'), symlinks=True)
     resources = app / 'Contents/Resources'
@@ -120,18 +120,19 @@ def verify(root):
     print(json.dumps(results, indent=2))
 
 
+def wait(condition, seconds=40, target=None):
+    until = time.monotonic() + seconds
+    while time.monotonic() < until:
+        if target and (target / 'failure.txt').exists():
+            raise RuntimeError((target / 'failure.txt').read_text())
+        if condition():
+            return
+        time.sleep(0.1)
+    raise TimeoutError('Erwarteter nativer Zustand fehlt')
+
+
 def run(root):
     ax = Path(os.environ['MUCKE_AX_TOOL'])
-    def wait(condition, seconds=40, target=None):
-        until = time.monotonic() + seconds
-        while time.monotonic() < until:
-            if target and (target / 'failure.txt').exists():
-                raise RuntimeError((target / 'failure.txt').read_text())
-            if condition():
-                return
-            time.sleep(0.1)
-        raise TimeoutError('Erwarteter nativer Zustand fehlt')
-
     with (root / 'server.log').open('w') as log:
         server = subprocess.Popen([sys.executable, str(root / 'fixture.py'), str(root / 'fixture.mp3'), '--state', str(root / 'server.json')], stdout=log, stderr=subprocess.STDOUT)
         track(root, server, 'server', root / 'fixture.py')

@@ -5,6 +5,25 @@ final class ICYFixtureProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
+        if request.url!.lastPathComponent == "hls-prefix" {
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+                headerFields: ["Content-Type": "audio/mpeg"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            for byte in [UInt8]([0xef, 0xbb, 0xbf]) + Array("\n#EXTM3U\n#EXT-X-VERSION:3\nsegment.ts".utf8) + [0xff, 0xfb, 0x90, 0] {
+                client?.urlProtocol(self, didLoad: Data([byte]))
+            }
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+        if request.url!.lastPathComponent.hasPrefix("hls") {
+            let mime = request.url!.lastPathComponent == "hls-mime" ? "application/vnd.apple.mpegurl" : "application/octet-stream"
+            let response = HTTPURLResponse(url: URL(string: "https://fixture.invalid/live.m3u8")!, statusCode: 200,
+                httpVersion: nil, headerFields: ["Content-Type": mime, "icy-metaint": "8"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data("#EXTM3U\nsegment.ts".utf8))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         if request.url!.lastPathComponent == "rollover" {
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
                                            headerFields: ["Content-Type": "audio/mpeg", "icy-metaint": "8"])!
@@ -242,6 +261,21 @@ enum ICYHarness {
         drainMain()
         check(shownBoundary == boundary, "Verlaufstitel benutzt Zustell- statt Parserzeit")
         integrated.stop()
+        for path in ["hls-mime", "hls-redirect", "hls-prefix"] {
+            let hls = ICYMetadataReader(configuration: configuration)
+            let rejected = DispatchSemaphore(value: 0)
+            var bytes = 0, starts = 0, completions = 0
+            hls.start(url: URL(string: "https://fixture.invalid/" + path)!, allowAudioOnly: true,
+                onStart: { _, _ in starts += 1 }, onAudio: { bytes += $0.count },
+                onCompletion: { _ in completions += 1 },
+                onUnsupportedFormat: { type in
+                    check(type == StreamCapturePolicy.hlsContentType, "HLS-Formatgrenze fehlt")
+                    rejected.signal()
+                })
+            check(rejected.wait(timeout: .now() + 5) == .success, "HLS-Ablehnung fehlt")
+            hls.stop()
+            check(bytes == 0 && starts == 0 && completions == 0, "HLS öffnet Audiosenke oder Retry")
+        }
         print("ICYHarness: OK")
     }
 }

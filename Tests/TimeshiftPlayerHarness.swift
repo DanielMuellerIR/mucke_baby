@@ -11,7 +11,9 @@
     @MainActor static func main() async {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("TimeshiftPlayer-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let defaults = UserDefaults(suiteName: "TimeshiftPlayer-" + UUID().uuidString)!
+        let suite = "TimeshiftPlayer-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         let player = RadioPlayer(preferences: defaults, timeshiftRoot: root)
         check(!player.timeshiftRequested && !player.recordingRequested, "Defaults nicht aus")
         player.setTimeshiftRequested(true)
@@ -67,6 +69,81 @@
         check(!player.hasPlaybackIntent && player.timeshiftTransport.timeline.titles.isEmpty, "Stop behält Transport")
         let dirs = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
         check(dirs.filter { UUID(uuidString: $0) != nil }.isEmpty, "Stop behält Leserdateien")
+        var timerNow = 0.0
+        let timed = RadioPlayer(preferences: defaults, metadataReconnect: PlaybackReconnect(delays: [0.01]),
+            sleepTimer: SleepTimerController(now: { timerNow }), timeshiftRoot: root)
+        timed.setTimeshiftRequested(true); timed.play(station)
+        await wait { timed.currentStreamURL != nil }
+        let timedICY = ICYMetadataReader.latest!
+        func feed() {
+            timedICY.format?("audio/mpeg", Date())
+            for _ in 0..<250 { timedICY.audioAt?(frame(), Date(), 1) }
+        }
+        feed()
+        await wait { VLCMediaPlayer.latest!.media != nil && timed.timeshiftTransport.timeline.canStart }
+        try? await Task.sleep(for: .milliseconds(150))
+        VLCMediaPlayer.latest!.timeEvent(); await wait { timed.isPlaying }
+        timed.pause(); let pausedPlayer = VLCMediaPlayer.latest!, connections = timedICY.startCount
+        timed.setRecordingRequested(true)
+        timed.setRecordingRequested(false)
+        check(timed.isPaused && VLCMediaPlayer.latest === pausedPlayer && timedICY.startCount == connections,
+              "Aufnahmewechsel ersetzt pausierten MP3-Leser")
+        var audio = AudioConfiguration(); audio.equalizerEnabled = true; audio.bands[3] = -12
+        timed.configureAudio(audio)
+        check(timed.isPaused && pausedPlayer.equalizer?.bands[3].amplification == -12, "EQ verliert Pause")
+        timed.prepareForSleep()
+        check(!timed.isPlaying && timed.currentStreamURL == nil, "Schlaf lässt Empfang/Leser offen")
+        timed.resumeAfterWake()
+        check(timed.hasPlaybackIntent && !timed.isPlaying && timed.timeshiftTransport.phase == .expired
+              && VLCMediaPlayer.latest === pausedPlayer, "Aufwachen startet pausiertes Audio")
+        timed.returnToLive()
+        await wait { timed.currentStreamURL != nil }
+        feed()
+        await wait { timed.timeshiftTransport.timeline.canStart }
+        VLCMediaPlayer.latest!.timeEvent(); await wait { timed.isPlaying }
+        timed.pause()
+        let reconnectedFrom = timedICY.startCount
+        let ended = timedICY.completion!
+        ended(Date())
+        await wait { timedICY.startCount > reconnectedFrom }
+        check(timed.timeshiftTransport.phase == .expired && !timed.isPlaying, "Metadaten-Reconnect startet Audio trotz Pause")
+        feed()
+        await wait { timed.timeshiftTransport.timeline.canStart }
+        ended(Date())
+        try? await Task.sleep(for: .milliseconds(150))
+        check(timed.timeshiftTransport.timeline.canStart && !timed.isPlaying, "Alter Empfang beendet neuen Puffer")
+        timed.returnToLive(); VLCMediaPlayer.latest!.timeEvent(); await wait { timed.isPlaying }
+        check(VLCMediaPlayer.latest!.equalizer?.bands[3].amplification == -12, "Live verliert EQ")
+        timed.pause()
+        check(timed.sleepTimer.start(duration: 60), "Timer in Pause startet nicht")
+        timerNow = 61; timed.sleepTimer.refresh()
+        check(!timed.hasPlaybackIntent && timed.currentStreamURL == nil, "Timer beendet pausierten Empfang nicht")
+        timed.resumeAfterWake()
+        check(!timed.hasPlaybackIntent, "Timer-Stop wird beim Aufwachen aufgehoben")
+        timed.play(Station(name: "HLS", url: "https://fixture.invalid/live.m3u8"))
+        await wait { timed.currentStreamURL?.pathExtension == "m3u8" }
+        let noICY = timedICY.startCount
+        timed.setRecordingRequested(true)
+        try? await Task.sleep(for: .milliseconds(150))
+        check(timedICY.startCount == noICY && timed.metadataStatus != nil, "HLS öffnet ICY/Retry")
+        timed.stop()
+        let aacPlayer = RadioPlayer(preferences: defaults, timeshiftRoot: root)
+        aacPlayer.setTimeshiftRequested(true)
+        aacPlayer.play(Station(name: "AAC", url: "https://fixture.invalid/aac"))
+        await wait { aacPlayer.currentStreamURL != nil }
+        let aacDirect = VLCMediaPlayer.latest!, aacICY = ICYMetadataReader.latest!
+        aacDirect.timeEvent(); await wait { aacPlayer.isPlaying }
+        aacICY.format?("audio/aac", Date())
+        let adts = Data([0xff, 0xf1, 0x4c, 0x80, 0x0c, 0xff, 0xfc] + [UInt8](repeating: 0, count: 96))
+        for _ in 0..<300 { aacICY.audioAt?(adts, Date(), 1) }
+        await wait { aacPlayer.timeshiftTransport.timeline.canStart && VLCMediaPlayer.latest !== aacDirect }
+        let aacLocal = VLCMediaPlayer.latest!
+        aacLocal.timeEvent(); await wait { aacPlayer.canPause }
+        aacLocal.media?.tracksInformation = [["rate": 96000]]
+        aacLocal.time.intValue = 1000; aacLocal.timeEvent()
+        await wait { aacPlayer.timeshiftTransport.phase == .expired }
+        check(!aacPlayer.isPlaying && aacPlayer.hasPlaybackIntent, "Geänderte AAC-Ausgaberate bleibt ungeprüft aktiv")
+        aacPlayer.stop()
         print("TimeshiftPlayer: Reserve, Hörmetadaten, Pause, Seek, Live, Alt-Ereignisse und Überlauf OK")
     }
 }

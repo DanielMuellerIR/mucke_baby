@@ -3,6 +3,15 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.29 — 2026-10-19
+
+- Add bounded AAC-ADTS timeshift alongside MP3, with decoder-rate validation for LC, HE-AAC and HE-AAC v2 and codec-specific output timing.
+- Keep paused playback stopped after wake, allow the sleep timer during pause and stop paused reception before a catalog preview.
+- Associate heard frames with their received recording interval across recording changes within the same title.
+- Keep HLS live playback available while clearly rejecting unsupported recording and timeshift; never save a playlist as audio or retry its ICY capture.
+- Label the Live startup reserve explicitly.
+- Add combined recording, reconnect, storage, timer, export and buffered-equalizer checks with isolated fixtures.
+
 ## 1.9.28 — 2026-10-18
 
 - Add shared pause/resume, buffer-position, 15-second jumps and Live controls to the main and mini player, with a heard-title timeline and visible buffer limits.

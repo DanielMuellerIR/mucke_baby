@@ -16,6 +16,7 @@ struct RecordingControl: View {
         case .indexUnavailable: String(localized: "Indexfehler")
         case .streamEnded: String(localized: "Verbindung")
         case .writeFailed: String(localized: "Schreibfehler")
+        case .unsupportedFormat: String(localized: "Nicht verfügbar")
         }
     }
     private var status: String {
@@ -28,11 +29,12 @@ struct RecordingControl: View {
         case .indexUnavailable: String(localized: "Der Aufnahmeindex ist nicht verfügbar. Aufnahmeordner prüfen; bestehende Dateien bleiben erhalten.")
         case .streamEnded: String(localized: "Die Metadatenverbindung ist beendet. Für einen neuen Aufnahmeversuch den Sender erneut starten.")
         case .writeFailed: String(localized: "Die Aufnahme konnte nicht geschrieben werden. Aufnahmeordner und Speicher prüfen; danach aus- und wieder einschalten.")
+        case .unsupportedFormat: String(localized: "HLS-Aufnahme ist nicht verfügbar. Die Live-Wiedergabe läuft weiter; vorhandene Aufnahmen bleiben erhalten.")
         }
     }
     private var color: Color {
         switch player.recordingState.phase {
-        case .recording, .lowDisk, .indexUnavailable, .streamEnded, .writeFailed: theme.palette.alert
+        case .recording, .lowDisk, .indexUnavailable, .streamEnded, .writeFailed, .unsupportedFormat: theme.palette.alert
         case .waiting, .needsStreamHeader: .orange
         case .off: theme.palette.textSecondary
         }
