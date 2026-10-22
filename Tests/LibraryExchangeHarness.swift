@@ -10,7 +10,7 @@ enum LibraryExchangeHarness {
         defer { try? fm.removeItem(at: root) }
         let seed = root.appendingPathComponent("seed.json"); try Data("[]".utf8).write(to: seed)
         let date = Date(timeIntervalSince1970: 1_790_000_000)
-        for bookmarkFirst in [false, true] {
+        for (version, bookmarkFirst) in (1...3).flatMap({ version in [false, true].map { (version, $0) } }) {
             let directory = root.appendingPathComponent(UUID().uuidString)
             let store = Store(directory: directory, seedURL: seed), bookmarks = BookmarkStore(directory: directory)
             for seeded in store.stations { _ = store.delete(seeded) }
@@ -24,7 +24,13 @@ enum LibraryExchangeHarness {
             let before = LibraryExchange.snapshot(store: store, bookmarks: bookmarks)
             var incomingStation = local; incomingStation.name = "Imported station"; incomingStation.favorite = false
             let newStation = Station(name: "New station", url: "https://radio.example.org/new", radioBrowserID: UUID())
-            let newBookmark = SongBookmark(id: UUID(), station: "Other", raw: "Other - Song", artist: "Other", title: "Song", heardAt: date, savedAt: date)
+            let listening = RecognitionListeningContext(outputID: UUID(), revision: 42, position: 12.345,
+                                                        receivedAt: date.addingTimeInterval(-80))
+            let recognition = version == 1 ? nil : SongRecognition(recognizedAt: date.addingTimeInterval(12),
+                stationID: newStation.id, originalICY: "Other - Song (Radio Mix)", shazamID: "fixture", appleMusicURL: nil,
+                listening: version == 3 ? listening : nil)
+            let newBookmark = SongBookmark(id: UUID(), station: "Other", raw: "Other - Song", artist: "Other", title: "Song",
+                                           heardAt: date, savedAt: date, recognition: recognition)
             let incoming = ExchangeLibrary(stations: [incomingStation, newStation], groups: [], bookmarks: [newBookmark])
             let bytes = try ExchangeCodec.encode(incoming)
             let request = try LibraryExchange.prepare(bytes, store: store, bookmarks: bookmarks)
@@ -64,6 +70,26 @@ enum LibraryExchangeHarness {
                   "Neustart/Reihenfolge lädt gemischten Bestand")
             check(!restoredStore.isReadOnly && !restoredBookmarks.isReadOnly && !fm.fileExists(atPath: directory.appendingPathComponent(ExchangeTransaction.journalName).path),
                   "Recovery nicht abgeschlossen")
+            let persisted = try ExchangeCodec.dateDecoder().decode(BookmarkDocument.self, from: Data(contentsOf: bookmarks.fileURL))
+            check(persisted.formatVersion == version && persisted.entries.last == newBookmark,
+                  "Recovery verliert Erkennungsherkunft oder Hörkontext in V\(version)")
+            for invalidVersion in [0, 4] + (version > 1 ? Array(1..<version) : []) {
+                var invalid = try JSONSerialization.jsonObject(with: Data(contentsOf: bookmarks.fileURL)) as! [String: Any]
+                invalid["formatVersion"] = invalidVersion
+                let invalidData = try JSONSerialization.data(withJSONObject: invalid)
+                expectFailure("Transaktionsvalidator akzeptiert unbekannte Version oder herabgestufte Herkunft") {
+                    try LibraryExchangeStorage.validate(name: "bookmarks.json", data: invalidData)
+                }
+            }
+            let stationOnly = Station(name: "Station-only import", url: "https://radio.example.org/station-only")
+            let stationBytes = try ExchangeCodec.encode(ExchangeLibrary(stations: [stationOnly], groups: [], bookmarks: []))
+            let stationRequest = try LibraryExchange.prepare(stationBytes, store: restoredStore, bookmarks: restoredBookmarks)
+            try check(LibraryExchange.apply(stationRequest, choices: [:], store: restoredStore, bookmarks: restoredBookmarks) == nil,
+                      "Senderimport mit bestehender V\(version)-Merkliste bleibt offen")
+            check(Store(directory: directory, seedURL: seed).stations == restoredStore.stations
+                  && restoredStore.stations.contains(stationOnly)
+                  && BookmarkStore(directory: directory).entries == persisted.entries,
+                  "Senderimport verliert vorhandene V\(version)-Merkungen oder speichert nicht")
             try check(Data(contentsOf: sentinel) == Data("history sentinel".utf8), "Import verändert Verlauf")
             let stale = try LibraryExchange.prepare(bytes, store: restoredStore, bookmarks: restoredBookmarks)
             var external = restoredStore.stations; external[0].name = "External edit"
@@ -110,7 +136,7 @@ enum LibraryExchangeHarness {
         let output = root.appendingPathComponent("portable.json")
         try LibraryExchange.writeExport(Data("portable".utf8), to: output, protectedDirectories: [exportDirectory])
         try check(Data(contentsOf: protectedFile) == Data("keep".utf8) && Data(contentsOf: output) == Data("portable".utf8), "Exportziel/Schutz fehlerhaft")
-        print("LibraryExchange: beide Stores, Abbruch, Commitgrenze, Neustartreihenfolge, Schreibschutz und Exportgrenzen OK")
+        print("LibraryExchange: V1/V2/V3, Senderimport mit Erkennungsmerkungen, beide Recovery-Reihenfolgen, Abbruch und Schreibschutz OK")
     }
     static func check(_ condition: @autoclosure () throws -> Bool, _ message: String) rethrows {
         if try !condition() { fatalError(message) }

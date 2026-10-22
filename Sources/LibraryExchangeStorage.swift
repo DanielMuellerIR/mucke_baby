@@ -14,7 +14,6 @@ enum LibraryExchangeStorage {
             guard collection.formatVersion == 2, collection.quickSlots.count == 5 else { throw ExchangeFormatError.invalidData }
         case "bookmarks.json":
             let document = try ExchangeCodec.dateDecoder().decode(BookmarkDocument.self, from: data)
-            guard document.formatVersion == 1 else { throw ExchangeFormatError.unsupportedVersion }
             try ExchangeCodec.validate(ExchangeLibrary(stations: [], groups: [], bookmarks: document.entries))
         default: throw ExchangeDiskError.invalidJournal
         }

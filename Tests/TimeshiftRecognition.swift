@@ -43,15 +43,15 @@ import VLCKit
     var frequencies: [Double] = []
     init(root: URL) { self.root = root }
     func match(_ pcm: RecognitionPCM, completion: @escaping @MainActor (Result<RecognizedTrack?, RecognitionFailure>) -> Void) {
-        // Ein unabhängiger Python-Prüfer wertet dieselben PCM-Dateien mit FFT aus.
-        let crossings = zip(pcm.samples, pcm.samples.dropFirst()).filter { $0 <= 0 && $1 > 0 }.count
-        let frequency = Double(crossings) / (Double(pcm.samples.count) / pcm.sampleRate)
+        // Der unabhängige Python-Prüfer misst zusätzlich den Bandenergieanteil.
+        let frequency = FixtureTone.frequency(samples: pcm.samples, sampleRate: pcm.sampleRate)
         frequencies.append(frequency); completions.append(completion)
         try! pcm.samples.withUnsafeBytes { try Data($0).write(to: root.appendingPathComponent("capture-\(frequencies.count).f32")) }
         if automatic { completion(.success(Self.track(frequency))) }
     }
-    static func track(_ frequency: Double) -> RecognizedTrack {
-        RecognizedTrack(title: frequency < 660 ? "Tone 440" : "Tone 880", artist: "Fixture Catalog", shazamID: "fixture", appleMusicURL: nil)!
+    static func track(_ frequency: Double) -> RecognizedTrack? {
+        guard let title = FixtureTone.title(frequency: frequency) else { return nil }
+        return RecognizedTrack(title: title, artist: "Fixture Catalog", shazamID: "fixture", appleMusicURL: nil)
     }
     // Verspätete Antworten absichtlich erhalten: der Dienst muss sie sperren.
     func cancel() {}

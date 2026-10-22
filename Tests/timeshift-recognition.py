@@ -9,6 +9,7 @@ import array
 from datetime import datetime
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -38,6 +39,28 @@ def serve(root):
 
 def cleanup(root):
     integration().common().cleanup(root)
+
+
+def analyze_capture(file):
+    samples = array.array('f', file.read_bytes())
+    assert 48_000 * 3 <= len(samples) <= 48_000 * 12, f'Ungültige PCM-Länge: {file}'
+    assert all(math.isfinite(sample) for sample in samples), f'Ungültige PCM-Werte: {file}'
+    total_energy = sum(sample * sample for sample in samples) / len(samples)
+    assert total_energy > 1e-8, f'Kein prüfbarer Ton: {file}'
+    energies = []
+    # Ein bloßer Vergleich zweier Bandpässe ordnet auch Fremdtöne einem Sollton
+    # zu. Der schmale Sollbereich muss den Großteil der gesamten Energie tragen.
+    for frequency in [440, 880]:
+        checked = subprocess.run(['ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', '1',
+            '-i', str(file), '-af', f'bandpass=f={frequency}:width_type=h:w=20', '-f', 'f32le', '-'],
+            check=True, capture_output=True, timeout=20)
+        filtered = array.array('f', checked.stdout)
+        assert len(filtered) == len(samples), f'Unvollständige Bandpassausgabe: {file}'
+        energies.append(sum(sample * sample for sample in filtered) / len(filtered))
+    strongest = max(energies)
+    assert strongest / total_energy >= 0.8, f'Kein 440-/880-Hz-Sollton in {file}: {energies}, gesamt {total_energy}'
+    return dict(samples=len(samples), frequency=[440, 880][energies.index(strongest)],
+                energies=energies, totalEnergy=total_energy)
 
 
 def run(root, direct_only=False):
@@ -144,19 +167,7 @@ def verify_core(root):
         captures = [file for file in captures if int(file.stem.split('-')[-1]) <= 15]
         assert len(captures) == 15, 'Unerwartete oder fehlende Erkennungsaufrufe'
         for file in captures:
-            samples = array.array('f', file.read_bytes())
-            assert 48_000 * 3 <= len(samples) <= 48_000 * 12
-            # FFmpeg nutzt einen unabhängigen Bandpass-Analysepfad. Die Pegelwerte
-            # beider Frequenzen trennen den gehörten Abschnitt vom Live-Empfang.
-            peaks = []
-            for frequency in [440, 880]:
-                checked = subprocess.run(['ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', '1',
-                    '-i', str(file), '-af', f'bandpass=f={frequency}:width_type=h:w=20', '-f', 'f32le', '-'],
-                    check=True, capture_output=True, timeout=20)
-                filtered = array.array('f', checked.stdout)
-                peaks.append(sum(x*x for x in filtered) / len(filtered))
-            frequency = [440, 880][peaks.index(max(peaks))]
-            result.append(dict(language=language, file=file.name, samples=len(samples), frequency=frequency, energies=peaks))
+            result.append(dict(language=language, file=file.name, **analyze_capture(file)))
         bookmarks = json.loads((target / 'store/bookmarks.json').read_text())
         assert bookmarks['formatVersion'] == 3 and len(bookmarks['entries']) == 1
         entry = bookmarks['entries'][0]
@@ -192,17 +203,9 @@ def verify_direct(root):
         for codec in ['vorbis', 'opus', 'flac']:
             assert stages[codec + '-direct']['playing']
         for file in captures:
-            pcm = array.array('f', file.read_bytes())
-            assert 48_000 * 3 <= len(pcm) <= 48_000 * 12
-            energies = []
-            for frequency in [440, 880]:
-                checked = subprocess.run(['ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', '48000', '-ac', '1',
-                    '-i', str(file), '-af', f'bandpass=f={frequency}:width_type=h:w=20', '-f', 'f32le', '-'],
-                    check=True, capture_output=True, timeout=20)
-                filtered = array.array('f', checked.stdout)
-                energies.append(sum(x*x for x in filtered) / len(filtered))
-            assert energies[0] > energies[1] * 10
-            results.append(dict(language=language, file=file.name, samples=len(pcm), energies=energies))
+            analysis = analyze_capture(file)
+            assert analysis['frequency'] == 440, f'Direkte Wiedergabe enthält falschen Sollton: {file}'
+            results.append(dict(language=language, file=file.name, **analysis))
     (root / 'direct-result.json').write_text(json.dumps(dict(passed=True, captures=results), indent=2))
 
 

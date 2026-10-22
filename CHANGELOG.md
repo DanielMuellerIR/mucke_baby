@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.32 — 2026-10-22
+
+- Complete library imports and interrupted-import recovery when bookmarks include version 2 recognition provenance or version 3 listening contexts. Preserve those bookmarks during station-only imports.
+- Reject off-frequency audio in controlled recognition tests, including tones played at half the expected frequency.
+
 ## 1.9.31 — 2026-10-19
 
 - Show output identity, revision and buffer position when comparing bookmarked listening contexts during library import.

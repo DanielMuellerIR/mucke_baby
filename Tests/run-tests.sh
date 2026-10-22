@@ -172,6 +172,11 @@ swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
 "$BUILD/library-exchange-harness"
 
 swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
+  -module-cache-path "$BUILD/module-cache" Tests/FixtureTone.swift Tests/FixtureToneHarness.swift \
+  -o "$BUILD/fixture-tone-harness"
+"$BUILD/fixture-tone-harness"
+
+swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$BUILD/module-cache" Sources/Safety.swift Sources/Models.swift \
   Sources/RecordingState.swift Sources/Recorder.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
   Sources/RadioCommands.swift Tests/RadioCommandsHarness.swift -o "$BUILD/radio-commands-harness"

@@ -8,6 +8,13 @@ Nutzerdaten. Der Export-Harness erzeugt seine eigene PCM-Tonfixture; AVFoundatio
 muss auf die macOS-Mediendienste zugreifen können. Eine Sandbox kann diese Dienste
 oder den lokalen HTTP-Fixtureserver blockieren.
 
+Der `LibraryExchangeHarness` prüft V1/V2/V3-Importe mit den echten Stores,
+unterbrochene Transaktionen in beiden Neustartreihenfolgen und Senderimporte bei
+bereits vorhandenen Erkennungsmerkungen. `FixtureToneHarness` und
+`python3 Tests/timeshift-recognition-checks.py` prüfen die Tonzuordnung und den
+unabhängigen Bandenergieanteil mit 440/880 Hz sowie Fremdtönen, Oktavfehlern und
+Stille. Die separate Python-Prüfung benötigt `ffmpeg` im PATH.
+
 Der AudioTap-Harness speist synthetische Samples direkt in die unveränderte
 Analyse ein; er öffnet kein CoreAudio-Gerät. `release-mount.py` führt den
 Mount-Abschnitt des Release-Skripts mit einem gemockten `hdiutil` nur in einem
