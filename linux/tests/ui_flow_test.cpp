@@ -206,6 +206,11 @@ class UIFlowTest final : public QObject {
         QVERIFY(buffer->isVisible()); QVERIFY(pause->isEnabled());
         state.previewActive=false;state.state=PlaybackState::Playing;state.sleepRemaining=120;
         emit media.snapshotChanged(state); QVERIFY(status->isVisible()); QVERIFY(status->text().contains("2:00"));
+        state.sleepRemaining=0;state.recordRequested=true;
+        state.recordStatus="Fixture recording storage unavailable";
+        emit media.snapshotChanged(state);
+        QVERIFY(status->isVisible());QVERIFY(status->text().contains(state.recordStatus));
+        state.recordRequested=false;
         state.sleepRemaining=0; emit store.error("Fixture persistent notice");emit media.snapshotChanged(state);
         QVERIFY(status->isVisible()); QCOMPARE(status->text(),QString("Fixture persistent notice"));
         media.shutdown();

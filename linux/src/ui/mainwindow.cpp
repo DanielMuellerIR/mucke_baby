@@ -727,7 +727,7 @@ class MainWindow::Impl {
         status = new QLabel;
         status->setObjectName("playbackStatus");
         status->setTextFormat(Qt::PlainText);
-        status->setWordWrap(true);
+        status->setWordWrap(false);
         status->hide();
         playingText->addWidget(status);
         auto *titleScroll = new QScrollArea;
@@ -1201,14 +1201,20 @@ class MainWindow::Impl {
                               text("Wiedergabe", "Playing"),
                               text("Pausiert", "Paused"),
                               text("Fehler", "Error")};
-        status->setText(
+        const bool recordingWaiting = s.recordRequested && !s.recordActive && !s.recordStatus.isEmpty();
+        QString playbackStatus =
             !notice.isEmpty() ? notice
             : s.error.isEmpty()
                 ? states[int(s.state)] + (s.previewActive ? text(" · Vorschau", " · Preview") : "") +
                       (s.sleepRemaining ? text(" · Timer ", " · Timer ") + duration(s.sleepRemaining) : "")
-                : s.error);
+                : s.error;
+        if (recordingWaiting)
+            playbackStatus += " · " + s.recordStatus;
+        status->setText(playbackStatus);
+        status->setToolTip(playbackStatus);
         status->setVisible(!notice.isEmpty() || !s.error.isEmpty() || s.sleepRemaining > 0 ||
-                           s.state == PlaybackState::Resolving || s.state == PlaybackState::Buffering);
+                           recordingWaiting || s.state == PlaybackState::Resolving ||
+                           s.state == PlaybackState::Buffering);
         const bool buffered = s.timeshiftEnabled || s.timeshiftAvailable;
         bufferControls->setVisible(buffered || s.previewActive);
         for (auto *control : QList<QWidget *>{back15, forward15, liveButton, delay, bufferStatus})
