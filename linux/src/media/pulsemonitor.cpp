@@ -137,7 +137,7 @@ public:
     }
     void emitFrame() {
         lastFrame = clock.elapsed();
-        QVector<float> waveform(256), spectrum(128); float square = 0;
+        QVector<float> waveform(256), spectrum(512); float square = 0;
         std::array<std::complex<float>, 1024> fft{};
         for (size_t i = 0; i < samples.size(); ++i) {
             const float value = samples[(sampleCount + i) % samples.size()]; square += value * value;
