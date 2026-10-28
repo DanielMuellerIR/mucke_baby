@@ -92,6 +92,8 @@ class Visualizer final : public QWidget {
     QSize backgroundSize;
     quint64 backgroundPalette = 0;
     QVector<QVector<float>> noteHistory;
+    QVector<float> noteValues;
+    qint64 lastNotePush = -1;
     double meterLevel = 0;
     QElapsedTimer elapsed;
     qint64 previousFrame = 0;
@@ -105,6 +107,7 @@ class Visualizer final : public QWidget {
 
   protected:
     void paintEvent(QPaintEvent *) override;
+    void hideEvent(QHideEvent *) override;
 };
 
 class VolumeKnob final : public QSlider {

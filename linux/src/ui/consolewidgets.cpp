@@ -8,6 +8,41 @@ QColor alpha(QColor color, double value) {
     color.setAlphaF(value);
     return color;
 }
+constexpr int midiLanes = 24, midiRows = 140;
+// Wie auf macOS: zwölf logarithmische Bänder, je zwei Spuren und eine gemeinsame Peak-Normierung.
+QVector<float> midiTargets(const QVector<float> &spectrum, float rms) {
+    QVector<float> lanes(midiLanes, 0), bands(12, 0);
+    if (spectrum.isEmpty() || !std::isfinite(rms) || rms <= .00005f)
+        return lanes;
+    const int half = int(spectrum.size());
+    auto bin = [half](int band) {
+        return std::clamp(int(std::pow(2., band / 12. * std::log2(half)) - 1), 0, half - 1);
+    };
+    float peak = 0;
+    for (int band = 0; band < bands.size(); ++band) {
+        const int low = bin(band), high = std::max(low + 1, bin(band + 1));
+        double power = 0;
+        for (int k = low; k < std::min(high, half); ++k) {
+            // Der Monitor liefert Bin 1 zuerst; der Gleichanteil (Bin 0) bleibt leer.
+            const double value = k > 0 && std::isfinite(spectrum[k - 1]) ? spectrum[k - 1] : 0;
+            power += value * value;
+        }
+        bands[band] = std::sqrt(power / std::max(1, high - low)) * (1 + band * .30);
+        peak = std::max(peak, bands[band]);
+    }
+    if (peak > .00001f)
+        for (int lane = 0; lane < midiLanes; ++lane)
+            lanes[lane] = std::clamp(bands[lane * bands.size() / midiLanes] / peak, 0.f, 1.f);
+    return lanes;
+}
+QColor midiEnergyColor(double energy, QColor low, QColor mid) {
+    const double value = std::clamp(energy, 0., 1.);
+    const QColor from = value < .5 ? low : mid, to = value < .5 ? mid : QColor(Qt::white);
+    const double fraction = value < .5 ? value * 2 : (value - .5) * 2;
+    return QColor::fromRgbF(from.redF() + (to.redF() - from.redF()) * fraction,
+                            from.greenF() + (to.greenF() - from.greenF()) * fraction,
+                            from.blueF() + (to.blueF() - from.blueF()) * fraction, .92);
+}
 QString textureFor(const QString &theme) {
     static const QHash<QString, QString> files{{"acid", "bg-concrete.png"},     {"retro", "bg-brushed.png"},
                                                {"fanzine", "bg-newsprint.png"}, {"stack", "bg-tolex.png"},
@@ -452,6 +487,12 @@ Visualizer::Visualizer(QWidget *parent) : QWidget(parent) {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     elapsed.start();
 }
+void Visualizer::hideEvent(QHideEvent *event) {
+    noteHistory.clear();
+    noteValues.clear();
+    lastNotePush = -1;
+    QWidget::hideEvent(event);
+}
 void Visualizer::paintMeter(QPainter &p, QRectF area, int channel, double level) {
     const auto c = colors(theme);
     const bool retro = theme == "retro";
@@ -495,6 +536,11 @@ void Visualizer::paintEvent(QPaintEvent *) {
     if (width() < 2 || height() < 2)
         return;
     const auto paletteKey = QApplication::palette().cacheKey();
+    if (backgroundTheme != theme) {
+        noteHistory.clear();
+        noteValues.clear();
+        lastNotePush = -1;
+    }
     if (backgroundSize != size() || backgroundTheme != theme || backgroundPalette != paletteKey) {
         background = QPixmap(size());
         QPainter b(&background);
@@ -532,65 +578,65 @@ void Visualizer::paintEvent(QPaintEvent *) {
             paintMeter(p, cell, channel, meterLevel);
         }
     } else if (theme == "midi") {
-        constexpr int lanes = 24, rows = 48;
-        if (spectrum.isEmpty())
+        const auto targets = midiTargets(spectrum, rms);
+        if (spectrum.isEmpty()) {
             noteHistory.clear();
-        else if (dt > 0) {
-            QVector<float> frame(lanes);
-            for (int i = 0; i < lanes; ++i)
-                if (!spectrum.isEmpty())
-                    frame[i] =
-                        spectrum[std::min(spectrum.size() - 1, qsizetype(i * spectrum.size() / lanes))];
-            noteHistory.prepend(frame);
-            if (noteHistory.size() > rows)
-                noteHistory.resize(rows);
+            noteValues = targets;
+            lastNotePush = -1;
+        } else {
+            if (noteValues.size() != midiLanes)
+                noteValues = targets;
+            else
+                for (int i = 0; i < midiLanes; ++i)
+                    noteValues[i] += (targets[i] - noteValues[i]) *
+                                     (1 - std::exp(-(targets[i] > noteValues[i] ? 38. : 12.) * dt));
+            if (lastNotePush < 0 || timestamp - lastNotePush >= 50) {
+                noteHistory.prepend(noteValues);
+                noteHistory.resize(std::min(noteHistory.size(), qsizetype(midiRows)));
+                lastNotePush = timestamp;
+            }
         }
-        const double lane = area.width() / lanes, row = (area.height() * .78) / rows;
+        QRectF history = area;
+        history.setHeight(std::max(0., area.height() - 40));
+        const double lane = area.width() / midiLanes, row = history.height() / midiRows;
         p.setPen(QPen(alpha(c.muted, .2), .5));
-        for (int i = 0; i <= lanes; ++i)
-            p.drawLine(QPointF(area.left() + lane * i, area.top()),
-                       QPointF(area.left() + lane * i, area.bottom()));
-        for (int i = 0; i < rows; i += 4)
-            p.drawLine(QPointF(area.left(), area.top() + row * i),
-                       QPointF(area.right(), area.top() + row * i));
+        for (int i = 0; i < midiLanes; ++i)
+            p.drawLine(QPointF(history.left() + lane * i, history.top()),
+                       QPointF(history.left() + lane * i, history.bottom()));
+        for (double y = history.top(); y < history.bottom(); y += 28)
+            p.drawLine(QPointF(history.left(), y), QPointF(history.right(), y));
         p.setPen(Qt::NoPen);
         for (int y = 0; y < noteHistory.size(); ++y)
-            for (int x = 0; x < lanes; ++x) {
+            for (int x = 0; x < midiLanes; ++x) {
                 double value = noteHistory[y][x];
-                if (value < .015)
+                if (value < .05)
                     continue;
-                QColor col = value > .5 ? c.accent : c.secondary;
-                col.setAlphaF(std::clamp(value * 2, .15, 1.));
+                const QColor col = midiEnergyColor(value, c.secondary, c.accent);
                 p.fillRect(QRectF(area.left() + x * lane + lane * .18, area.top() + y * row, lane * .64,
                                   std::max(1., row - .5)),
                            col);
             }
-        for (int i = 0; i < lanes; ++i) {
-            const double value =
-                spectrum.isEmpty()
-                    ? 0
-                    : std::clamp(double(spectrum[std::min(spectrum.size() - 1,
-                                                          qsizetype(i * spectrum.size() / lanes))]),
-                                 0., 1.);
-            QLinearGradient grad(area.bottomLeft(), area.topLeft());
+        for (int i = 0; i < midiLanes; ++i) {
+            const double value = noteValues.isEmpty() ? 0 : noteValues[i];
+            const double h = std::clamp(value, .04, 1.) * std::min(34., area.height());
+            const QRectF bar(area.left() + i * lane + lane * .2, area.bottom() - h, lane * .6, h);
+            QLinearGradient grad(bar.bottomLeft(), bar.topLeft());
             grad.setColorAt(0, c.secondary);
             grad.setColorAt(1, c.accent);
             p.setBrush(grad);
-            const double h = value * area.height() * .18;
-            p.drawRoundedRect(QRectF(area.left() + i * lane + lane * .2, area.bottom() - std::max(1., h),
-                                     lane * .6, std::max(1., h)),
-                              1, 1);
+            p.drawRoundedRect(bar, 1.5, 1.5);
         }
     } else if (theme == "danish") {
         constexpr int count = 18;
+        // Danish behält seine bisherige Skala bis 6 kHz; MIDI nutzt das volle Spektrum.
+        const auto bins = std::min(spectrum.size(), qsizetype(128));
         const double step = area.width() / count;
         p.setPen(Qt::NoPen);
         for (int i = 0; i < count; ++i) {
             const double value =
                 spectrum.isEmpty()
                     ? 0
-                    : std::clamp(double(spectrum[std::min(spectrum.size() - 1,
-                                                          qsizetype(i * spectrum.size() / count))]),
+                    : std::clamp(double(spectrum[std::min(bins - 1, qsizetype(i * bins / count))]),
                                  0., 1.);
             const double h = std::max(2., value * area.height() * .92);
             QLinearGradient grad(QPointF(0, area.center().y() - h / 2),

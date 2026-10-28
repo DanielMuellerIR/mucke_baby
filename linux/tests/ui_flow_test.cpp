@@ -229,6 +229,43 @@ class UIFlowTest final : public QObject {
         QVERIFY(status->isVisible()); QCOMPARE(status->text(),QString("Fixture persistent notice"));
         media.shutdown();
     }
+    void midiFineCellsAndEnergyColors() {
+        Console::Visualizer visual;
+        visual.theme = "midi";
+        visual.resize(300, 500);
+        visual.spectrum = QVector<float>(512, .9f);
+        // Schwaches Band neben mittleren und starken Bändern: alle drei Farbbereiche müssen sichtbar sein.
+        for (int bin = 3; bin < 7; ++bin) visual.spectrum[bin - 1] = .18f;
+        visual.rms = .4f;
+        visual.show(); QApplication::processEvents();
+        const auto frame = visual.grab().toImage();
+        auto cell = [&](int lane, int y = 21) {
+            return frame.pixelColor(qRound(20 + (lane + .5) * 260 / 24.), y);
+        };
+        const auto low = cell(6), middle = cell(8), high = cell(22);
+        QVERIFY2(low.red() < 140 && low.green() > 140 && low.blue() > 180, "Low energy is turquoise");
+        QVERIFY2(middle.red() > 200 && middle.green() < 120 && middle.blue() > 150, "Medium energy is pink");
+        QVERIFY2(high.red() > 225 && high.green() > 225 && high.blue() > 225, "High energy approaches white");
+        QVERIFY2(cell(22, 25).red() < 180, "One history cell remains thinner than five pixels");
+        const auto barTop = cell(22, 449), barBottom = cell(22, 477);
+        QVERIFY2(barTop.red() > 200 && barBottom.green() > 150 && barTop.red() > barBottom.red() + 100,
+                 "Each lower bar spans the turquoise-to-pink gradient");
+        const QString directory = qEnvironmentVariable("MUCKE_UI_SHOTS");
+        if (!directory.isEmpty()) {
+            QVERIFY(frame.save(directory + "/midi-energy-colors.png"));
+            // Synthetische Spektren füllen das Prüfbild; das Produkt erzeugt keine solchen Signale.
+            for (int row = 0; row < 140; ++row) {
+                for (int bin = 0; bin < 512; ++bin) {
+                    const double frequency = std::log2(bin + 1.);
+                    const double center = 4.5 + 2 * std::sin(row * .05);
+                    visual.spectrum[bin] = .4 * std::exp(-std::pow((frequency - center) / 1.1, 2)) +
+                                            .1 * std::exp(-std::pow((frequency - 9) / 1.3, 2));
+                }
+                visual.update(); QTest::qWait(55);
+            }
+            QVERIFY(visual.grab().save(directory + "/midi-history.png"));
+        }
+    }
     void visualizerSignalAndSilence() {
         QTemporaryDir temporary;
         const QString directory=qEnvironmentVariable("MUCKE_UI_SHOTS",temporary.path());
