@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.3 — 2026-10-28
+
+- Match Linux Black MIDI to the macOS spectrogram: 140 fine history rows, smoothed logarithmic bands from the full frequency range, continuous turquoise/pink/white energy colors and a local gradient in each lower spectrum bar.
+- Resolve the Linux application-menu icon through its installed file and refresh the KDE application cache when available.
+
 ## 1.10.2 — 2026-10-28
 
 - Use Black MIDI by default on Linux while retaining explicitly saved theme choices.

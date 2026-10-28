@@ -33,8 +33,8 @@ Das Archiv und `SHA256SUMS` in denselben Downloadordner legen, dann:
 
 ```bash
 sha256sum -c SHA256SUMS
-tar -xzf mucke-baby-1.10.2-linux-x86_64.tar.gz
-cd mucke-baby-1.10.2-linux-x86_64
+tar -xzf mucke-baby-1.10.3-linux-x86_64.tar.gz
+cd mucke-baby-1.10.3-linux-x86_64
 ./install.sh
 ~/.local/bin/mucke-baby
 ```
@@ -155,7 +155,8 @@ Theme-Auswahl bleibt erhalten. Die sieben Themes teilen dieselben Bedienelemente
 GuitarAmp verwendet eine
 Goldleiste und zwei dunkle VU-Fächer, Retro warme Materialien mit hellem Verlauf,
 Fanzine Papier und Zilla Slab, Danish einen symmetrischen Equalizer und Black MIDI
-einen gemessenen Notenverlauf. Acid und Standard zeigen das Oszilloskop. Alle
+einen gemessenen Notenverlauf mit 140 feinen Zeilen und stufenlosen Energiefarben
+von Türkis über Pink bis Weiß. Acid und Standard zeigen das Oszilloskop. Alle
 Visualizer reagieren auf den eigenen Audioausgang; bei Stille bleiben sie ruhig.
 Native Fensterrahmen und Systemschriften können sich von macOS unterscheiden.
 
