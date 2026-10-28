@@ -23,7 +23,7 @@ class InstallerTests(unittest.TestCase):
         (self.source / 'LICENSE').write_text('MIT fixture')
         (self.source / 'linux/packaging/nlohmann-json-LICENSE.MIT').write_text('JSON MIT fixture')
         (self.source / 'THIRD-PARTY.md').write_text('Licenses fixture')
-        (self.source / 'linux/packaging/de.danielmuller.muckebaby.desktop').write_text('[Desktop Entry]\nExec=mucke-baby\n')
+        (self.source / 'linux/packaging/de.danielmuller.muckebaby.desktop').write_text('[Desktop Entry]\nExec=mucke-baby\nIcon=mucke-baby\n')
         (self.source / 'icons/app-icon-s123.png').write_bytes(b'icon fixture')
         self.binary = self.root / 'build/mucke-baby'
         self.binary.parent.mkdir()
@@ -43,6 +43,8 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(launcher.read_bytes(), self.binary.read_bytes())
         self.assertEqual(result['version'], '1.2.3')
         self.assertIn('Exec="', (self.prefix / 'share/applications/de.danielmuller.muckebaby.desktop').read_text())
+        self.assertIn('Icon=' + str(self.prefix / 'share/icons/hicolor/1024x1024/apps/mucke-baby.png') + '\n',
+                      (self.prefix / 'share/applications/de.danielmuller.muckebaby.desktop').read_text())
         self.assertTrue((Path(result['directory']) / 'LICENSE').exists())
 
     def test_first_install_failure_leaves_no_app(self):
@@ -105,7 +107,7 @@ class InstallerTests(unittest.TestCase):
             (licenses / name).write_bytes((self.source / name).read_bytes())
         (licenses / 'nlohmann-json-LICENSE.MIT').write_text('JSON MIT fixture')
         (licenses / 'ZillaSlab-OFL.txt').write_text('Font OFL fixture')
-        (desktop / 'de.danielmuller.muckebaby.desktop').write_text('[Desktop Entry]\nExec=mucke-baby\n')
+        (desktop / 'de.danielmuller.muckebaby.desktop').write_text('[Desktop Entry]\nExec=mucke-baby\nIcon=mucke-baby\n')
         (icons / 'mucke-baby.png').write_bytes(b'packaged icon')
         result = installer.install(self.binary, self.prefix, package)
         self.assertEqual(installer.version_of(self.prefix / 'bin/mucke-baby'), '1.2.3')

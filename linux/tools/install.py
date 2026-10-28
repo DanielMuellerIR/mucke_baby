@@ -125,7 +125,9 @@ def install(binary, prefix, source_root, publish=None):
             for target in (launcher, desktop, icon):
                 target.parent.mkdir(parents=True, exist_ok=True)
             executable = str(launcher).replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%')
-            desktop_bytes = (packaging / 'de.danielmuller.muckebaby.desktop').read_text().replace('Exec=mucke-baby', 'Exec="' + executable + '"').encode()
+            # Manche Symbol-Themes kennen keine 1024er-Verzeichnisse; der direkte Pfad bleibt auflösbar.
+            icon_value = str(icon).replace('\\', '\\\\')
+            desktop_bytes = (packaging / 'de.danielmuller.muckebaby.desktop').read_text().replace('Exec=mucke-baby', 'Exec="' + executable + '"').replace('Icon=mucke-baby', 'Icon=' + icon_value).encode()
             actions = [
                 (launcher, lambda: atomic_link(launcher, str(installed / 'bin/mucke-baby'))),
                 (desktop, lambda: atomic_write(desktop, desktop_bytes)),
@@ -174,6 +176,16 @@ def main():
         completed = subprocess.run([cache, str(Path(args.prefix) / 'share/applications')], check=False)
         if completed.returncode:
             print('Hinweis: Desktop-Cache konnte nicht aktualisiert werden.', file=sys.stderr)
+    kde_cache = shutil.which('kbuildsycoca6')
+    if kde_cache and 'kde' in os.environ.get('XDG_CURRENT_DESKTOP', '').lower():
+        try:
+            completed = subprocess.run([kde_cache, '--noincremental'],
+                                       env=dict(os.environ, QT_QPA_PLATFORM='offscreen'),
+                                       check=False, timeout=30)
+            if completed.returncode:
+                print('Hinweis: KDE-Anwendungsmenü konnte nicht aktualisiert werden.', file=sys.stderr)
+        except subprocess.TimeoutExpired:
+            print('Hinweis: KDE-Anwendungsmenü konnte nicht aktualisiert werden.', file=sys.stderr)
     print('INSTALL OK: ' + result['binary'] + ' (' + result['version'] + ')')
 
 if __name__ == '__main__':
