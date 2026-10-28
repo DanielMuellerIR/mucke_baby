@@ -10,7 +10,7 @@ The interface is available in German and English. The iPhone sibling is [Baby, M
 
 ## Download
 
-- **Linux x86-64:** build the native application from source with `./build.sh` and install it for your user account with `./install.sh`. The first Linux binary release is being prepared. See the [Linux guide](docs/linux.md) for dependencies and local archive installation.
+- **Linux x86-64:** [Download version 1.10.3](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.3). The TAR.GZ archive includes a per-user installer; Qt, libVLC 3 and FFmpeg come from system packages. Follow the [Linux guide](docs/linux.md) to check the checksum, install dependencies and run `./install.sh`.
 - **macOS 14.2+, Apple Silicon:** [Download the signed and notarized DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Open it and drag *Mucke, Baby!* into Applications. This remains the current macOS binary; the source tree includes later features described below.
 
 ## Linux
@@ -19,9 +19,13 @@ The native Qt 6 application has been tested on Linux Mint 22 and CachyOS on x86-
 
 Qt, libVLC 3 and FFmpeg come from system packages. ShazamKit identification, Apple Shortcuts and Sparkle updates are specific to macOS. Build from source with `./build.sh` and `./install.sh`; installation, data paths, codec limits and tests are covered in the [Linux guide](docs/linux.md).
 
+Black MIDI is the default Linux theme. Below 780 pixels in window width, the center visualizer disappears. Its analysis pauses when no other visualizer window is visible; radio playback continues.
+
+![Linux application with example station and history data](assets/screenshots/linux-black-midi.png)
+
 ## Screenshots
 
-The following screenshots show the macOS application. Linux uses native Qt widgets with the same seven themes.
+The following screenshots show the macOS application. The Linux screenshot above shows its native Qt interface with the same seven themes.
 
 <p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave theme — neon oscilloscope"></p>
 

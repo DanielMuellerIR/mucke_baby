@@ -10,7 +10,7 @@ Die Oberfläche ist auf Deutsch und Englisch verfügbar. Der iPhone-Ableger hei�
 
 ## Download
 
-- **Linux x86-64:** die native App mit `./build.sh` aus dem Quellcode bauen und mit `./install.sh` im eigenen Benutzerkonto installieren. Die erste Linux-Binärveröffentlichung wird vorbereitet. Abhängigkeiten und die Installation lokaler Archive stehen in der [Linux-Anleitung](docs/linux.md).
+- **Linux x86-64:** [Version 1.10.3 herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.3). Das TAR.GZ-Archiv enthält einen Installer für das eigene Benutzerkonto; Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. Die [Linux-Anleitung](docs/linux.md) beschreibt Prüfsumme, Abhängigkeiten und Installation mit `./install.sh`.
 - **macOS 14.2+, Apple Silicon:** [Signiertes und notarisiertes DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Öffnen und *Mucke, Baby!* in den Programme-Ordner ziehen. Das bleibt die aktuelle macOS-Binärversion; der Quellstand enthält die unten beschriebenen neueren Funktionen.
 
 ## Linux
@@ -19,9 +19,13 @@ Die native Qt-6-Anwendung ist unter Linux Mint 22 und CachyOS auf x86-64 geprüf
 
 Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. ShazamKit-Erkennung, Apple-Kurzbefehle und Sparkle-Updates bleiben macOS-spezifisch. Aus dem Quellcode bauen und installieren: `./build.sh` und `./install.sh`. Einrichtung, Datenpfade, Codecgrenzen und Tests stehen in der [Linux-Anleitung](docs/linux.md).
 
+Black MIDI ist das Linux-Standardtheme. Unter 780 Pixeln Fensterbreite verschwindet der mittlere Visualizer. Ist kein weiteres Visualizer-Fenster sichtbar, pausiert seine Analyse; die Radiowiedergabe läuft weiter.
+
+![Linux-App mit Beispieldaten für Sender und Verlauf](assets/screenshots/linux-black-midi.png)
+
 ## Screenshots
 
-Die folgenden Bilder zeigen die macOS-App. Linux verwendet native Qt-Bedienelemente mit denselben sieben Themes.
+Die folgenden Bilder zeigen die macOS-App. Das Linux-Bild oben zeigt die native Qt-Oberfläche mit denselben sieben Themes.
 
 <p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave — Neon-Oszilloskop"></p>
 

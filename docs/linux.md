@@ -7,7 +7,8 @@ Python wird nur für Installation und Prüfskripte benötigt.
 
 ## Lokales Archiv installieren
 
-Die erste öffentliche Linux-Binärveröffentlichung wird vorbereitet.
+Das [Linux-Release v1.10.3](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.3)
+enthält das x86-64-Archiv und seine Prüfsumme.
 `./release.sh` erzeugt unter Linux ein lokales TAR.GZ-Archiv samt `SHA256SUMS`.
 Der geprüfte x86-64-Bau verwendet Ubuntu 24.04 und läuft auf Linux Mint 22 sowie
 CachyOS. Andere Distributionen benötigen
