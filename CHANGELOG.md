@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.2 — 2026-10-28
+
+- Use Black MIDI by default on Linux while retaining explicitly saved theme choices.
+- Verify that shrinking the Linux window below 780 pixels removes the visualizer and disconnects its audio monitor while playback continues; restore analysis when a visualizer becomes visible again.
+
 ## 1.10.1 — 2026-10-28
 
 - Align the Linux window with the macOS console layout, including responsive station/stage/history columns, compact icon controls, a scrolling title footer, themed materials, vertical VU meters and a compact miniplayer.

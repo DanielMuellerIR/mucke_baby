@@ -1,4 +1,7 @@
 #include "../src/media/mediaengine.h"
+#include "../src/data/catalogservice.h"
+#include "../src/data/librarystore.h"
+#include "../src/ui/mainwindow.h"
 #include "../src/ui/songexportdialog.h"
 #include "../src/ui/songexportfile_p.h"
 #include <QtTest>
@@ -8,6 +11,7 @@
 #include <QJsonDocument>
 #include <QProcess>
 #include <functional>
+#include <sys/resource.h>
 
 using namespace Mucke;
 namespace {
@@ -129,6 +133,64 @@ class UISongBackendTest final : public QObject {
         QTest::addColumn<QString>("codec");
         QTest::newRow("MP3") << QString("mp3");
         QTest::newRow("AAC") << QString("aac");
+    }
+    void compactWindowStopsVisualization() {
+        QTemporaryDir temporary; QVERIFY(temporary.isValid());
+        Fixture fixture; QVERIFY2(fixture.create(temporary.path(), "mp3"), qPrintable(fixture.error));
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        for (const auto &station : store.stations()) QVERIFY(store.removeStation(station.id));
+        QVERIFY(store.saveStation({newID(), "Fixture Radio", "https://radio.example/live", {}, true, false}));
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine engine(fixture.recordings, temporary.filePath("cache"));
+        MainWindow window(&store, &catalog, &engine); window.applyTheme("midi"); window.show();
+        auto *visual = window.findChild<QWidget *>("mainVisualizer"); QVERIFY(visual);
+        QSignalSpy frames(&engine, &MediaEngine::visualization);
+        engine.previewFile(fixture.sources.first());
+        QTRY_COMPARE_WITH_TIMEOUT(engine.snapshot().state, PlaybackState::Playing, 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(frames.size() >= 6, 5000);
+        auto sourceOutputs = [&] {
+            QByteArray output; QString error;
+            if (!process("pactl", {"--format=json", "list", "source-outputs"}, &output, &error)) return -1;
+            return int(QJsonDocument::fromJson(output).array().size());
+        };
+        QCOMPARE(sourceOutputs(), 1);
+        auto cpuSample = [] {
+            const auto cpuTime = [] {
+                rusage usage{}; getrusage(RUSAGE_SELF, &usage);
+                return usage.ru_utime.tv_sec + usage.ru_stime.tv_sec +
+                       (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6;
+            };
+            const double start = cpuTime(); QElapsedTimer elapsed; elapsed.start();
+            QTest::qWait(1500);
+            return 100 * (cpuTime() - start) / (elapsed.elapsed() / 1000.);
+        };
+        const double wideCpu = cpuSample();
+        window.resize(620, 420);
+        QTRY_VERIFY(!visual->isVisible());
+        QTRY_COMPARE(engine.snapshot().visualizerStatus, QString("Visualizer inactive"));
+        QTRY_COMPARE(sourceOutputs(), 0);
+        QTest::qWait(150); frames.clear();
+        const double compactCpu = cpuSample();
+        QCOMPARE(frames.size(), 0);
+        QCOMPARE(engine.snapshot().state, PlaybackState::Playing);
+        QVERIFY(engine.snapshot().previewActive);
+        qInfo().nospace() << "CPU (% of one core): wide=" << wideCpu << ", compact=" << compactCpu;
+        const QString shots = qEnvironmentVariable("MUCKE_UI_SHOTS", temporary.filePath("shots"));
+        QVERIFY(QDir().mkpath(shots));
+        QVERIFY(window.grab().save(shots + "/midi-compact-playing.png"));
+        window.resize(940, 620);
+        QTRY_VERIFY(visual->isVisible());
+        QTRY_VERIFY_WITH_TIMEOUT(frames.size() >= 5, 3000);
+        QCOMPARE(sourceOutputs(), 1);
+        QVERIFY(window.grab().save(shots + "/midi-wide-playing.png"));
+        window.resize(620, 420);
+        QTRY_COMPARE(sourceOutputs(), 0);
+        window.showVisualizer();
+        QTRY_COMPARE(sourceOutputs(), 1);
+        auto *fullscreen = window.findChild<QDialog *>("fullscreenVisualizer"); QVERIFY(fullscreen);
+        fullscreen->hide();
+        QTRY_COMPARE(sourceOutputs(), 0);
+        engine.shutdown();
     }
     void previewAndPublish() {
         QFETCH(QString, codec);

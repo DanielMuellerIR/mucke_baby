@@ -33,8 +33,8 @@ Das Archiv und `SHA256SUMS` in denselben Downloadordner legen, dann:
 
 ```bash
 sha256sum -c SHA256SUMS
-tar -xzf mucke-baby-1.10.1-linux-x86_64.tar.gz
-cd mucke-baby-1.10.1-linux-x86_64
+tar -xzf mucke-baby-1.10.2-linux-x86_64.tar.gz
+cd mucke-baby-1.10.2-linux-x86_64
 ./install.sh
 ~/.local/bin/mucke-baby
 ```
@@ -145,10 +145,14 @@ spielen ebenfalls direkt; für HLS gibt es weder Aufnahme noch Puffer.
 
 Die Linux-App übernimmt den macOS-Aufbau: Sender links, Visualizer in der Mitte,
 Verlauf rechts, Transport und Aktionen im Kopf sowie Titel und Lautstärke im Fuß.
-Unter 780 Pixeln Fensterbreite entfällt die mittlere Bühne. Der Verlauf lässt
+Unter 780 Pixeln Fensterbreite entfällt die mittlere Bühne. Animation und
+Audioanalyse pausieren dann, solange kein separates Visualizer-Fenster sichtbar
+ist. Die Radiowiedergabe läuft weiter. Der Verlauf lässt
 sich ausblenden; Merkliste und Aufnahmen sind über die Bibliotheksauswahl erreichbar.
 
-Die sieben Themes teilen dieselben Bedienelemente. GuitarAmp verwendet eine
+Black MIDI ist die Vorgabe für neue Einstellungen; eine bewusst gespeicherte
+Theme-Auswahl bleibt erhalten. Die sieben Themes teilen dieselben Bedienelemente.
+GuitarAmp verwendet eine
 Goldleiste und zwei dunkle VU-Fächer, Retro warme Materialien mit hellem Verlauf,
 Fanzine Papier und Zilla Slab, Danish einen symmetrischen Equalizer und Black MIDI
 einen gemessenen Notenverlauf. Acid und Standard zeigen das Oszilloskop. Alle

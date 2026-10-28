@@ -118,6 +118,20 @@ class UIFlowTest final : public QObject {
             QVERIFY(!HistoryFilter::overlaps(track, day.addDays(1), day.addDays(1), track.endedAt, berlin));
         }
     }
+    void defaultThemeAndSavedChoice() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        for (const auto &choice : {QString(), QString("acid"), QString("unknown")}) {
+            if (!choice.isEmpty()) QVERIFY(store.saveSettings({{"selectedTheme", choice}}));
+            MainWindow window(&store, &catalog, &media);
+            auto *visual = dynamic_cast<Console::Visualizer *>(window.findChild<QWidget *>("mainVisualizer"));
+            QVERIFY(visual);
+            QCOMPARE(visual->theme, choice == "acid" ? QString("acid") : QString("midi"));
+        }
+        media.shutdown();
+    }
     void consoleGeometry() {
         QTemporaryDir temporary;
         LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
@@ -130,8 +144,8 @@ class UIFlowTest final : public QObject {
         QVERIFY(visual); QVERIFY(header); QVERIFY(footer);
         for (const auto &theme : {"schlicht", "acid", "retro", "fanzine", "stack", "danish", "midi"}) {
             window.applyTheme(theme);
-            for (int width : {940, 660}) {
-                window.resize(width, 620); QApplication::processEvents();
+            for (int width : {940, 780, 779, 660, 620}) {
+                window.resize(width, width == 620 ? 420 : 620); QApplication::processEvents();
                 QCOMPARE(window.width(), width);
                 QCOMPARE(visual->isVisible(), width >= 780);
                 if (visual->isVisible()) {

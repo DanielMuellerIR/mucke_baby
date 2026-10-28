@@ -32,6 +32,7 @@ QString duration(double seconds) {
 const QStringList themeIDs = {"schlicht", "acid", "retro", "fanzine", "stack", "danish", "midi"};
 const QStringList themeNames = {"Standard",  "Acid Rave", "Retro",     "Fanzine",
                                 "GuitarAmp", "Danish",    "Black MIDI"};
+const QString defaultThemeID = "midi";
 using Console::colors;
 using Console::Surface;
 using Console::SurfaceWidget;
@@ -293,7 +294,7 @@ class MainWindow::Impl {
     Visualizer *fullVisual = nullptr;
     QComboBox *fullThemes = nullptr;
     PlaybackSnapshot state;
-    QString theme = "schlicht";
+    QString theme = defaultThemeID;
     QTimer animation;
     QTimer noticeTimer;
     QString notice;
@@ -954,7 +955,7 @@ class MainWindow::Impl {
         history();
         bookmarks();
         recordings();
-        applyTheme(store->settings()["selectedTheme"].toString("schlicht"));
+        applyTheme(store->settings()["selectedTheme"].toString(defaultThemeID));
         snapshot(media->snapshot());
     }
     void updateAnimation() {
@@ -1254,7 +1255,7 @@ class MainWindow::Impl {
     }
     void applyTheme(QString id) {
         if (!themeIDs.contains(id))
-            id = "schlicht";
+            id = defaultThemeID;
         theme = id;
         auto c = colors(id);
         QPixmap icon(24, 24);
