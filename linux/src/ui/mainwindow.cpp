@@ -1,16 +1,21 @@
 #include "mainwindow.h"
+#include "consolewidgets.h"
+#include "../buildinfo.h"
 #include "../data/catalogservice.h"
 #include "../data/librarystore.h"
 #include "../media/mediaengine.h"
 #include "historyfilter_p.h"
 #include "songtools_p.h"
 #include "songexportdialog.h"
+#include "songexportfile_p.h"
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QThread>
 #include <QtWidgets>
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 namespace Mucke {
 namespace {
@@ -27,103 +32,21 @@ QString duration(double seconds) {
 const QStringList themeIDs = {"schlicht", "acid", "retro", "fanzine", "stack", "danish", "midi"};
 const QStringList themeNames = {"Standard",  "Acid Rave", "Retro",     "Fanzine",
                                 "GuitarAmp", "Danish",    "Black MIDI"};
-struct Colors {
-    QColor bg, panel, stage, fg, muted, accent, secondary;
-    QString font;
-};
-Colors colors(QString id) {
-    if (id == "acid")
-        return {"#1A1B1E", "#121315", "#0E0F11", "#E8EBE9",
-                "#8A8F94", "#39FF14", "#00E5FF", "DejaVu Sans Mono"};
-    if (id == "retro")
-        return {"#1C1A17", "#23201B", "#1A1714", "#F5F0E1", "#C9A227", "#FF9F0A", "#C9A227", "DejaVu Serif"};
-    if (id == "fanzine")
-        return {"#ECEAE3", "#F4F2EC", "#F0EEE6", "#0D0D0D",
-                "#6A6A6A", "#0D0D0D", "#B5231F", "DejaVu Sans Mono"};
-    if (id == "stack")
-        return {"#0A0A0A", "#141414", "#0D0D0D", "#F7F4EC", "#C8A03C", "#C8A03C", "#E8C766", "DejaVu Serif"};
-    if (id == "danish")
-        return {"#ECEAE6", "#F3F1EE", "#EFEDE9", "#1A1A1A", "#514C44", "#4C4842", "#B5894F", "DejaVu Sans"};
-    if (id == "midi")
-        return {"#050507", "#0A0A12", "#060608", "#E8E8FF",
-                "#7A7AA0", "#FF2EC4", "#1EE6FF", "DejaVu Sans Mono"};
-    bool dark = QApplication::palette().color(QPalette::Window).lightness() < 128;
-    return dark ? Colors{"#202124", "#292B2E", "#18191B", "#F4F4F4",
-                         "#B0B4BA", "#81B9FF", "#A8D5FF", QApplication::font().family()}
-                : Colors{"#F3F4F6", "#FFFFFF", "#E9EDF3", "#20252D",
-                         "#626B77", "#2868B2", "#6395CA", QApplication::font().family()};
-}
+using Console::colors;
+using Console::Surface;
+using Console::SurfaceWidget;
+using Console::Symbol;
+using Console::Visualizer;
 class ActivityObserver final : public QObject {
   public:
     std::function<void()> changed;
     explicit ActivityObserver(QObject *parent) : QObject(parent) {}
     bool eventFilter(QObject *, QEvent *event) override {
         if ((event->type() == QEvent::Show || event->type() == QEvent::Hide ||
-             event->type() == QEvent::WindowStateChange) &&
+             event->type() == QEvent::WindowStateChange || event->type() == QEvent::Resize) &&
             changed)
             changed();
         return false;
-    }
-};
-class Visualizer final : public QWidget {
-  public:
-    QString theme = "schlicht";
-    QVector<float> wave, spectrum;
-    float rms = 0;
-    explicit Visualizer(QWidget *parent = nullptr) : QWidget(parent) {
-        // Die vollstaendig deckende Flaeche braucht pro Bild keine erneute Elterntextur.
-        setAttribute(Qt::WA_OpaquePaintEvent);
-        setMinimumHeight(125);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    }
-    void paintEvent(QPaintEvent *) override {
-        QPainter p(this);
-        auto c = colors(theme);
-        p.fillRect(rect(), c.stage);
-        p.setRenderHint(QPainter::Antialiasing);
-        QRectF area = QRectF(rect()).adjusted(20, 20, -20, -20);
-        QLinearGradient gradient(area.topLeft(), area.bottomRight());
-        gradient.setColorAt(0, c.accent);
-        gradient.setColorAt(1, c.secondary);
-        p.setPen(QPen(QBrush(gradient), 2));
-        if (theme == "retro" || theme == "stack") {
-            for (int channel = 0; channel < 2; ++channel) {
-                QPointF center(area.left() + area.width() * (channel ? .75 : .25), area.bottom());
-                double radius = std::min(area.width() * .23, area.height() * .9);
-                p.drawArc(QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2), 25 * 16,
-                          130 * 16);
-                double angle =
-                    (155 - std::clamp(std::sqrt(std::max(0., double(rms))), 0., 1.) * 130) * M_PI / 180;
-                p.drawLine(center, center + QPointF(std::cos(angle) * radius, -std::sin(angle) * radius));
-            }
-        } else if (theme == "midi" || theme == "danish") {
-            int count = 40;
-            double step = area.width() / count;
-            p.setPen(Qt::NoPen);
-            p.setBrush(gradient);
-            for (int i = 0; i < count; ++i) {
-                float value =
-                    spectrum.isEmpty()
-                        ? 0
-                        : spectrum[std::min(spectrum.size() - 1, qsizetype(i * spectrum.size() / count))];
-                double h = std::clamp(double(value), 0., 1.) * area.height();
-                p.drawRoundedRect(QRectF(area.left() + i * step, area.bottom() - std::max(2., h),
-                                         std::max(1., step - 3), std::max(2., h)),
-                                  2, 2);
-            }
-        } else {
-            QPainterPath path;
-            int count = std::min(512, int(wave.size()));
-            for (int i = 0; i < std::max(2, count); ++i) {
-                double x = area.left() + area.width() * i / std::max(1, count - 1);
-                double y = area.center().y() - (count ? wave[i] : 0) * area.height() * .45;
-                if (i == 0)
-                    path.moveTo(x, y);
-                else
-                    path.lineTo(x, y);
-            }
-            p.drawPath(path);
-        }
     }
 };
 QPushButton *button(QString label, QBoxLayout *layout, const std::function<void()> &action) {
@@ -168,6 +91,8 @@ void row(QStandardItemModel *m, QStringList values, QString id = {}) {
     }
     if (!cells.isEmpty())
         cells[0]->setData(id, Qt::UserRole);
+    if (!cells.isEmpty())
+        cells[0]->setAccessibleText(values.join(" · "));
     m->appendRow(cells);
 }
 QString selectedID(QTableView *v) {
@@ -336,7 +261,29 @@ class MainWindow::Impl {
     QSlider *volume, *delay;
     QPushButton *back15, *forward15;
     Visualizer *visual;
+    Console::Columns *columns;
+    SurfaceWidget *headerSurface, *stationSurface, *historySurface, *footerSurface;
+    QWidget *bufferControls;
+    QLabel *stationCount, *historyCount, *historyHeading, *runtime;
+    Console::VolumeKnob *volumeKnob;
+    Console::ItemDelegate *stationDelegate, *historyDelegate, *bookmarkDelegate;
+    QHash<QPushButton *, Symbol> iconButtons;
+    QPushButton *historyToggle, *liveButton;
+    QPushButton *iconButton(Symbol symbol, QString tooltip, QBoxLayout *layout,
+                            const std::function<void()> &action, QString name = {}) {
+        auto *control = button("", layout, action);
+        control->setFixedSize(28, 28);
+        control->setProperty("consoleButton", true);
+        control->setToolTip(tooltip);
+        control->setAccessibleName(tooltip);
+        control->setObjectName(name);
+        iconButtons.insert(control, symbol);
+        return control;
+    }
+
     QDialog *mini = nullptr, *full = nullptr;
+    SurfaceWidget *miniSurface = nullptr;
+    QWidget *miniBufferControls = nullptr;
     QLabel *miniTitle = nullptr;
     QPushButton *miniPlay = nullptr, *miniPause = nullptr, *miniRecord = nullptr, *miniBack = nullptr,
                 *miniForward = nullptr, *miniLive = nullptr;
@@ -348,64 +295,141 @@ class MainWindow::Impl {
     PlaybackSnapshot state;
     QString theme = "schlicht";
     QTimer animation;
+    QTimer noticeTimer;
+    QString notice;
+    QTimer runtimeTimer;
+    QElapsedTimer playbackClock;
+    QString clockStation;
     bool framePending = false, visualizationActive = false;
     QObject callbacks;
     ActivityObserver *windowActivity = nullptr, *fullActivity = nullptr;
     bool updating = false;
+    QPushButton *actionButton(Symbol symbol, QString label, QBoxLayout *layout,
+                              const std::function<void()> &action, QString name = {}) {
+        auto *control = new Console::ActionButton(label);
+        layout->addWidget(control);
+        control->setProperty("consoleButton", true);
+        control->setObjectName(name);
+        control->setToolTip(label);
+        control->setAccessibleName(label);
+        iconButtons.insert(control, symbol);
+        QObject::connect(control, &QPushButton::clicked, control, action);
+        return control;
+    }
     Impl(MainWindow *window, LibraryStore *s, CatalogService *c, MediaEngine *m)
         : q(window), store(s), catalog(c), media(m) {
+        Console::initializeFonts();
         auto language = store->settings()["language"].toString();
         if (language == "de" || language == "en")
             QLocale::setDefault(QLocale(language));
         q->setWindowTitle("Mucke, Baby!");
-        q->resize(1080, 720);
-        q->setMinimumSize(640, 500);
+        q->resize(940, 620);
+        q->setMinimumSize(620, 420);
         auto *root = new QWidget;
         root->setObjectName("shell");
         q->setCentralWidget(root);
         auto *layout = new QVBoxLayout(root);
-        layout->setContentsMargins(18, 16, 18, 16);
-        layout->setSpacing(12);
-        auto *heading = new QHBoxLayout;
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(1);
+        headerSurface = new SurfaceWidget(Surface::Header);
+        headerSurface->setObjectName("consoleHeader");
+        auto *heading = new QHBoxLayout(headerSurface);
+        heading->setContentsMargins(14, 0, 14, 0);
+        heading->setSpacing(8);
         auto *brand = new QLabel("Mucke, Baby!");
         brand->setObjectName("brand");
-        auto brandFont = brand->font();
-        brandFont.setPointSize(21);
-        brandFont.setBold(true);
-        brand->setFont(brandFont);
         heading->addWidget(brand);
+        auto *version = new QLabel(QString("v%1").arg(MUCKE_VERSION));
+        version->setObjectName("version");
+        heading->addWidget(version);
         heading->addStretch();
-        themes = new QComboBox;
+        play = button(text("▶ Abspielen", "▶ Play"), heading, [this] { togglePlayback(); });
+        play->setObjectName("mainPlay");
+        play->setProperty("consoleButton", true);
+        play->setMinimumHeight(26);
+        auto *divider = new QFrame;
+        divider->setFrameShape(QFrame::VLine);
+        divider->setFixedHeight(20);
+        heading->addWidget(divider);
+        iconButton(
+            Symbol::Search, text("Senderkatalog", "Station catalog"), heading, [this] { catalogDialog(); },
+            "catalogOpen");
+        iconButton(
+            Symbol::Add, text("Sender hinzufügen", "Add station"), heading, [this] { editStation({}); },
+            "stationAdd");
+        iconButton(
+            Symbol::Edit, text("Sender bearbeiten", "Edit station"), heading,
+            [this] { editStation(selectedID(stationView)); }, "stationEdit");
+        iconButton(
+            Symbol::Settings, text("Einstellungen", "Settings"), heading, [this] { settings(); },
+            "settingsOpen");
+        iconButton(Symbol::Audio, text("Audioeinstellungen", "Audio settings"), heading,
+                   [this] { settings(2); }, "audioSettingsOpen");
+        historyToggle = iconButton(Symbol::History, text("Verlauf ein-/ausblenden", "Show or hide history"),
+                                   heading, [this] { columns->showHistory(!columns->hasHistory()); });
+        themes = new QComboBox(root);
         themes->addItems(themeNames);
+        themes->hide();
         themes->setAccessibleName(text("Theme", "Theme"));
-        heading->addWidget(themes);
-        button(text("Mini", "Mini"), heading, [this] { miniPlayer(); });
-        auto *fullButton = button("", heading, [this] { fullScreen(); });
+        auto *themeButton = iconButton(Symbol::Palette, text("Theme wählen", "Choose theme"), heading, [] {});
+        auto *themeMenu = new QMenu(themeButton);
+        for (int i = 0; i < themeIDs.size(); ++i)
+            themeMenu->addAction(themeNames[i], q, [this, i] { themes->setCurrentIndex(i); });
+        themeButton->setMenu(themeMenu);
+        auto *moreButton = iconButton(Symbol::More, text("Weitere Aktionen", "More actions"), heading, [] {});
+        auto *mainMenu = new QMenu(moreButton);
+        moreButton->setMenu(mainMenu);
+        mainMenu->addAction(text("Miniplayer", "Mini player"), q, [this] { miniPlayer(); });
+        auto *fullButton = new QPushButton(q);
+        fullButton->hide();
         fullScreenButton = fullButton;
-        fullButton->setIcon(q->style()->standardIcon(QStyle::SP_TitleBarMaxButton));
-        fullButton->setToolTip(text("Vollbild (F11)", "Full screen (F11)"));
-        fullButton->setAccessibleName(fullButton->toolTip());
-        auto *settingsButton = button("⚙", heading, [this] { settings(); });
-        settingsButton->setToolTip(text("Einstellungen", "Settings"));
-        settingsButton->setAccessibleName(settingsButton->toolTip());
-        layout->addLayout(heading);
-        auto *split = new QSplitter;
-        layout->addWidget(split, 1);
-        auto *left = new QWidget;
+        mainMenu->addAction(text("Vollbild-Visualizer", "Fullscreen visualizer"), q,
+                            [this] { fullScreen(); });
+        mainMenu->addSeparator();
+        layout->addWidget(headerSurface);
+        stationSurface = new SurfaceWidget(Surface::Panel);
+        stationSurface->setObjectName("stationPanel");
+        auto *left = stationSurface;
         auto *ll = new QVBoxLayout(left);
         ll->setContentsMargins(0, 0, 0, 0);
+        ll->setSpacing(0);
+        auto *stationHeading = new QHBoxLayout;
+        stationHeading->setContentsMargins(12, 5, 10, 5);
+        auto *stationsCaption = new QLabel("STATIONS");
+        stationsCaption->setObjectName("sectionHeading");
+        stationHeading->addWidget(stationsCaption);
+        stationHeading->addStretch();
+        iconButton(Symbol::List, text("Sender auswählen", "Choose station"), stationHeading, [this] {
+            search->setFocus();
+            search->selectAll();
+        });
+        iconButton(Symbol::Folder, text("Sendergruppen", "Station groups"), stationHeading,
+                   [this] { groupsDialog(); });
+        ll->addLayout(stationHeading);
+        auto *stationFilters = new QWidget;
+        stationFilters->setObjectName("stationFilters");
+        auto *filterLayout = new QVBoxLayout(stationFilters);
+        filterLayout->setContentsMargins(12, 8, 12, 6);
+        filterLayout->setSpacing(6);
         search = new QLineEdit;
         search->setObjectName("stationSearch");
         search->setPlaceholderText(text("Sender suchen …", "Search stations …"));
-        ll->addWidget(search);
+        search->setFixedHeight(30);
+        filterLayout->addWidget(search);
         auto *filters = new QHBoxLayout;
         group = new QComboBox;
         favorites = new QCheckBox("★");
         favorites->setToolTip(text("Nur Favoriten", "Favorites only"));
         favorites->setAccessibleName(favorites->toolTip());
-        filters->addWidget(group, 1);
+        group->setMaximumWidth(180);
+        filters->addWidget(group);
         filters->addWidget(favorites);
-        ll->addLayout(filters);
+        filters->addStretch();
+        filterLayout->addLayout(filters);
+        stationCount = new QLabel;
+        stationCount->setObjectName("resultCount");
+        filterLayout->addWidget(stationCount);
+        ll->addWidget(stationFilters);
         stationModel = new QStandardItemModel(q);
         stationModel->setHorizontalHeaderLabels({text("Sender", "Station"), "★"});
         stationView = table(stationModel);
@@ -416,42 +440,47 @@ class MainWindow::Impl {
         stationView->setColumnWidth(1, 28);
         stationView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         ll->addWidget(stationView, 1);
-        auto *stationActions = new QHBoxLayout;
-        button("+", stationActions, [this] { editStation({}); });
-        auto *editButton = button("✎", stationActions, [this] { editStation(selectedID(stationView)); });
-        editButton->setToolTip(text("Sender bearbeiten", "Edit station"));
-        editButton->setAccessibleName(editButton->toolTip());
-        button(text("Katalog", "Catalog"), stationActions, [this] { catalogDialog(); });
-        ll->addLayout(stationActions);
-        split->addWidget(left);
-        auto *right = new QWidget;
+        stationView->horizontalHeader()->hide();
+        stationView->setColumnHidden(1, true);
+        stationView->setFrameShape(QFrame::NoFrame);
+        stationView->setAlternatingRowColors(false);
+        stationDelegate = new Console::ItemDelegate(Console::ItemDelegate::Kind::Station, stationView);
+        stationView->setItemDelegate(stationDelegate);
+        historySurface = new SurfaceWidget(Surface::History);
+        historySurface->setObjectName("historyPanel");
+        auto *right = historySurface;
         auto *rl = new QVBoxLayout(right);
-        rl->setContentsMargins(4, 0, 0, 0);
-        now = new QLabel(text("Bereit für Musik", "Ready for music"));
-        now->setObjectName("nowPlaying");
-        now->setTextFormat(Qt::PlainText);
-        now->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-        now->setWordWrap(true);
-        auto nf = now->font();
-        nf.setPointSize(23);
-        nf.setBold(true);
-        now->setFont(nf);
-        artist =
-            new QLabel(text("Sender wählen und Wiedergabe starten.", "Choose a station and start playback."));
-        artist->setTextFormat(Qt::PlainText);
-        artist->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-        artist->setWordWrap(true);
-        rl->addWidget(now);
-        rl->addWidget(artist);
-        visual = new Visualizer;
-        visual->setMinimumHeight(90);
-        rl->addWidget(visual, 1);
-        status = new QLabel;
-        status->setTextFormat(Qt::PlainText);
-        status->setWordWrap(true);
-        rl->addWidget(status);
+        rl->setContentsMargins(0, 0, 0, 0);
+        rl->setSpacing(0);
+        auto *rightHeading = new QHBoxLayout;
+        rightHeading->setContentsMargins(10, 5, 8, 5);
+        historyHeading = new QLabel(text("Verlauf", "History"));
+        historyHeading->setObjectName("historyHeading");
+        rightHeading->addWidget(historyHeading);
+        rightHeading->addStretch();
+        iconButton(Symbol::Waveform, text("Aufnahmebibliothek", "Recording library"), rightHeading,
+                   [this] { tabs->setCurrentIndex(2); });
+        auto *libraryPicker =
+            iconButton(Symbol::More, text("Bibliothek anzeigen", "Show library"), rightHeading, [] {});
+        auto *libraryMenu = new QMenu(libraryPicker);
+        libraryPicker->setMenu(libraryMenu);
+        for (const auto &entry :
+             {qMakePair(text("Verlauf", "History"), 0), qMakePair(text("Merkliste", "Bookmarks"), 1),
+              qMakePair(text("Aufnahmen", "Recordings"), 2)})
+            libraryMenu->addAction(entry.first, q,
+                                   [this, index = entry.second] { tabs->setCurrentIndex(index); });
+        iconButton(Symbol::History, text("Verlauf ausblenden", "Hide history"), rightHeading,
+                   [this] { columns->showHistory(false); });
+        rl->addLayout(rightHeading);
         tabs = new QTabWidget;
         tabs->setObjectName("libraryTabs");
+        tabs->tabBar()->hide();
+        QObject::connect(tabs, &QTabWidget::currentChanged, q, [this](int index) {
+            historyHeading->setText(index == 1        ? text("Merkliste", "Bookmarks")
+                                    : index == 2      ? text("Aufnahmen", "Recordings")
+                                    : theme == "midi" ? "PLAYBACK_HISTORY"
+                                                      : text("Verlauf", "History"));
+        });
         historyModel = new QStandardItemModel(q);
         bookmarkModel = new QStandardItemModel(q);
         recordingModel = new QStandardItemModel(q);
@@ -463,6 +492,8 @@ class MainWindow::Impl {
                                                    text("Dauer", "Duration"), text("Größe", "Size")});
         auto *historyPage = new QWidget;
         auto *hl = new QVBoxLayout(historyPage);
+        hl->setContentsMargins(10, 8, 10, 0);
+        hl->setSpacing(6);
         auto *hf = new QHBoxLayout;
         historySearch = new QLineEdit;
         historySearch->setPlaceholderText(text("Titel / Künstler filtern", "Filter title / artist"));
@@ -471,6 +502,7 @@ class MainWindow::Impl {
         period->addItems({text("Alle Zeiten", "All time"), text("Heute", "Today"), text("7 Tage", "7 days"),
                           text("30 Tage", "30 days"), text("Zeitraum …", "Custom dates …")});
         period->setObjectName("historyPeriod");
+        historySearch->setFixedHeight(30);
         hl->addWidget(historySearch);
         historySearch->setMinimumWidth(120);
         historyStation->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
@@ -478,6 +510,9 @@ class MainWindow::Impl {
         hf->addWidget(historyStation, 1);
         hf->addWidget(period);
         hl->addLayout(hf);
+        historyCount = new QLabel;
+        historyCount->setObjectName("resultCount");
+        hl->addWidget(historyCount);
         historyDates = new QWidget;
         auto *dateLayout = new QHBoxLayout(historyDates);
         dateLayout->setContentsMargins(0, 0, 0, 0);
@@ -509,29 +544,54 @@ class MainWindow::Impl {
         historyView->setObjectName("history");
         historyView->setMinimumHeight(90);
         historyView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-        hl->addWidget(historyView);
+        historyView->horizontalHeader()->hide();
+        historyView->setColumnHidden(1, true);
+        historyView->setColumnHidden(2, true);
+        historyView->setFrameShape(QFrame::NoFrame);
+        historyView->setAlternatingRowColors(false);
+        historyDelegate = new Console::ItemDelegate(Console::ItemDelegate::Kind::Track, historyView);
+        historyView->setItemDelegate(historyDelegate);
+        hl->addWidget(historyView, 1);
         auto *ha = new QHBoxLayout;
-        button(text("Merken", "Bookmark"), ha, [this] {
-            auto id = selectedID(historyView);
-            for (auto t : store->history())
-                if (t.id == id)
-                    store->bookmark(t);
+        ha->setSpacing(4);
+        ha->setContentsMargins(0, 4, 0, 5);
+        actionButton(Symbol::Music, "Music", ha, [this] {
+            for (const auto &track : store->history())
+                if (track.id == selectedID(historyView))
+                    QDesktopServices::openUrl(SongTools::appleMusicURL(track));
         });
-        auto *audioExport = button(text("Audio exportieren …", "Export audio …"), ha, [this] { exportSongs(historyView, false); });
-        audioExport->setObjectName("historyAudioExport");
-        auto *historyActions = button("...", ha, [this] { trackMenu(historyView, false, QCursor::pos()); });
-        historyActions->setObjectName("historyTrackActions");
-        historyActions->setToolTip(
-            text("Weitere Aktionen: Musiklinks, Songtext und Verlauf löschen", "More actions: music links, lyrics and clear history"));
-        historyActions->setAccessibleName(historyActions->toolTip());
+        actionButton(Symbol::Spotify, "Spotify", ha, [this] {
+            for (const auto &track : store->history())
+                if (track.id == selectedID(historyView))
+                    QDesktopServices::openUrl(SongTools::spotifyURL(track));
+        });
+        actionButton(Symbol::Lyrics, "Lyrics", ha, [this] {
+            for (const auto &track : store->history())
+                if (track.id == selectedID(historyView)) {
+                    LyricsDialog dialog(track, q);
+                    dialog.exec();
+                }
+        });
+        auto *audioExport = actionButton(
+            Symbol::Export, "Export", ha, [this] { exportSongs(historyView, false); }, "historyAudioExport");
+        Q_UNUSED(audioExport);
+        auto *historyActions = iconButton(
+            Symbol::More, text("Weitere Titelaktionen", "More track actions"), ha,
+            [this] { trackMenu(historyView, false, QCursor::pos()); }, "historyTrackActions");
+        Q_UNUSED(historyActions);
+        ha->addStretch();
         historyView->setContextMenuPolicy(Qt::CustomContextMenu);
         QObject::connect(historyView, &QWidget::customContextMenuRequested, q, [this](QPoint position) {
             trackMenu(historyView, false, historyView->viewport()->mapToGlobal(position));
         });
-        hl->addLayout(ha);
+        auto *historyActionsBar = new QWidget;
+        historyActionsBar->setObjectName("historyActionsBar");
+        historyActionsBar->setLayout(ha);
+        hl->addWidget(historyActionsBar);
         tabs->addTab(historyPage, text("Verlauf", "History"));
         auto *bp = new QWidget;
         auto *bl = new QVBoxLayout(bp);
+        bl->setContentsMargins(10, 8, 10, 6);
         bookmarkSearch = new QLineEdit;
         bookmarkSearch->setObjectName("bookmarkSearch");
         bookmarkSearch->setPlaceholderText(text("Merkliste durchsuchen …", "Search bookmarks …"));
@@ -539,7 +599,14 @@ class MainWindow::Impl {
         QObject::connect(bookmarkSearch, &QLineEdit::textChanged, q, [this] { bookmarks(); });
         bookmarkView = table(bookmarkModel);
         bookmarkView->setObjectName("bookmarks");
-        bl->addWidget(bookmarkView);
+        bookmarkView->horizontalHeader()->hide();
+        bookmarkView->setColumnHidden(1, true);
+        bookmarkView->setColumnHidden(2, true);
+        bookmarkView->setFrameShape(QFrame::NoFrame);
+        bookmarkView->setAlternatingRowColors(false);
+        bookmarkDelegate = new Console::ItemDelegate(Console::ItemDelegate::Kind::Track, bookmarkView);
+        bookmarkView->setItemDelegate(bookmarkDelegate);
+        bl->addWidget(bookmarkView, 1);
         auto *ba = new QHBoxLayout;
         button(text("Entfernen", "Remove"), ba, [this] {
             auto id = selectedID(bookmarkView);
@@ -561,6 +628,7 @@ class MainWindow::Impl {
         tabs->addTab(bp, text("Merkliste", "Bookmarks"));
         auto *rp = new QWidget;
         auto *rpl = new QVBoxLayout(rp);
+        rpl->setContentsMargins(10, 8, 10, 6);
         recordingView = table(recordingModel);
         recordingView->setObjectName("recordings");
         recordingView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
@@ -597,70 +665,135 @@ class MainWindow::Impl {
         });
         rpl->addLayout(ra);
         tabs->addTab(rp, text("Aufnahmen", "Recordings"));
-        rl->addWidget(tabs, 2);
-        split->addWidget(right);
-        split->setSizes({330, 700});
-        auto *controls = new QHBoxLayout;
-        play = button(text("▶ Spielen", "▶ Play"), controls, [this] { togglePlayback(); });
-        pause = button(text("Pause", "Pause"), controls, [this] { media->togglePause(); });
-        bookmark = button("☆", controls, [this] {
-            if (!state.heardTrack.raw.isEmpty() || !state.heardTrack.title.isEmpty())
-                store->bookmark(state.heardTrack);
+        rl->addWidget(tabs, 1);
+        visual = new Visualizer;
+        visual->setObjectName("mainVisualizer");
+        columns = new Console::Columns(left, visual, right);
+        columns->setObjectName("consoleBody");
+        layout->addWidget(columns, 1);
+        bufferControls = new QWidget;
+        bufferControls->setObjectName("bufferControls");
+        auto *bufferLayout = new QVBoxLayout(bufferControls);
+        bufferLayout->setContentsMargins(12, 5, 12, 6);
+        bufferLayout->setSpacing(5);
+        auto *buffer = new QHBoxLayout;
+        buffer->setSpacing(7);
+        pause = button(text("Pause", "Pause"), buffer, [this] { media->togglePause(); });
+        pause->setProperty("consoleButton", true);
+        pause->setMinimumHeight(24);
+        back15 = iconButton(
+            Symbol::Back, text("15 Sekunden zurück", "Back 15 seconds"), buffer,
+            [this] { media->seekDelay(std::min(state.bufferSeconds, state.delaySeconds + 15)); }, "back15");
+        forward15 = iconButton(
+            Symbol::Forward, text("15 Sekunden vor", "Forward 15 seconds"), buffer,
+            [this] { media->seekDelay(std::max(0., state.delaySeconds - 15)); }, "forward15");
+        buffer->addStretch();
+        liveButton = button("Live", buffer, [this] { media->goLive(); });
+        liveButton->setProperty("consoleButton", true);
+        liveButton->setMinimumHeight(24);
+        bufferLayout->addLayout(buffer);
+        delay = new QSlider(Qt::Horizontal);
+        delay->setRange(0, 0);
+        delay->setAccessibleName(text("Puffer-Verzögerung", "Buffer delay"));
+        bufferLayout->addWidget(delay);
+        bufferStatus = new QLabel;
+        bufferStatus->setObjectName("bufferStatus");
+        bufferStatus->setTextFormat(Qt::PlainText);
+        bufferLayout->addWidget(bufferStatus);
+        layout->addWidget(bufferControls);
+        bufferControls->hide();
+        footerSurface = new SurfaceWidget(Surface::Footer);
+        footerSurface->setObjectName("consoleFooter");
+        auto *footer = new QHBoxLayout(footerSurface);
+        footer->setContentsMargins(16, 9, 12, 9);
+        footer->setSpacing(9);
+        auto *playingWidget = new QWidget;
+        auto *playingText = new QVBoxLayout(playingWidget);
+        playingText->setSpacing(1);
+        playingText->setContentsMargins(0, 0, 0, 0);
+        playingText->setSizeConstraint(QLayout::SetFixedSize);
+        artist = new QLabel(text("Kein Sender", "No station"));
+        artist->setObjectName("stationCaption");
+        now = new QLabel(text("Bereit für Musik", "Ready for music"));
+        now->setObjectName("nowPlaying");
+        for (auto *label : {artist, now}) {
+            label->setTextFormat(Qt::PlainText);
+            label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+            label->setMinimumWidth(0);
+        }
+        now->setWordWrap(false);
+        playingText->addWidget(artist);
+        playingText->addWidget(now);
+        status = new QLabel;
+        status->setObjectName("playbackStatus");
+        status->setTextFormat(Qt::PlainText);
+        status->setWordWrap(true);
+        status->hide();
+        playingText->addWidget(status);
+        auto *titleScroll = new QScrollArea;
+        titleScroll->setObjectName("nowPlayingScroll");
+        titleScroll->setFrameShape(QFrame::NoFrame);
+        titleScroll->setMinimumWidth(0);
+        titleScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        titleScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        titleScroll->setWidget(playingWidget);
+        titleScroll->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        titleScroll->setAutoFillBackground(false);
+        titleScroll->viewport()->setAutoFillBackground(false);
+        titleScroll->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        footer->addWidget(titleScroll, 1);
+        iconButton(Symbol::Recognition, text("Musikerkennung unter Linux", "Music recognition on Linux"), footer,
+                   [this] { recognition(); });
+        bookmark = iconButton(Symbol::Heart,
+                              text("Aktuellen Titel merken (Strg+D)", "Bookmark current track (Ctrl+D)"),
+                              footer, [this] {
+                                  if (!state.heardTrack.raw.isEmpty() || !state.heardTrack.title.isEmpty())
+                                      store->bookmark(state.heardTrack);
+                              });
+        iconButton(Symbol::Bookmarks, text("Merkliste öffnen", "Open bookmarks"), footer, [this] {
+            columns->showHistory(true);
+            tabs->setCurrentIndex(1);
         });
-        bookmark->setToolTip(text("Aktuellen Titel merken (Strg+D)", "Bookmark current track (Ctrl+D)"));
-        record = button(text("● Aufnahme", "● Record"), controls, [this] {
+        record = button(text("Aufnahme", "Record"), footer, [this] {
             if (!state.recordRequested &&
-                !confirm(text("Aufnahme einschalten? Audio wird im Musikordner gespeichert. Unter 10 GiB "
-                              "freiem Speicher stoppt die Aufnahme automatisch.",
-                              "Enable recording? Audio is saved in your Music folder. Recording stops "
-                              "automatically below 10 GiB of free space.")))
+                !confirm(text(
+                    "Aufnahme einschalten? Audio wird im Musikordner gespeichert. Unter 10 GiB freiem Speicher stoppt die Aufnahme automatisch.",
+                    "Enable recording? Audio is saved in your Music folder. Recording stops automatically below 10 GiB of free space.")))
                 return;
-            bool enabled = !state.recordRequested;
+            const bool enabled = !state.recordRequested;
             media->setRecordingEnabled(enabled);
             auto settings = store->settings();
             settings["recordingEnabled"] = enabled;
             store->saveSettings(settings);
         });
-        controls->addStretch();
-        controls->addWidget(new QLabel("♪"));
-        volume = new QSlider(Qt::Horizontal);
-        volume->setObjectName("volume");
-        volume->setRange(0, 100);
-        volume->setMaximumWidth(130);
-        volume->setMinimumWidth(75);
-        volume->setAccessibleName(text("Lautstärke", "Volume"));
-        controls->addWidget(volume);
-        layout->addLayout(controls);
-        auto *buffer = new QHBoxLayout;
-        bufferStatus = new QLabel;
-        bufferStatus->setTextFormat(Qt::PlainText);
-        delay = new QSlider(Qt::Horizontal);
-        delay->setRange(0, 0);
-        delay->setAccessibleName(text("Puffer-Verzögerung", "Buffer delay"));
-        layout->addWidget(bufferStatus);
-        buffer->addWidget(delay, 1);
-        back15 = button("−15 s", buffer,
-                        [this] { media->seekDelay(std::min(state.bufferSeconds, state.delaySeconds + 15)); });
-        back15->setObjectName("back15");
-        back15->setToolTip(text("15 Sekunden zurück", "Back 15 seconds"));
-        forward15 =
-            button("+15 s", buffer, [this] { media->seekDelay(std::max(0., state.delaySeconds - 15)); });
-        forward15->setObjectName("forward15");
-        forward15->setToolTip(text("15 Sekunden vor", "Forward 15 seconds"));
-        button(text("Live", "Live"), buffer, [this] { media->goLive(); });
-        button(text("Timer …", "Timer …"), buffer, [this] {
+        record->setObjectName("recordControl");
+        record->setProperty("consoleButton", true);
+        recordStatus = new QLabel(q);
+        recordStatus->hide();
+        iconButton(Symbol::Timer, text("Einschlaftimer", "Sleep timer"), footer, [this] {
             bool ok;
-            int minutes =
+            const int minutes =
                 QInputDialog::getInt(q, text("Einschlaftimer", "Sleep timer"),
                                      text("Minuten (0 = aus)", "Minutes (0 = off)"), 30, 0, 1440, 1, &ok);
             if (ok)
                 media->setSleepTimer(minutes * 60);
         });
-        layout->addLayout(buffer);
-        recordStatus = new QLabel;
-        recordStatus->setTextFormat(Qt::PlainText);
-        recordStatus->setWordWrap(true);
-        layout->addWidget(recordStatus);
+        runtime = new QLabel;
+        runtime->setObjectName("runtime");
+        footer->addWidget(runtime);
+        volume = new QSlider(Qt::Horizontal);
+        volume->setObjectName("volume");
+        volume->setRange(0, 100);
+        volume->setFixedWidth(96);
+        volume->setAccessibleName(text("Lautstärke", "Volume"));
+        footer->addWidget(volume);
+        volumeKnob = new Console::VolumeKnob;
+        volumeKnob->setObjectName("volumeKnob");
+        volumeKnob->setAccessibleName(text("Lautstärke", "Volume"));
+        footer->addWidget(volumeKnob);
+        QObject::connect(volumeKnob, &QSlider::valueChanged, q,
+                         [this](int value) { volume->setValue(value); });
+        layout->addWidget(footerSurface);
         auto *file = q->menuBar()->addMenu(text("Bibliothek", "Library"));
         file->addAction(text("Importieren …", "Import …"), q, [this] { importLibrary(); });
         file->addAction(text("Genrelisten …", "Genre collections …"), q, [this] { genreLists(); });
@@ -676,13 +809,37 @@ class MainWindow::Impl {
         file->addAction(text("Aufnahmeordner öffnen", "Open recording folder"), q, [this] {
             QDesktopServices::openUrl(QUrl::fromLocalFile(media->recordingsDirectory()));
         });
+        auto *help = q->menuBar()->addMenu(text("Hilfe", "Help"));
+        help->addAction(text("Über Mucke, Baby!", "About Mucke, Baby!"), q, [this] {
+            QMessageBox::about(
+                q, text("Über Mucke, Baby!", "About Mucke, Baby!"),
+                QString("Mucke, Baby! %1\n\n").arg(MUCKE_VERSION) +
+                    text(
+                        "Natives Internetradio mit Qt 6 und libVLC.\nEigener Quellcode unter MIT-Lizenz.",
+                        "Native internet radio with Qt 6 and libVLC.\nProject source code is licensed under MIT."));
+        });
+        help->addAction(text("Quellcode und Lizenzen", "Source code and licenses"), q, [] {
+            QDesktopServices::openUrl(
+                QUrl("https://github.com/DanielMuellerIR/mucke_baby/blob/master/THIRD-PARTY.md"));
+        });
+        help->addSeparator();
+        help->addAction(text("Impressum", "Legal notice"), q,
+                        [] { QDesktopServices::openUrl(QUrl("https://dm0.de/impressum.html")); });
+        help->addAction(text("Datenschutz", "Privacy"), q,
+                        [] { QDesktopServices::openUrl(QUrl("https://dm0.de/datenschutz.html")); });
+        mainMenu->addMenu(file);
+        mainMenu->addMenu(help);
+        q->menuBar()->hide();
+        q->statusBar()->hide();
         QObject::connect(search, &QLineEdit::textChanged, q, [this] { stations(); });
         QObject::connect(group, qOverload<int>(&QComboBox::currentIndexChanged), q, [this] {
             if (!updating)
                 stations();
         });
         QObject::connect(favorites, &QCheckBox::toggled, q, [this] { stations(); });
-        QObject::connect(stationView, &QTableView::doubleClicked, q, [this] { playSelected(); });
+        QObject::connect(stationView, &QTableView::clicked, q, [this](QModelIndex index) {
+            togglePlayback(index.siblingAtColumn(0).data(Qt::UserRole).toString());
+        });
         QObject::connect(volume, &QSlider::valueChanged, q, [this](int n) {
             if (!updating)
                 media->setVolume(n);
@@ -728,13 +885,41 @@ class MainWindow::Impl {
             auto *s = new QShortcut(QKeySequence(key), q);
             QObject::connect(s, &QShortcut::activated, q, fn);
         };
-        shortcut("Space", [this] {
-            if (!qobject_cast<QLineEdit *>(QApplication::focusWidget()) &&
-                !qobject_cast<QAbstractSpinBox *>(QApplication::focusWidget()))
+        auto *space = new QShortcut(QKeySequence(Qt::Key_Space), q);
+        QObject::connect(space, &QShortcut::activated, q, [this] {
+            auto *focus = QApplication::focusWidget();
+            if (focus == stationView || (focus && stationView->isAncestorOf(focus)))
+                togglePlayback(selectedID(stationView));
+            else
                 play->click();
+        });
+        auto allowSpace = [space](QWidget *focus) {
+            space->setEnabled(!qobject_cast<QLineEdit *>(focus) && !qobject_cast<QAbstractSpinBox *>(focus) &&
+                              !qobject_cast<QComboBox *>(focus) && !qobject_cast<QAbstractButton *>(focus));
+        };
+        QObject::connect(qApp, &QApplication::focusChanged, space,
+                         [allowSpace](QWidget *, QWidget *focus) { allowSpace(focus); });
+        allowSpace(QApplication::focusWidget());
+        for (auto key : {Qt::Key_Return, Qt::Key_Enter}) {
+            auto *activateStation = new QShortcut(QKeySequence(key), stationView);
+            activateStation->setContext(Qt::WidgetWithChildrenShortcut);
+            QObject::connect(activateStation, &QShortcut::activated, q,
+                             [this] { togglePlayback(selectedID(stationView)); });
+        }
+        noticeTimer.setSingleShot(true);
+        QObject::connect(&noticeTimer, &QTimer::timeout, q, [this] {
+            notice.clear();
+            snapshot(state);
+        });
+        runtimeTimer.setInterval(1000);
+        QObject::connect(&runtimeTimer, &QTimer::timeout, q, [this] {
+            if (playbackClock.isValid())
+                runtime->setText(duration(playbackClock.elapsed() / 1000.));
         });
         shortcut("Ctrl+D", [this] { bookmark->click(); });
         shortcut("Ctrl+F", [this] { search->setFocus(); });
+        shortcut("Ctrl+Shift+T",
+                 [this] { themes->setCurrentIndex((themeIDs.indexOf(theme) + 1) % themeIDs.size()); });
         shortcut("Ctrl+M", [this] { miniPlayer(); });
         shortcut("F11", [this] { fullScreen(); });
         for (int i = 0; i < 5; ++i)
@@ -758,7 +943,11 @@ class MainWindow::Impl {
         });
         windowActivity = new ActivityObserver(q);
         windowActivity->changed = [this] {
-            QTimer::singleShot(0, &callbacks, [this] { updateAnimation(); });
+            QTimer::singleShot(0, &callbacks, [this] {
+                updateAnimation();
+                configureTrackColumns(historyView);
+                configureTrackColumns(bookmarkView);
+            });
         };
         q->installEventFilter(windowActivity);
         library();
@@ -769,8 +958,8 @@ class MainWindow::Impl {
         snapshot(media->snapshot());
     }
     void updateAnimation() {
-        bool visible =
-            (q->isVisible() && !q->isMinimized()) || (full && full->isVisible() && !full->isMinimized());
+        bool visible = (q->isVisible() && !q->isMinimized() && visual->isVisible()) ||
+                       (full && full->isVisible() && !full->isMinimized());
         bool active = visible && state.state == PlaybackState::Playing;
         if (active != visualizationActive) {
             visualizationActive = active;
@@ -810,8 +999,10 @@ class MainWindow::Impl {
         delete full;
     }
     void error(QString e) {
-        q->statusBar()->showMessage(e, 15000);
+        notice = e;
+        noticeTimer.start(15000);
         status->setText(e);
+        status->show();
     }
     bool confirm(QString question) {
         return QMessageBox::question(q, text("Bitte bestätigen", "Please confirm"), question,
@@ -837,7 +1028,7 @@ class MainWindow::Impl {
         QString gid = group->currentData().toString(), sid = historyStation->currentData().toString();
         updating = true;
         group->clear();
-        group->addItem(text("Alle Gruppen", "All groups"), "");
+        group->addItem(text("Alle Sender", "All stations"), "");
         for (auto g : store->groups())
             group->addItem(g.name, g.id);
         group->setCurrentIndex(std::max(0, group->findData(gid)));
@@ -873,25 +1064,31 @@ class MainWindow::Impl {
                 s.id);
             auto *item = stationModel->item(stationModel->rowCount() - 1);
             item->setToolTip(s.url);
+            item->setData(s.favorite, Console::FavoriteRole);
+            const bool active = s.id == state.stationID;
+            item->setData(active && state.state != PlaybackState::Stopped, Console::ActiveRole);
+            item->setData(active ? trackName(state.heardTrack) : QString(), Console::SubtitleRole);
             if (!s.enabled)
                 item->setForeground(colors(theme).muted);
             if (s.id == id)
                 stationView->selectRow(stationModel->rowCount() - 1);
         }
+        stationView->resizeRowsToContents();
+        stationCount->setText(text("%1 von %2 Sendern", "%1 of %2 stations")
+                                  .arg(stationModel->rowCount())
+                                  .arg(store->stations().size()));
     }
     void configureTrackColumns(QTableView *view) {
-        view->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-        view->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-        view->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-        view->setColumnWidth(0,
-                             std::max(128, view->fontMetrics().horizontalAdvance("2026-10-28 13:00") + 14));
-        view->setColumnWidth(2, 120);
+        view->setColumnHidden(1, true);
+        view->setColumnHidden(2, true);
+        view->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
         view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        view->resizeRowsToContents();
     }
     void history() {
         historyModel->removeRows(0, historyModel->rowCount());
         auto list = store->history();
-        for (auto it = list.crbegin(); it != list.crend(); ++it) {
+        for (auto it = list.cbegin(); it != list.cend(); ++it) {
             auto t = *it;
             auto date = t.heardAt.isValid() ? t.heardAt : t.receivedAt;
             const int preset = period->currentIndex();
@@ -905,9 +1102,15 @@ class MainWindow::Impl {
                 continue;
             if (!(trackName(t) + t.station).contains(historySearch->text(), Qt::CaseInsensitive))
                 continue;
-            row(historyModel, {date.toLocalTime().toString("yyyy-MM-dd HH:mm"), trackName(t), t.station},
+            const QString end = t.endedAt.isValid() ? t.endedAt.toLocalTime().toString("HH:mm:ss") : "…";
+            row(historyModel,
+                {date.toLocalTime().toString("yyyy-MM-dd · HH:mm:ss") + " – " + end, trackName(t), t.station},
                 t.id);
+            historyModel->item(historyModel->rowCount() - 1)
+                ->setData(t.id == state.heardTrack.id, Console::ActiveRole);
         }
+        historyCount->setText(
+            text("%1 von %2 Titeln", "%1 of %2 tracks").arg(historyModel->rowCount()).arg(list.size()));
         configureTrackColumns(historyView);
     }
     void bookmarks() {
@@ -934,28 +1137,64 @@ class MainWindow::Impl {
         recordingView->resizeColumnToContents(0);
     }
     void snapshot(PlaybackSnapshot s) {
+        const bool trackChanged = state.stationID != s.stationID || state.heardTrack.id != s.heardTrack.id ||
+                                  state.heardTrack.raw != s.heardTrack.raw || state.state != s.state;
+        if (clockStation != s.stationID || s.state == PlaybackState::Stopped || s.state == PlaybackState::Error) {
+            playbackClock.invalidate(); runtimeTimer.stop(); clockStation = s.stationID;
+        }
+        if (s.state == PlaybackState::Playing && !playbackClock.isValid()) {
+            playbackClock.start(); runtimeTimer.start();
+        }
         state = s;
+        if (trackChanged) {
+            for (int i = 0; i < stationModel->rowCount(); ++i) {
+                auto *item = stationModel->item(i);
+                const bool current = item->data(Qt::UserRole).toString() == s.stationID;
+                item->setData(current && s.state != PlaybackState::Stopped, Console::ActiveRole);
+                item->setData(current ? trackName(s.heardTrack) : QString(), Console::SubtitleRole);
+            }
+            stationView->resizeRowsToContents();
+            for (int i = 0; i < historyModel->rowCount(); ++i)
+                historyModel->item(i)->setData(historyModel->item(i)->data(Qt::UserRole).toString() ==
+                                                   s.heardTrack.id,
+                                               Console::ActiveRole);
+        }
         updateAnimation();
         updating = true;
         volume->setValue(s.volume);
+        {
+            QSignalBlocker block(volumeKnob);
+            volumeKnob->setValue(s.volume);
+            volumeKnob->update();
+        }
         delay->setMaximum(int(s.bufferSeconds));
         if (!delay->isSliderDown())
             delay->setValue(int(s.delaySeconds));
         updating = false;
         bool playing = s.state == PlaybackState::Playing || s.state == PlaybackState::Buffering ||
                        s.state == PlaybackState::Resolving || s.state == PlaybackState::Paused;
-        play->setText(playing ? text("■ Stoppen", "■ Stop") : text("▶ Spielen", "▶ Play"));
+        play->setText(playing ? text("Stopp", "Stop") : text("Abspielen", "Play"));
+        play->setIcon(Console::icon(playing ? Symbol::Stop : Symbol::Play,
+                                    theme == "stack" ? QColor("#1A1203") : colors(theme).accent, 12));
         pause->setEnabled(s.timeshiftAvailable || (s.previewActive && (s.state == PlaybackState::Playing ||
                                                                        s.state == PlaybackState::Paused)));
         pause->setText(s.timeshiftPaused || s.state == PlaybackState::Paused ? text("Fortsetzen", "Resume")
                                                                              : text("Pause", "Pause"));
-        record->setText(s.recordRequested ? text("● Aufnahme aus", "● Stop recording")
-                                          : text("● Aufnahme", "● Record"));
+        record->setText(s.recordActive      ? text("Aufnahme läuft", "Recording")
+                        : s.recordRequested ? text("Aufnahme wartet", "Waiting")
+                                            : text("Aufnahme", "Record"));
+        record->setIcon(
+            Console::icon(Symbol::Record, s.recordRequested ? QColor("#E0241B") : colors(theme).muted, 14));
+        record->setToolTip(s.recordStatus + "\n" +
+                           (s.recordRequested ? text("Aufnahme ausschalten", "Disable recording")
+                                              : text("Aufnahme einschalten", "Enable recording")));
         now->setText(
             trackName(s.heardTrack).isEmpty()
                 ? (s.stationName.isEmpty() ? text("Bereit für Musik", "Ready for music") : s.stationName)
                 : trackName(s.heardTrack));
-        artist->setText(s.stationName);
+        now->setToolTip(now->text());
+        artist->setText(s.stationName.isEmpty() ? text("Kein Sender", "No station") : s.stationName);
+        runtime->setText(playbackClock.isValid() ? duration(playbackClock.elapsed() / 1000.) : QString());
         QStringList states = {text("Gestoppt", "Stopped"),
                               text("Sender wird aufgelöst …", "Resolving station …"),
                               text("Verbindung / Puffer …", "Connecting / buffering …"),
@@ -963,10 +1202,18 @@ class MainWindow::Impl {
                               text("Pausiert", "Paused"),
                               text("Fehler", "Error")};
         status->setText(
-            s.error.isEmpty()
+            !notice.isEmpty() ? notice
+            : s.error.isEmpty()
                 ? states[int(s.state)] + (s.previewActive ? text(" · Vorschau", " · Preview") : "") +
                       (s.sleepRemaining ? text(" · Timer ", " · Timer ") + duration(s.sleepRemaining) : "")
                 : s.error);
+        status->setVisible(!notice.isEmpty() || !s.error.isEmpty() || s.sleepRemaining > 0 ||
+                           s.state == PlaybackState::Resolving || s.state == PlaybackState::Buffering);
+        const bool buffered = s.timeshiftEnabled || s.timeshiftAvailable;
+        bufferControls->setVisible(buffered || s.previewActive);
+        for (auto *control : QList<QWidget *>{back15, forward15, liveButton, delay, bufferStatus})
+            control->setVisible(buffered);
+        liveButton->setEnabled(s.timeshiftEnabled || s.timeshiftAvailable);
         recordStatus->setText(s.recordStatus);
         bufferStatus->setText(text("Puffer ", "Buffer ") + duration(s.bufferSeconds) +
                               text(" · Verzögerung ", " · Delay ") + duration(s.delaySeconds));
@@ -974,14 +1221,19 @@ class MainWindow::Impl {
         back15->setEnabled(s.timeshiftAvailable && s.delaySeconds < s.bufferSeconds);
         forward15->setEnabled(s.timeshiftAvailable && s.delaySeconds > 0);
         if (miniTitle)
-            miniTitle->setText(now->text() + "\n" + s.stationName);
+            miniTitle->setText(now->text());
         if (miniPlay) {
             miniPlay->setText(play->text());
+            miniPlay->setIcon(play->icon());
             miniPause->setText(pause->text());
             miniPause->setEnabled(pause->isEnabled());
             miniRecord->setText(record->text());
-            miniStatus->setText(status->text() +
-                                (s.recordStatus.isEmpty() ? QString() : "\n" + s.recordStatus));
+            miniRecord->setIcon(record->icon());
+            miniRecord->setToolTip(record->toolTip());
+            miniBufferControls->setVisible(buffered || s.previewActive);
+            for (auto *control : QList<QWidget *>{miniBack, miniForward, miniDelay, miniLive, miniBuffer})
+                control->setVisible(buffered);
+            miniStatus->setText(status->text());
             miniBuffer->setText(bufferStatus->text());
             miniDelay->setEnabled(s.timeshiftAvailable);
             miniBack->setEnabled(back15->isEnabled());
@@ -1016,48 +1268,111 @@ class MainWindow::Impl {
             QSignalBlocker block(fullThemes);
             fullThemes->setCurrentIndex(themeIDs.indexOf(id));
         }
+        const QString input = id == "retro"      ? "#302B22"
+                              : id == "schlicht" ? (c.panel.lightness() < 128 ? "#2B2B2B" : "#EDEDED")
+                                                 : c.bg.name();
         QString css =
             QString(
-                "QMainWindow,QDialog{background:%1;color:%4;} "
-                "QWidget{color:%4;font-family:'%7';font-size:13px;} QLabel{background:transparent;} "
-                "QTableView,QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox,QDateEdit,QListWidget,QPlainTextEdit{"
-                "background:%2;color:%4;"
-                "border:1px solid %5;border-radius:5px;padding:5px;selection-background-color:%6;} "
-                "QTableView{alternate-background-color:%1;} "
-                "QPushButton,QToolButton{background:%2;color:%4;border:1px "
-                "solid %5;border-radius:5px;padding:6px 10px;} QPushButton:hover{border-color:%6;} "
-                "QPushButton:pressed{background:%3;} QPushButton:disabled{color:%5;} "
-                "QTabWidget::pane{border:1px solid %5;} QTabBar::tab{background:%2;padding:8px 12px;} "
-                "QTabBar::tab:selected{color:%6;border-bottom:2px solid %6;} "
+                "QMainWindow,QDialog{background:%1;color:%4;} QWidget{color:%4;font-family:'%7';font-size:12px;} "
+                "QLabel{background:transparent;} QWidget#shell{background:%8;} QScrollArea#nowPlayingScroll,QScrollArea#nowPlayingScroll>QWidget>QWidget{background:transparent;border:none;} "
+                "QWidget#historyActionsBar{background:%2;border-top:1px solid %8;} "
+                "QTableView{background:transparent;border:none;outline:0;selection-background-color:%3;} "
+                "QTableView::item{border:none;} QTabWidget::pane{border:none;background:transparent;} "
+                "QTabWidget>QWidget{background:transparent;} "
+                "QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox,QDateEdit,QListWidget,QPlainTextEdit{background:%9;color:%4;border:1px solid transparent;border-radius:5px;padding:5px;selection-background-color:%6;} "
+                "QComboBox::drop-down{border:0;width:16px;background:transparent;} QComboBox::down-arrow{width:8px;height:8px;} "
+                "QWidget#stationPanel QComboBox,QWidget#historyPanel QComboBox{background:transparent;padding:2px 4px;} "
+                "QWidget#stationPanel QCheckBox::indicator{width:0;height:0;} QWidget#stationPanel QCheckBox{color:%5;} QWidget#stationPanel QCheckBox:checked{color:%6;} "
+                "QLineEdit:focus,QComboBox:focus,QSpinBox:focus,QDoubleSpinBox:focus,QDateEdit:focus{border-color:%6;} "
+                "QPushButton,QToolButton{background:%2;color:%4;border:1px solid %8;border-radius:5px;padding:5px 8px;} "
+                "QPushButton:hover,QToolButton:hover{background:%9;border-color:%5;} QPushButton:pressed{background:%3;} QPushButton:disabled{color:%5;} "
+                "QPushButton[consoleButton=\"true\"]{background:transparent;border:0;border-radius:4px;padding:0 3px;} "
+                "QPushButton[consoleButton=\"true\"]:hover{background:%9;} QPushButton::menu-indicator{image:none;width:0;} "
                 "QHeaderView::section{background:%2;color:%5;border:none;padding:7px;text-align:left;} "
-                "QMenuBar,QMenu,QStatusBar{background:%1;color:%4;} "
-                "QSlider::groove:horizontal{height:5px;background:%5;border-radius:2px;} "
-                "QSlider::handle:horizontal{width:15px;margin:-5px 0;background:%6;border-radius:7px;} "
-                "QCheckBox{spacing:6px;} QSplitter::handle{background:%1;width:10px;} "
-                "QLabel#brand{font-size:24px;font-weight:700;} "
-                "QLabel#nowPlaying{font-size:26px;font-weight:700;} QLabel#miniTitle{font-size:16px;} "
-                "QLabel#fullTitle{font-size:24px;}")
+                "QMenu{background:%2;color:%4;border:1px solid %8;padding:5px;} QMenu::item{padding:6px 16px;} QMenu::item:selected{background:%9;} "
+                "QSlider::groove:horizontal{height:4px;background:%8;border-radius:2px;} "
+                "QSlider::handle:horizontal{width:18px;height:18px;margin:-7px 0;background:%4;border-radius:9px;} "
+                "QSlider::sub-page:horizontal{background:%6;border-radius:2px;} "
+                "QScrollBar:vertical{width:7px;background:transparent;} QScrollBar::handle:vertical{background:%8;border-radius:3px;min-height:24px;} "
+                "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;} "
+                "QPushButton#mainPlay{font-size:11px;font-weight:600;color:%6;} "
+                "QLabel#brand{font-family:'%10';font-size:18px;font-weight:700;} QLabel#version{font-size:10px;color:%5;} "
+                "QLabel#sectionHeading{font-size:11px;font-weight:600;color:%5;} QLabel#historyHeading{font-size:12px;font-weight:600;color:%5;} "
+                "QLabel#resultCount{font-size:10px;color:%5;} QLabel#stationCaption{font-size:11px;color:%5;} "
+                "QLabel#nowPlaying{font-size:16px;font-weight:600;} QLabel#runtime,QLabel#bufferStatus{font-size:11px;color:%5;} "
+                "QLabel#playbackStatus{font-size:10px;color:%5;} QLabel#miniTitle{font-size:16px;font-weight:600;} QLabel#miniStatus,QLabel#miniVolumeValue{font-size:11px;color:%5;} QComboBox#miniStations{background:transparent;font-weight:600;} QLabel#fullTitle{font-size:24px;} "
+                "QCheckBox{spacing:4px;}")
                 .arg(c.bg.name(), c.panel.name(), c.stage.name(), c.fg.name(), c.muted.name(),
-                     c.accent.name(), c.font);
-        const QHash<QString, QString> textures = {
-            {"acid", "bg-concrete.png"}, {"retro", "bg-brushed.png"},   {"fanzine", "bg-newsprint.png"},
-            {"stack", "bg-tolex.png"},   {"danish", "bg-aluminum.png"}, {"midi", "bg-cyber.png"}};
-        const QString texture = ":/themes/" + id + "/" + textures.value(id);
-        if (textures.contains(id) && QFile::exists(texture))
-            css += QString("QWidget#shell{background-color:%1;background-image:url(%2);}")
-                       .arg(c.bg.name(), texture);
+                     c.accent.name(), c.font, c.divider.name(), input, c.titleFont);
+        if (id == "fanzine")
+            css +=
+                "QWidget{font-size:13px;} QLabel#brand{font-size:22px;} QLabel#nowPlaying{font-size:18px;} QLabel#sectionHeading,QLabel#historyHeading{font-size:12px;}";
+        if (id == "stack")
+            css += "QWidget#consoleHeader QLabel,QWidget#consoleHeader QPushButton{color:#1A1203;}";
+        if (id == "retro")
+            css +=
+                "QWidget#historyActionsBar{background:#EEE3C7;} QWidget#historyPanel QLabel{color:#5C4A38;} QWidget#historyPanel QLineEdit,QWidget#historyPanel QComboBox{background:#E3D7BC;color:#2A2018;}";
+        for (auto *surface : {headerSurface, stationSurface, historySurface, footerSurface}) {
+            surface->theme = id;
+            surface->update();
+        }
+        headerSurface->setFixedHeight(id == "stack" || id == "retro" ? 52 : 38);
+        footerSurface->setMinimumHeight(66);
+        stationDelegate->theme = id;
+        historyDelegate->theme = id;
+        bookmarkDelegate->theme = id;
+        for (auto it = iconButtons.cbegin(); it != iconButtons.cend(); ++it) {
+            const QColor ink = headerSurface->isAncestorOf(it.key()) && id == "stack"    ? QColor("#2A1E05")
+                               : historySurface->isAncestorOf(it.key()) && id == "retro" ? QColor("#6B5432")
+                                                                                         : c.muted;
+            it.key()->setIcon(Console::icon(it.value(), ink));
+            if (auto *action = dynamic_cast<Console::ActionButton *>(it.key())) {
+                action->ink = ink;
+                action->update();
+            }
+        }
+        const bool knob = id == "stack" || id == "retro";
+        volume->setVisible(!knob);
+        volumeKnob->setVisible(knob);
+        volumeKnob->tint = c.accent;
+        volumeKnob->update();
+        historyHeading->setText(tabs->currentIndex() == 1   ? text("Merkliste", "Bookmarks")
+                                : tabs->currentIndex() == 2 ? text("Aufnahmen", "Recordings")
+                                : id == "midi"              ? "PLAYBACK_HISTORY"
+                                                            : text("Verlauf", "History"));
+        columns->setStyleSheet(QString("Mucke--Console--Columns{background:%1;}").arg(c.divider.name()));
         q->setStyleSheet(css);
+        if (tabs->currentIndex() == 0 && id != "schlicht")
+            historyHeading->setText(historyHeading->text().toUpper());
+        for (auto *edit : {search, historySearch}) {
+            if (edit->actions().isEmpty())
+                edit->addAction(Console::icon(Symbol::Search, c.muted, 14), QLineEdit::LeadingPosition);
+            else
+                edit->actions().first()->setIcon(Console::icon(Symbol::Search, c.muted, 14));
+        }
+        for (auto *label :
+             {q->findChild<QLabel *>("brand"), q->findChild<QLabel *>("sectionHeading"), historyHeading}) {
+            auto titleFont = label->font();
+            titleFont.setLetterSpacing(QFont::AbsoluteSpacing, id == "acid" ? 1 : id == "midi" ? .6 : 0);
+            label->setFont(titleFont);
+        }
         configureTrackColumns(historyView);
         configureTrackColumns(bookmarkView);
         recordingView->setColumnWidth(
             0, std::max(128, recordingView->fontMetrics().horizontalAdvance("2026-10-28 13:00") + 14));
-        if (mini)
+        if (mini) {
             mini->setStyleSheet(css);
+            miniSurface->theme = id;
+            miniSurface->update();
+        }
         if (full)
             full->setStyleSheet(css);
         updating = true;
         themes->setCurrentIndex(themeIDs.indexOf(id));
         updating = false;
+        stationView->viewport()->update();
+        historyView->viewport()->update();
+        bookmarkView->viewport()->update();
         visual->update();
     }
     void editStation(QString id) {
@@ -1524,7 +1839,7 @@ class MainWindow::Impl {
     void exportSongs(QTableView *view, bool fromBookmarks) {
         const auto selected = view->selectionModel()->selectedRows();
         if (selected.isEmpty() || selected.size() > 100) {
-            q->statusBar()->showMessage(text("Bitte 1 bis 100 Titel auswählen.", "Select 1 to 100 tracks."), 5000);
+            error(text("Bitte 1 bis 100 Titel auswählen.", "Select 1 to 100 tracks."));
             return;
         }
         const auto library = fromBookmarks ? store->bookmarks() : store->history();
@@ -1560,7 +1875,7 @@ class MainWindow::Impl {
         }
         if (track.id.isEmpty()) {
             if (fromBookmarks)
-                q->statusBar()->showMessage(text("Zuerst einen Titel auswählen.", "Select a track first."), 5000);
+                error(text("Zuerst einen Titel auswählen.", "Select a track first."));
             else
                 menu.exec(position);
             return;
@@ -1601,8 +1916,8 @@ class MainWindow::Impl {
         dialog.setObjectName("exportClip");
         dialog.setWindowTitle(text("Aufnahmeausschnitt exportieren", "Export recording clip"));
         dialog.resize(510, 470);
-        QTemporaryDir temporary;
-        if (!temporary.isValid()) {
+        auto temporary = std::make_shared<QTemporaryDir>();
+        if (!temporary->isValid()) {
             error(text("Temporärer Exportordner nicht verfügbar.", "Temporary export folder unavailable."));
             return;
         }
@@ -1644,12 +1959,25 @@ class MainWindow::Impl {
         layout->addLayout(actions);
         QString job, prepared;
         bool running = false, previewing = false;
+        QThread *saveWorker = nullptr;
+        auto saveCancelled = std::make_shared<std::atomic_bool>(false);
         auto *prepare = button(text("Vorbereiten", "Prepare"), actions, [] {});
         auto *listen = button(text("Anhören", "Listen"), actions, [] {});
         listen->setEnabled(false);
         auto *save = button(text("Speichern …", "Save …"), actions, [] {});
         save->setEnabled(false);
         auto *close = button(text("Schließen", "Close"), actions, [&] { dialog.reject(); });
+        auto setSaving = [&](bool saving) {
+            for (auto *field : {start, length, fadeIn, fadeOut})
+                field->setEnabled(!saving);
+            for (auto *field : {title, artistEdit, album})
+                field->setEnabled(!saving);
+            prepare->setEnabled(!saving);
+            listen->setEnabled(!saving && !prepared.isEmpty());
+            save->setEnabled(saving || !prepared.isEmpty());
+            save->setText(saving ? text("Abbrechen", "Cancel") : text("Speichern …", "Save …"));
+            progress->setVisible(saving);
+        };
         auto invalidate = [&] {
             if (running) {
                 media->cancelExport(job);
@@ -1689,7 +2017,7 @@ class MainWindow::Impl {
             media->exportClip(
                 job, id, start->value(), length->value(), fadeIn->value(), fadeOut->value(),
                 {{"title", title->text()}, {"artist", artistEdit->text()}, {"album", album->text()}},
-                temporary.filePath(job + ".m4a"));
+                temporary->filePath(job + ".m4a"));
         });
         QObject::connect(
             media, &MediaEngine::exportFinished, &dialog,
@@ -1720,6 +2048,10 @@ class MainWindow::Impl {
             }
         });
         QObject::connect(save, &QPushButton::clicked, &dialog, [&] {
+            if (saveWorker) {
+                saveCancelled->store(true);
+                return;
+            }
             if (prepared.isEmpty())
                 return;
             QString destination = QFileDialog::getSaveFileName(
@@ -1729,25 +2061,36 @@ class MainWindow::Impl {
                 return;
             if (!destination.endsWith(".m4a", Qt::CaseInsensitive))
                 destination += ".m4a";
-            // QFile::copy überschreibt keine bestehende Datei; auch ein Rennen nach dem Dateidialog bleibt
-            // sicher.
-            if (!QFile::copy(prepared, destination)) {
-                hint->setText(
-                    text("Speichern fehlgeschlagen. Bitte einen neuen Dateinamen wählen; vorhandene Dateien "
-                         "werden nicht überschrieben.",
-                         "Saving failed. Choose a new filename; existing files are never overwritten."));
-                return;
-            }
-            hint->setText(text("Gespeichert: ", "Saved: ") + destination);
+            const QString source = prepared;
+            const QFileInfo target(destination);
+            saveCancelled->store(false);
+            auto result = std::make_shared<SongExportFile::PublishResult>();
+            saveWorker = QThread::create([source, target, result, saveCancelled, temporary] {
+                *result = SongExportFile::publishExact(source, target.absolutePath(),
+                                                       target.completeBaseName(), *saveCancelled);
+            });
+            QObject::connect(saveWorker, &QThread::finished, &dialog, [&, result] {
+                saveWorker = nullptr;
+                setSaving(false);
+                hint->setText(result->cancelled ? text("Speichern abgebrochen.", "Saving cancelled.")
+                              : result->path.isEmpty()
+                                  ? text("Speichern fehlgeschlagen: ", "Saving failed: ") + result->error
+                                  : text("Gespeichert: ", "Saved: ") + result->path);
+            });
+            QObject::connect(saveWorker, &QThread::finished, saveWorker, &QObject::deleteLater);
+            setSaving(true);
+            hint->setText(text("Ausschnitt wird gespeichert …", "Saving clip …"));
+            saveWorker->start();
         });
         dialog.exec();
+        saveCancelled->store(true);
         if (running)
             media->cancelExport(job);
         if (previewing)
             media->stopPreview();
         Q_UNUSED(close);
     }
-    void settings() {
+    void settings(int initialPage = 0) {
         auto original = store->settings();
         QDialog dialog(q);
         dialog.setObjectName("settingsDialog");
@@ -1933,6 +2276,7 @@ class MainWindow::Impl {
         });
         af->addStretch();
         pages->addTab(audio, "Audio");
+        pages->setCurrentIndex(initialPage);
         auto *buttons = dialogButtons(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
         layout->addWidget(buttons);
         QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -1986,12 +2330,13 @@ class MainWindow::Impl {
             "stops. Choose Live to resume. Recordings are separate.");
     }
     void togglePlayback(QString stationID = {}) {
-        if (state.state == PlaybackState::Playing || state.state == PlaybackState::Buffering ||
-            state.state == PlaybackState::Resolving || state.state == PlaybackState::Paused) {
+        const bool current = stationID.isEmpty() || stationID == state.stationID;
+        if (current && (state.state == PlaybackState::Playing || state.state == PlaybackState::Buffering ||
+                        state.state == PlaybackState::Resolving || state.state == PlaybackState::Paused)) {
             media->stop();
             return;
         }
-        const auto station = store->station(stationID);
+        const auto station = store->station(stationID.isEmpty() ? state.stationID : stationID);
         if (!station.id.isEmpty() && station.enabled)
             media->play(station);
         else
@@ -2017,99 +2362,134 @@ class MainWindow::Impl {
                                                     : Qt::WindowFlags()));
             mini->setObjectName("miniPlayer");
             mini->setWindowTitle("Mucke, Baby! · Mini");
-            mini->resize(480, 350);
-            mini->setMinimumWidth(440);
-            auto *layout = new QVBoxLayout(mini);
+            mini->resize(420, 240);
+            mini->setMinimumWidth(360);
+            auto *outer = new QVBoxLayout(mini);
+            outer->setContentsMargins(0, 0, 0, 0);
+            miniSurface = new SurfaceWidget(Surface::Window);
+            miniSurface->theme = theme;
+            outer->addWidget(miniSurface);
+            auto *layout = new QVBoxLayout(miniSurface);
+            layout->setContentsMargins(16, 16, 16, 16);
+            layout->setSpacing(12);
+            auto *header = new QHBoxLayout;
+            header->setSpacing(8);
+            layout->addLayout(header);
+            miniStations = new QComboBox;
+            miniStations->setObjectName("miniStations");
+            miniStations->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+            miniStations->setMinimumContentsLength(12);
+            miniStations->setAccessibleName(text("Sender", "Station"));
+            header->addWidget(miniStations, 1);
+            refreshMiniStations();
+            QObject::connect(miniStations, qOverload<int>(&QComboBox::activated), mini, [this](int) {
+                const auto station = store->station(miniStations->currentData().toString());
+                if (!station.id.isEmpty() && station.enabled)
+                    media->play(station);
+            });
+            iconButton(Symbol::Audio, text("Audioeinstellungen", "Audio settings"), header,
+                       [this] { settings(2); });
+            auto *onTop = iconButton(
+                Symbol::Pin, text("Immer im Vordergrund", "Always on top"), header, [] {}, "miniAlwaysOnTop");
+            onTop->setCheckable(true);
+            onTop->setChecked(store->settings()["miniAlwaysOnTop"].toBool(false));
+            QObject::connect(onTop, &QPushButton::toggled, mini, [this](bool enabled) {
+                auto settings = store->settings();
+                settings["miniAlwaysOnTop"] = enabled;
+                if (!store->saveSettings(settings))
+                    return;
+                const bool visible = mini->isVisible();
+                mini->setWindowFlag(Qt::WindowStaysOnTopHint, enabled);
+                if (visible)
+                    mini->show();
+            });
+            iconButton(Symbol::Mini, text("Hauptfenster anzeigen", "Show main window"), header, [this] {
+                q->showNormal();
+                q->raise();
+                mini->hide();
+            });
             miniTitle = new QLabel;
             miniTitle->setTextFormat(Qt::PlainText);
             miniTitle->setObjectName("miniTitle");
             miniTitle->setWordWrap(true);
+            miniTitle->setMinimumHeight(40);
+            miniTitle->setMinimumWidth(0);
+            miniTitle->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
             layout->addWidget(miniTitle);
-            miniStations = new QComboBox;
-            miniStations->setObjectName("miniStations");
-            miniStations->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-            miniStations->setMinimumContentsLength(16);
-            miniStations->setAccessibleName(text("Sender", "Station"));
-            layout->addWidget(miniStations);
-            refreshMiniStations();
-            QObject::connect(miniStations, qOverload<int>(&QComboBox::activated), mini, [this](int) {
-                auto station = store->station(miniStations->currentData().toString());
-                if (!station.id.isEmpty() && station.enabled)
-                    media->play(station);
-            });
-            auto *actions = new QHBoxLayout;
-            layout->addLayout(actions);
-            miniPlay = button(play->text(), actions,
-                              [this] { togglePlayback(miniStations->currentData().toString()); });
-            miniPlay->setObjectName("miniPlay");
-            miniPause = button(pause->text(), actions, [this] { media->togglePause(); });
-            miniPause->setObjectName("miniPause");
-            miniRecord = button(record->text(), actions, [this] { record->click(); });
-            miniRecord->setObjectName("miniRecord");
-            auto *save = button("☆", actions, [this] { bookmark->click(); });
-            save->setToolTip(bookmark->toolTip());
-            save->setAccessibleName(bookmark->toolTip());
             miniStatus = new QLabel;
             miniStatus->setTextFormat(Qt::PlainText);
             miniStatus->setObjectName("miniStatus");
             miniStatus->setWordWrap(true);
             layout->addWidget(miniStatus);
-            auto *volumeRow = new QHBoxLayout;
-            volumeRow->addWidget(new QLabel(text("Lautstärke", "Volume")));
+            auto *transport = new QHBoxLayout;
+            transport->setSpacing(10);
+            layout->addLayout(transport);
+            miniPlay = button(play->text(), transport,
+                              [this] { togglePlayback(miniStations->currentData().toString()); });
+            miniPlay->setObjectName("miniPlay");
+            miniPlay->setProperty("consoleButton", true);
+            miniPlay->setMinimumWidth(65);
             auto *vol = new QSlider(Qt::Horizontal);
             vol->setObjectName("miniVolume");
             vol->setRange(0, 100);
             vol->setValue(state.volume);
             vol->setAccessibleName(text("Lautstärke", "Volume"));
-            volumeRow->addWidget(vol, 1);
-            layout->addLayout(volumeRow);
-            QObject::connect(vol, &QSlider::valueChanged, mini, [this](int n) { media->setVolume(n); });
-            QObject::connect(media, &MediaEngine::snapshotChanged, mini, [vol](PlaybackSnapshot s) {
-                QSignalBlocker blocker(vol);
-                vol->setValue(s.volume);
-            });
-            miniBuffer = new QLabel;
-            miniBuffer->setTextFormat(Qt::PlainText);
-            miniBuffer->setWordWrap(true);
-            layout->addWidget(miniBuffer);
+            transport->addWidget(vol, 1);
+            auto *percentage = new QLabel(QString::number(state.volume) + " %");
+            percentage->setObjectName("miniVolumeValue");
+            transport->addWidget(percentage);
+            QObject::connect(vol, &QSlider::valueChanged, mini,
+                             [this](int value) { media->setVolume(value); });
+            QObject::connect(media, &MediaEngine::snapshotChanged, mini,
+                             [vol, percentage](PlaybackSnapshot state) {
+                                 QSignalBlocker block(vol);
+                                 vol->setValue(state.volume);
+                                 percentage->setText(QString::number(state.volume) + " %");
+                             });
+            iconButton(Symbol::Heart, bookmark->toolTip(), transport, [this] { bookmark->click(); });
+            miniBufferControls = new QWidget;
+            auto *bufferLayout = new QVBoxLayout(miniBufferControls);
+            bufferLayout->setContentsMargins(0, 0, 0, 0);
+            bufferLayout->setSpacing(5);
+            layout->addWidget(miniBufferControls);
             auto *bufferRow = new QHBoxLayout;
-            layout->addLayout(bufferRow);
-            miniBack = button("−15 s", bufferRow, [this] { back15->click(); });
-            miniBack->setObjectName("miniBack15");
+            bufferRow->setSpacing(6);
+            bufferLayout->addLayout(bufferRow);
+            miniPause = button(pause->text(), bufferRow, [this] { media->togglePause(); });
+            miniPause->setObjectName("miniPause");
+            miniPause->setProperty("consoleButton", true);
+            miniBack = iconButton(
+                Symbol::Back, text("15 Sekunden zurück", "Back 15 seconds"), bufferRow,
+                [this] { back15->click(); }, "miniBack15");
+            miniForward = iconButton(
+                Symbol::Forward, text("15 Sekunden vor", "Forward 15 seconds"), bufferRow,
+                [this] { forward15->click(); }, "miniForward15");
+            bufferRow->addStretch();
+            miniLive = button("Live", bufferRow, [this] { media->goLive(); });
+            miniLive->setObjectName("miniLive");
+            miniLive->setProperty("consoleButton", true);
             miniDelay = new QSlider(Qt::Horizontal);
             miniDelay->setObjectName("miniDelay");
             miniDelay->setRange(0, 0);
             miniDelay->setAccessibleName(text("Puffer-Verzögerung", "Buffer delay"));
-            bufferRow->addWidget(miniDelay, 1);
+            bufferLayout->addWidget(miniDelay);
             QObject::connect(miniDelay, &QSlider::sliderReleased, mini,
                              [this] { media->seekDelay(miniDelay->value()); });
-            miniForward = button("+15 s", bufferRow, [this] { forward15->click(); });
-            miniForward->setObjectName("miniForward15");
-            miniLive = button(text("Live", "Live"), bufferRow, [this] { media->goLive(); });
-            miniLive->setObjectName("miniLive");
-            auto *footer = new QHBoxLayout;
-            layout->addLayout(footer);
-            auto *onTop = new QCheckBox(text("Immer im Vordergrund", "Always on top"));
-            onTop->setObjectName("miniAlwaysOnTop");
-            onTop->setChecked(store->settings()["miniAlwaysOnTop"].toBool(false));
-            footer->addWidget(onTop);
-            footer->addStretch();
-            QObject::connect(onTop, &QCheckBox::toggled, mini, [this](bool enabled) {
-                auto settings = store->settings();
-                settings["miniAlwaysOnTop"] = enabled;
-                if (!store->saveSettings(settings))
-                    return;
-                bool visible = mini->isVisible();
-                mini->setWindowFlag(Qt::WindowStaysOnTopHint, enabled);
-                if (visible)
-                    mini->show();
-            });
-            button(text("Hauptfenster", "Main window"), footer, [this] {
-                q->showNormal();
-                q->raise();
-                mini->hide();
-            });
+            miniBuffer = new QLabel;
+            miniBuffer->setTextFormat(Qt::PlainText);
+            miniBuffer->setWordWrap(true);
+            miniBuffer->setObjectName("bufferStatus");
+            bufferLayout->addWidget(miniBuffer);
+            auto *recordingRow = new QHBoxLayout;
+            layout->addLayout(recordingRow);
+            miniRecord = button(record->text(), recordingRow, [this] { record->click(); });
+            miniRecord->setObjectName("miniRecord");
+            miniRecord->setProperty("consoleButton", true);
+            recordingRow->addStretch();
+            iconButton(Symbol::Recognition, text("Musikerkennung unter Linux", "Music recognition on Linux"),
+                       recordingRow, [this] { recognition(); });
             mini->setStyleSheet(q->styleSheet());
+            applyTheme(theme);
         }
         snapshot(state);
         mini->show();
@@ -2168,14 +2548,42 @@ class MainWindow::Impl {
         // Screenshots zeigen ausschließlich flüchtige Beispieldaten, niemals persönliche Sender oder Titel.
         for (auto *model : {stationModel, historyModel, bookmarkModel, recordingModel})
             model->removeRows(0, model->rowCount());
-        row(stationModel, {"Radio Example · Jazz", "★"}, "fixture-jazz");
-        row(stationModel, {"Radio Example · Electronic", ""}, "fixture-electronic");
-        row(stationModel, {"Radio Example · Classical", ""}, "fixture-classical");
-        row(historyModel, {"2026-10-28 13:00", "Example Artist — Afternoon Session", "Radio Example · Jazz"});
-        now->setText("Afternoon Session");
-        artist->setText("Example Artist · Radio Example");
-        status->setText(text("Bereit für Wiedergabe", "Ready for playback"));
+        const QStringList exampleStations = {
+            "Radio Example · Jazz", "Electronic Sessions",  "Classical Radio", "Independent FM",
+            "World Radio",          "Nightshift",           "Example News",    "Ambient Waves",
+            "Acoustic Sessions",    "Radio Example · Soul", "Community Radio", "Instrumental FM",
+            "Example Music",        "Concert Radio",        "Late Night Jazz"};
+        for (int i = 0; i < exampleStations.size(); ++i) {
+            row(stationModel, {exampleStations[i], i == 0 ? "★" : ""}, QString("fixture-%1").arg(i));
+            auto *item = stationModel->item(i);
+            item->setData(i == 0, Console::FavoriteRole);
+            item->setData(i == 0, Console::ActiveRole);
+            if (i == 0)
+                item->setData("Example Artist – Afternoon Session", Console::SubtitleRole);
+        }
+        const QStringList titles = {"Example Artist – Afternoon Session",
+                                    "The Ensemble – A Quiet Place (Live Session)",
+                                    "Example Quartet – After the Rain",
+                                    "The Night Orchestra – Another Way Home",
+                                    "Example Artist – Evening Lights (Extended Version)",
+                                    "Studio Trio – Open Skies",
+                                    "Example Artist – Morning Movement",
+                                    "Example Artist – The Last Song"};
+        for (int i = 0; i < titles.size(); ++i)
+            row(historyModel,
+                {QString("2026-10-28 · 13:%1:00 – 13:%2:00")
+                     .arg(i * 4, 2, 10, QChar('0'))
+                     .arg(i * 4 + 4, 2, 10, QChar('0')),
+                 titles[i], "Radio Example · Jazz"},
+                QString("track-%1").arg(i));
+        stationCount->setText(text("15 von 15 Sendern", "15 of 15 stations"));
+        historyCount->setText(text("8 von 8 Titeln", "8 of 8 tracks"));
+        stationView->resizeRowsToContents();
+        now->setText("Example Artist – Afternoon Session");
+        artist->setText("Radio Example · Jazz");
+        status->hide();
         recordStatus->clear();
+        bufferControls->hide();
         QStringList captures = themeIDs;
         captures.prepend("schlicht-dark");
         captures.prepend("schlicht-light");
@@ -2190,7 +2598,7 @@ class MainWindow::Impl {
             }
             applyTheme(id.startsWith("schlicht-") ? "schlicht" : id);
             for (int width : widths) {
-                q->resize(width, 720);
+                q->resize(width, 620);
                 QApplication::processEvents();
                 q->grab().save(directory + "/" + id + "-" + QString::number(width) + ".png");
             }

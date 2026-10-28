@@ -3,11 +3,15 @@
 #include "../src/media/mediaengine.h"
 #include "../src/ui/historyfilter_p.h"
 #include "../src/ui/mainwindow.h"
+#include "../src/ui/consolewidgets.h"
 #include "../src/ui/songtools_p.h"
 #include <QUrlQuery>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QtTest>
 #include <QtWidgets>
 #include <functional>
+#include <cmath>
 using namespace Mucke;
 
 class UIFlowTest final : public QObject {
@@ -113,6 +117,125 @@ class UIFlowTest final : public QObject {
             QVERIFY(HistoryFilter::overlaps(track, day, day, track.endedAt, berlin));
             QVERIFY(!HistoryFilter::overlaps(track, day.addDays(1), day.addDays(1), track.endedAt, berlin));
         }
+    }
+    void consoleGeometry() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        MainWindow window(&store, &catalog, &media); window.show();
+        auto *visual = window.findChild<QWidget *>("mainVisualizer");
+        auto *header = window.findChild<QWidget *>("consoleHeader");
+        auto *footer = window.findChild<QWidget *>("consoleFooter");
+        QVERIFY(visual); QVERIFY(header); QVERIFY(footer);
+        for (const auto &theme : {"schlicht", "acid", "retro", "fanzine", "stack", "danish", "midi"}) {
+            window.applyTheme(theme);
+            for (int width : {940, 660}) {
+                window.resize(width, 620); QApplication::processEvents();
+                QCOMPARE(window.width(), width);
+                QCOMPARE(visual->isVisible(), width >= 780);
+                if (visual->isVisible()) {
+                    QVERIFY(visual->width() >= 280);
+                    QVERIFY(visual->height() > window.height()/2);
+                }
+                QVERIFY(footer->geometry().bottom() < window.height());
+                for (auto *panel : {header, footer}) {
+                    const auto buttons = panel->findChildren<QPushButton *>();
+                    for (auto *button : buttons) if (button->isVisible()) {
+                        const QRect actual(button->mapTo(panel, QPoint()), button->size());
+                        QVERIFY2(panel->rect().contains(actual), qPrintable(QString("%1: %2").arg(theme, button->accessibleName())));
+                    }
+                }
+            }
+        }
+        media.shutdown();
+    }
+    void stationClickSwitchesAndStops() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        for (const auto &station : store.stations()) QVERIFY(store.removeStation(station.id));
+        QTcpServer server; QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server,&QTcpServer::newConnection,&server,[&] {
+            while (auto *socket=server.nextPendingConnection())
+                connect(socket,&QTcpSocket::disconnected,socket,&QObject::deleteLater);
+        });
+        Station first{newID(),"First",QString("http://127.0.0.1:%1/first.m3u").arg(server.serverPort()),{},true,false};
+        Station second{newID(),"Second",QString("http://127.0.0.1:%1/second.m3u").arg(server.serverPort()),{},true,false};
+        QVERIFY(store.saveStation(first)); QVERIFY(store.saveStation(second));
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"),temporary.filePath("cache"));
+        MainWindow window(&store,&catalog,&media); window.show(); QApplication::processEvents();
+        auto *stations=window.findChild<QTableView *>("stations"); QVERIFY(stations);
+        auto click=[&](int row) { QTest::mouseClick(stations->viewport(),Qt::LeftButton,Qt::NoModifier,
+            stations->visualRect(stations->model()->index(row,0)).center()); };
+        click(0); QTRY_COMPARE(media.snapshot().stationID,first.id);
+        QTRY_COMPARE(media.snapshot().state,PlaybackState::Resolving);
+        click(1); QTRY_COMPARE(media.snapshot().stationID,second.id);
+        QTRY_COMPARE(media.snapshot().state,PlaybackState::Resolving);
+        click(1); QTRY_COMPARE(media.snapshot().state,PlaybackState::Stopped);
+        stations->selectRow(0); stations->setFocus();
+        QTest::keyClick(stations,Qt::Key_Return); QTRY_COMPARE(media.snapshot().stationID,first.id);
+        QTest::keyClick(stations,Qt::Key_Space); QTRY_COMPARE(media.snapshot().state,PlaybackState::Stopped);
+        QTest::keyClick(stations,Qt::Key_Down);
+        QTest::keyClick(stations,Qt::Key_Space); QTRY_COMPARE(media.snapshot().stationID,second.id);
+        QTRY_COMPARE(media.snapshot().state,PlaybackState::Resolving);
+        media.stop(); QTRY_COMPARE(media.snapshot().state,PlaybackState::Stopped);
+        window.applyTheme("stack");
+        auto *knob=window.findChild<QSlider *>("volumeKnob"); QVERIFY(knob); QVERIFY(knob->isVisible());
+        const int original=knob->value();
+        QTest::mousePress(knob,Qt::LeftButton,Qt::NoModifier,QPoint(15,20));
+        QTest::mouseMove(knob,QPoint(25,10));
+        QTest::mouseRelease(knob,Qt::LeftButton,Qt::NoModifier,QPoint(25,10));
+        QVERIFY(knob->value()>original); QTRY_COMPARE(media.snapshot().volume,knob->value());
+        media.shutdown();
+    }
+    void previewTimerAndNoticeStayVisible() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"),temporary.filePath("cache"));
+        MainWindow window(&store,&catalog,&media); window.show(); QTest::qWait(30);
+        auto *buffer=window.findChild<QWidget *>("bufferControls");
+        auto *status=window.findChild<QLabel *>("playbackStatus");
+        QVERIFY(buffer); QVERIFY(status);
+        PlaybackSnapshot state; state.state=PlaybackState::Playing;state.previewActive=true;
+        emit media.snapshotChanged(state); QVERIFY(buffer->isVisible());
+        auto *pause=push(buffer,QLocale().language()==QLocale::German?"Pause":"Pause");
+        QVERIFY(pause); QVERIFY(pause->isEnabled());
+        state.state=PlaybackState::Paused;emit media.snapshotChanged(state);
+        QVERIFY(buffer->isVisible()); QVERIFY(pause->isEnabled());
+        state.previewActive=false;state.state=PlaybackState::Playing;state.sleepRemaining=120;
+        emit media.snapshotChanged(state); QVERIFY(status->isVisible()); QVERIFY(status->text().contains("2:00"));
+        state.sleepRemaining=0; emit store.error("Fixture persistent notice");emit media.snapshotChanged(state);
+        QVERIFY(status->isVisible()); QCOMPARE(status->text(),QString("Fixture persistent notice"));
+        media.shutdown();
+    }
+    void visualizerSignalAndSilence() {
+        QTemporaryDir temporary;
+        const QString directory=qEnvironmentVariable("MUCKE_UI_SHOTS",temporary.path());
+        QDir().mkpath(directory);
+        Console::initializeFonts();
+        QVERIFY(QFontDatabase::families().contains("Zilla Slab"));
+        for (const auto &theme : {"schlicht","acid","retro","fanzine","stack","danish","midi"}) {
+            Console::Visualizer visual; visual.theme=theme; visual.resize(300,500); visual.show();
+            QApplication::processEvents(); const auto silent=visual.grab().toImage();
+            for (int i=0;i<256;++i) visual.wave.append(.65f*std::sin(i*.18f));
+            for (int i=0;i<64;++i) visual.spectrum.append(.08f+.75f*std::exp(-std::pow((i-22)/16.f,2)));
+            visual.rms=.4f;
+            QTest::qWait(50); visual.update(); QApplication::processEvents();
+            const auto signal=visual.grab().toImage(); QVERIFY(signal!=silent);
+            QVERIFY(signal.save(directory+"/visualizer-"+theme+"-signal.png"));
+            visual.wave.clear(); visual.spectrum.clear(); visual.rms=0; visual.update(); QApplication::processEvents();
+            QCOMPARE(visual.grab().toImage(),silent);
+        }
+        const auto previous=QApplication::palette();
+        Console::Visualizer visual; visual.resize(300,500); visual.show();
+        auto light=previous;light.setColor(QPalette::Window,QColor("#F5F5F5"));QApplication::setPalette(light);
+        QApplication::processEvents();const auto lightPixel=visual.grab().toImage().pixelColor(2,2);
+        auto dark=previous;dark.setColor(QPalette::Window,QColor("#202020"));QApplication::setPalette(dark);
+        QApplication::processEvents();const auto darkPixel=visual.grab().toImage().pixelColor(2,2);
+        QVERIFY(lightPixel.lightness()>200);QVERIFY(darkPixel.lightness()<80);
+        QApplication::setPalette(previous);
     }
     void dialogs_data() {
         QTest::addColumn<QString>("language");
@@ -265,7 +388,15 @@ class UIFlowTest final : public QObject {
         QCOMPARE(store.settings()["autostart"].toString(), QString("last"));
         QCOMPARE(store.settings()["equalizerPreamp"].toDouble(), -3.);
         QVERIFY(!store.settings()["closeToTray"].toBool());
-        auto *add = push(&window, "+");
+        auto *audioSettings = window.findChild<QPushButton *>("audioSettingsOpen");
+        QVERIFY(audioSettings);
+        modal([&] { audioSettings->click(); }, [&](QDialog *dialog) {
+            auto *pages = dialog->findChild<QTabWidget *>();
+            QVERIFY(pages);
+            QCOMPARE(pages->tabText(pages->currentIndex()), QString("Audio"));
+            dialog->reject();
+        });
+        auto *add = window.findChild<QPushButton *>("stationAdd");
         QVERIFY(add);
         modal([&] { add->click(); },
               [&](QDialog *dialog) {
@@ -323,7 +454,7 @@ class UIFlowTest final : public QObject {
             if (g.name == "Fixture Group")
                 groupSaved = true;
         QVERIFY(groupSaved);
-        auto *catalogButton = push(&window, label("Katalog", "Catalog"));
+        auto *catalogButton = window.findChild<QPushButton *>("catalogOpen");
         QVERIFY(catalogButton);
         modal([&] { catalogButton->click(); },
               [&](QDialog *dialog) {
@@ -509,6 +640,11 @@ class UIFlowTest final : public QObject {
         QTRY_VERIFY_WITH_TIMEOUT(recordingTable->model()->rowCount() > 0, 5000);
         recordingTable->selectRow(0);
         capture(&window, "recordings-660");
+        QVERIFY(action(&window, label("Quellcode und Lizenzen", "Source code and licenses")));
+        QVERIFY(action(&window, label("Impressum", "Legal notice")));
+        QVERIFY(action(&window, label("Datenschutz", "Privacy")));
+        modal([&] { action(&window, label("Über Mucke, Baby!", "About Mucke, Baby!"))->trigger(); },
+              [&](QDialog *dialog) { capture(dialog, "about"); dialog->accept(); });
         auto *clip = push(&window, label("Ausschnitt …", "Clip …"));
         QVERIFY(clip);
         modal([&] { clip->click(); },
@@ -536,7 +672,7 @@ class UIFlowTest final : public QObject {
         disabledStation.enabled = true;
         QVERIFY(store.saveStation(disabledStation));
         QCOMPARE(miniStations->count(), 3);
-        auto *top = mini->findChild<QCheckBox *>("miniAlwaysOnTop");
+        auto *top = mini->findChild<QAbstractButton *>("miniAlwaysOnTop");
         QVERIFY(top);
         QVERIFY(!top->isChecked());
         top->setChecked(true);
@@ -575,7 +711,7 @@ class UIFlowTest final : public QObject {
             media.snapshotChanged(buffered);
             backend.reblock();
             QCOMPARE(mini->findChild<QPushButton *>("miniPause")->text(), label("Fortsetzen", "Resume"));
-            QCOMPARE(mini->findChild<QPushButton *>("miniPlay")->text(), label("■ Stoppen", "■ Stop"));
+            QCOMPARE(mini->findChild<QPushButton *>("miniPlay")->text(), label("Stopp", "Stop"));
             capture(mini, "mini-paused");
             backend.unblock();
             PlaybackSnapshot stopped;
@@ -585,6 +721,11 @@ class UIFlowTest final : public QObject {
             backend.reblock();
             QVERIFY(!mini->findChild<QPushButton *>("miniPause")->isEnabled());
             QVERIFY(!mini->findChild<QSlider *>("miniDelay")->isEnabled());
+        }
+        for (const auto &theme : {"schlicht","acid","retro","fanzine","stack","danish","midi"}) {
+            window.applyTheme(theme); mini->resize(420,240); QApplication::processEvents();
+            capture(mini,QString("mini-")+theme);
+            mini->resize(360,240); QApplication::processEvents(); QCOMPARE(mini->width(),360);
         }
         mini->hide();
         window.showVisualizer();

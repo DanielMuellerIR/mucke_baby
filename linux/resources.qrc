@@ -13,4 +13,8 @@
 <file alias="genre-lists/oeffentlich-rechtlich.json">../Resources/genre-lists/oeffentlich-rechtlich.json</file>
 <file alias="genre-lists/techno.json">../Resources/genre-lists/techno.json</file>
 <file alias="genre-lists/trance.json">../Resources/genre-lists/trance.json</file>
+<file alias="themes/stack/plate-gold.png">../Resources/themes/stack/plate-gold.png</file>
+<file alias="themes/retro/paper.png">../Resources/themes/retro/paper.png</file>
+<file alias="fonts/ZillaSlab-Regular.ttf">resources/fonts/ZillaSlab-Regular.ttf</file>
+<file alias="fonts/ZillaSlab-Bold.ttf">resources/fonts/ZillaSlab-Bold.ttf</file>
 </qresource></RCC>
