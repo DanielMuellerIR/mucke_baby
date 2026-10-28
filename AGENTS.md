@@ -2,10 +2,10 @@
 
 ## Projekt
 
-Mucke, Baby! ist ein macOS-Webradio-Player. Er spielt Streams
-über VLCKit/libVLC, verwaltet Sender, zeigt ICY-Metadaten und Verlauf, kann Streams
+Mucke, Baby! ist ein nativer Webradio-Player für macOS und Linux. Er spielt Streams
+über VLCKit beziehungsweise libVLC, verwaltet Sender, zeigt ICY-Metadaten und Verlauf, kann Streams
 optional aufnehmen und besitzt sieben visuelle Themes mit audio-reaktiven
-Visualizern. Zielplattform ist macOS 14.2+ auf Apple Silicon.
+Visualizern. Zielplattformen sind macOS 14.2+ auf Apple Silicon und Linux auf x86-64.
 
 Anzeigename, Binary, Bundle-ID und historischer Datenordner können abweichen.
 Technische Identitäten nicht kosmetisch ändern: Sie beeinflussen TCC und
@@ -40,11 +40,11 @@ Zeitstempel- oder Kreuzkorrelationsprüfung.
 ## Quellen der Wahrheit
 
 - `Sources/Models.swift`: `AppInfo.version`, einzige Produktversionsquelle.
-- `Sources/`: Verhalten und Architektur.
+- `Sources/`, `linux/src/`: Verhalten und Architektur der jeweiligen Plattform.
 - `Resources/Info.plist`: Berechtigungen und Bundle-Grunddaten; die Version wird
   beim Build aus `Models.swift` gespiegelt.
 - `build.sh`: reproduzierbarer lokaler App-Build und VLCKit-Pin.
-- `install.sh`, `release.sh`: Einstiegspunkte für Installation nach
+- `install.sh`, `release.sh`: plattformabhängige Einstiegspunkte; unter macOS für Installation nach
   `/Applications` und für das Release-DMG; `notarize-lib.sh` hält Signierkette
   und App-Notarisierung, `wrappers/sign-and-release.sh` ist der Unterbau von
   `release.sh` inklusive ausdrücklich opt-in Veröffentlichung.
@@ -58,7 +58,7 @@ frischem Build ermitteln, nicht in AGENTS festschreiben.
 
 ## Architektur
 
-Die App wird ohne Xcode-Projekt direkt mit `swiftc` gebaut. Modelle und Store,
+Die macOS-App wird ohne Xcode-Projekt direkt mit `swiftc` gebaut. Modelle und Store,
 VLCKit-Player, Playlist-/ICY-Pfade, Audio-Tap, Recorder/Exporter, Verlauf und
 Themes liegen als getrennte Swift-Dateien unter `Sources/`.
 `ScreenshotDebug.swift` ist ausschließlich durch `MUCKE_SHOTS` aktiviert.

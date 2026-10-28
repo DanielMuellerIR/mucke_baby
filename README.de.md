@@ -4,19 +4,24 @@
 
 ![Mucke, Baby!](icons/social-s123.png)
 
-Ein nativer Internetradio-Player für macOS (SwiftUI + VLCKit) und Linux (Qt 6 + libVLC) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Ursprünglich vom Linux-Mint-Applet **Radio++** inspiriert — inzwischen ein eigenständiges Projekt, mit Verlauf, Stream-Aufnahme (inkl. songweiser Extraktion), Direktlinks zu Apple Music / Spotify und mehr. Es gibt auch einen iPhone-Ableger: [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
+Mucke, Baby! ist ein nativer Internetradio-Player für macOS und Linux mit sieben Themes, audio-reaktiven Visualizern, Titelverlauf und optionaler Stream-Aufnahme samt songweisem Export.
+
+Die Oberfläche ist auf Deutsch und Englisch verfügbar. Der iPhone-Ableger heißt [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
 
 ## Download
 
-**[➜ Aktuelles signiertes & notarisiertes DMG herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/latest)** — öffnen, „Mucke, Baby!“ in den Programme-Ordner ziehen und doppelklicken. Mit Developer ID signiert und von Apple notarisiert, öffnet also ohne Gatekeeper-Warnung. Benötigt macOS 14.2 oder neuer (Apple Silicon).
-
-Lieber selbst aus dem Quellcode bauen? Siehe [Starten](#unter-macos-starten-kommandozeile--headless-tauglich) weiter unten.
+- **Linux x86-64:** die native App mit `./build.sh` aus dem Quellcode bauen und mit `./install.sh` im eigenen Benutzerkonto installieren. Die erste Linux-Binärveröffentlichung wird vorbereitet. Abhängigkeiten und die Installation lokaler Archive stehen in der [Linux-Anleitung](docs/linux.md).
+- **macOS 14.2+, Apple Silicon:** [Signiertes und notarisiertes DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Öffnen und *Mucke, Baby!* in den Programme-Ordner ziehen. Das bleibt die aktuelle macOS-Binärversion; der Quellstand enthält die unten beschriebenen neueren Funktionen.
 
 ## Linux
 
-Die native Linux-Version unterstützt Linux Mint 22 und CachyOS auf x86-64. Sie bietet Radiowiedergabe, ICY-Verlauf, Sender- und Gruppenverwaltung, Katalogsuche, Merkliste, Aufnahme, songweisen M4A-Export, sieben Themes, Miniplayer und MPRIS-Desktopsteuerung. Mit `./build.sh` bauen und mit `./install.sh` im Benutzerkonto installieren. [Linux-Einrichtung, Datenpfade und Plattformgrenzen](docs/linux.md) beschreiben die Details. Das oben verlinkte DMG ist der macOS-Download.
+Die native Qt-6-Anwendung ist unter Linux Mint 22 und CachyOS auf x86-64 geprüft. Enthalten sind Radiowiedergabe, ICY-Verlauf, Sender und Gruppen, Katalogsuche, Merkliste, Aufnahme, songweiser M4A-Export, begrenzter MP3-/AAC-Zeitversatz, sieben Themes, Miniplayer, Equalizer, Einschlaftimer und MPRIS-Desktopsteuerung.
+
+Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. ShazamKit-Erkennung, Apple-Kurzbefehle und Sparkle-Updates bleiben macOS-spezifisch. Aus dem Quellcode bauen und installieren: `./build.sh` und `./install.sh`. Einrichtung, Datenpfade, Codecgrenzen und Tests stehen in der [Linux-Anleitung](docs/linux.md).
 
 ## Screenshots
+
+Die folgenden Bilder zeigen die macOS-App. Linux verwendet native Qt-Bedienelemente mit denselben sieben Themes.
 
 <p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave — Neon-Oszilloskop"></p>
 
@@ -102,13 +107,15 @@ open "build/Mucke, Baby!.app"                    # starten
 - Hell- & Dunkelmodus; optionales Menüleisten-Symbol (standardmäßig aus).
 - **Selbst-Updates über Sparkle** — die App prüft einen signierten Appcast (GitHub Pages) und installiert nur nach Bestätigung; keine Telemetrie, kein System-Profiling.
 
+- **Einschlaftimer** — Vorgaben und eigene Dauer, verlängerbar und abbrechbar, mit Ausblenden am Ende. Die gespeicherte Lautstärke gilt beim nächsten Start weiter.
+
 ### Berechtigung für die Audio-Reaktivität
 
 Die Visualizer lesen die eigene Tonausgabe über einen CoreAudio-Process-Tap. Beim ersten Start fragt macOS **einmalig** nach der Erlaubnis zur Audioaufnahme; sie ist für die reaktiven Visuals nötig (mit Developer-ID-Signatur wird die Erlaubnis dauerhaft gemerkt). Die App-Lautstärke wird vor der Analyse herausgerechnet; bei komplett stummer Wiedergabe gibt es kein Signal zum Rekonstruieren. Ohne Erlaubnis spielt die App trotzdem — die Visualizer ruhen dann nur.
 
 ## Daten
 
-Die Sender liegen in einer editierbaren JSON-Datei:
+Unter macOS liegen die Sender in einer editierbaren JSON-Datei:
 
 ```
 ~/Library/Application Support/MuckeBaby/stations.json
@@ -121,17 +128,16 @@ Beim ersten Start wird sie aus `Resources/seed-stations.json` befüllt, falls vo
 Vollständige Aufstellung in [`THIRD-PARTY.md`](THIRD-PARTY.md). Kurz:
 
 - **VLCKit / libVLC** — **LGPL-2.1-or-later**, dynamisch gelinkt und im Bundle austauschbar. Quelle: <https://code.videolan.org/videolan/VLCKit>.
-- **Theme-Texturen & App-Icon** — lokal mit einem Apache-2.0-Modell erzeugt (kommerzielle Nutzung erlaubt).
-- **Schriften** — macOS-Systemschriften (nicht mitgeliefert). **Sender-URLs** sind Fakten; die Streams gehören den jeweiligen Sendern.
+- **Theme-Texturen & App-Icon** — lokal mit einem Apache-2.0-Modell erzeugt.
+- **Qt 6 und libpulse** — Systembibliotheken unter Linux; vollständige Hinweise und Quelllinks stehen in `THIRD-PARTY.md`.
+- **Schriften** — Systemschriften; das Linux-Fanzine-Theme enthält Zilla Slab unter der SIL Open Font License 1.1. **Sender-URLs** sind Fakten; die Streams gehören den jeweiligen Sendern.
 
 **Projekt-Lizenz:** [MIT](LICENSE) für den eigenen Quellcode dieses Projekts. Das eingebettete VLCKit/libVLC behält seine **LGPL-2.1-or-later**-Lizenz (dynamisch gelinkt und austauschbar; Pflichten erfüllt durch diesen Hinweis + den Quell-Link oben).
 
 ## Voraussetzungen
 
-macOS **14.2+**, Apple Silicon, Xcode einschließlich der Werkzeuge für App-Intents-Metadaten.
+- **macOS-Quellcodebau:** macOS 14.2+, Apple Silicon und Xcode einschließlich der Werkzeuge für App-Intents-Metadaten.
+- **Linux:** x86-64, Qt ab 6.4, libVLC 3 und PulseAudio oder PipeWire-Pulse. FFmpeg wird für den Export benötigt. Siehe [Laufzeit- und Buildabhängigkeiten](docs/linux.md).
 
----
 
-*Status: privates Projekt. Ursprünglich vom Linux-Mint-Applet „Radio++" angestoßen und inzwischen weit darüber hinausgewachsen — es wurde kein Code und kein Asset von Radio++ übernommen.*
-
-Der Einschlaftimer im Hauptfenster und in der Menüleiste bietet Vorgaben und eine eigene Dauer. Er lässt sich verlängern oder abbrechen; am Ende blendet die Wiedergabe aus. Die gespeicherte Lautstärke gilt beim nächsten Start weiter.
+Vom Linux-Mint-Applet Radio++ inspiriert; es wurde kein Code und kein Asset von Radio++ übernommen.

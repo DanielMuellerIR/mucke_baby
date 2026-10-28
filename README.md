@@ -4,21 +4,24 @@
 
 ![Mucke, Baby!](icons/social-s123.png)
 
-A native internet-radio player for macOS (SwiftUI + VLCKit) and Linux (Qt 6 + libVLC) with seven hand‑crafted visual themes and audio‑reactive visualizers that move in sync with the actual sound. Originally inspired by the Linux Mint **Radio++** applet — now its own app, with a play history, stream recording (and per‑song extraction), one‑click Apple Music / Spotify links and more. There is also an iPhone sibling: [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
+Mucke, Baby! is a native internet-radio player for macOS and Linux with seven visual themes, audio-reactive visualizers, listening history and optional stream recording with per-song export.
 
-> The app's interface is available in German and English.
+The interface is available in German and English. The iPhone sibling is [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
 
 ## Download
 
-**[➜ Download the latest signed & notarized DMG](https://github.com/DanielMuellerIR/mucke_baby/releases/latest)** — open it, drag *Mucke, Baby!* into Applications and double‑click. Signed with a Developer ID and notarized by Apple, so it opens without a Gatekeeper warning. Requires macOS 14.2 or newer (Apple Silicon).
-
-Prefer to build from source? See [Run it](#run-it-on-macos-cli--headlessfriendly) below.
+- **Linux x86-64:** build the native application from source with `./build.sh` and install it for your user account with `./install.sh`. The first Linux binary release is being prepared. See the [Linux guide](docs/linux.md) for dependencies and local archive installation.
+- **macOS 14.2+, Apple Silicon:** [Download the signed and notarized DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Open it and drag *Mucke, Baby!* into Applications. This remains the current macOS binary; the source tree includes later features described below.
 
 ## Linux
 
-The native Linux port supports Linux Mint 22 and CachyOS on x86-64, with radio playback, ICY history, station and group management, catalog search, bookmarks, recording, per-song M4A export, seven themes, a miniplayer and MPRIS desktop controls. Build and install from source with `./build.sh` and `./install.sh`. See [Linux setup, data paths and platform limits](docs/linux.md). The signed DMG above is the macOS download.
+The native Qt 6 application has been tested on Linux Mint 22 and CachyOS on x86-64. It includes radio playback, ICY history, stations and groups, catalog search, bookmarks, recording, per-song M4A export, bounded MP3/AAC timeshift, seven themes, a miniplayer, equalizer, sleep timer and MPRIS desktop controls.
+
+Qt, libVLC 3 and FFmpeg come from system packages. ShazamKit identification, Apple Shortcuts and Sparkle updates are specific to macOS. Build from source with `./build.sh` and `./install.sh`; installation, data paths, codec limits and tests are covered in the [Linux guide](docs/linux.md).
 
 ## Screenshots
+
+The following screenshots show the macOS application. Linux uses native Qt widgets with the same seven themes.
 
 <p align="center"><img src="assets/screenshots/acid.png" width="860" alt="Acid Rave theme — neon oscilloscope"></p>
 
@@ -69,14 +72,14 @@ open "build/Mucke, Baby!.app"                    # launch
 
 - **Stream format limits** — AAC-ADTS, including HE-AAC, uses the format reported by the VLC decoder. Ogg/Vorbis, Ogg/Opus and FLAC continue playing directly. HLS plays live; recording and timeshift are unavailable for HLS. See [format limits](docs/timeshift-buffer.md).
 
-- **Identify music** — open the waveform search button in the player footer, then choose Identify. Shazam receives an audio fingerprint of up to 12 seconds from the music currently playing; the audio file is not sent. Audio capture permission and an internet connection are required. Cancel at any time. The main player and miniplayer share identification. Explicitly use a catalog suggestion for the current display or bookmark it separately; retain the original station text and Shazam source. ⌘↵ uses the suggestion for display, ⌘S bookmarks it and Escape closes the dialog. Pause/resume, seeking, Live, track/station changes and metadata reconnection clear old results and display choices. Identification follows the heard audio, including buffered playback; listening time and buffered reception time remain distinct. Catalog matches may name a different mix version. History and recordings remain unchanged. Bookmarks with recognition provenance with output provenance use exchange version 3, which older apps cannot yet import. Source builds require ShazamKit enabled under App Services for their signed App ID.
+- **Identify music** — open the waveform search button in the player footer, then choose Identify. Shazam receives an audio fingerprint of up to 12 seconds from the music currently playing; the audio file is not sent. Audio capture permission and an internet connection are required. Cancel at any time. The main player and miniplayer share identification. Explicitly use a catalog suggestion for the current display or bookmark it separately; retain the original station text and Shazam source. ⌘↵ uses the suggestion for display, ⌘S bookmarks it and Escape closes the dialog. Pause/resume, seeking, Live, track/station changes and metadata reconnection clear old results and display choices. Identification follows the heard audio, including buffered playback; listening time and buffered reception time remain distinct. Catalog matches may name a different mix version. History and recordings remain unchanged. Bookmarks with recognition and listening provenance use exchange version 3, which older apps cannot yet import. Source builds require ShazamKit enabled under App Services for their signed App ID.
 
 - Native macOS Shortcuts actions can play saved stations, stop radio, set volume, return the current title and save a bookmark. See [Shortcuts](docs/shortcuts.md) for parameters and recording behavior.
 
-- Plays **all codecs** via VLCKit/libVLC (mp3, aac, **ogg, opus**, flac, …).
+- Plays MP3, AAC, Ogg, Opus, FLAC and other codecs supported by VLCKit/libVLC.
 - **Seven themes**, each with its own layout, textures and visualizer: Standard, Acid Rave, Retro, Fanzine, GuitarAmp, Danish, Black MIDI.
 - **Fullscreen visualizer:** Open **View → Fullscreen visualizer** (⌘⇧V) for a larger view of the current theme. ⌃⌘F toggles fullscreen. ⌘B shows or hides the controls; Space starts or stops playback. Escape leaves fullscreen, and Escape in the window returns to the main player. The window shares the current title, playback and volume. Hidden or covered visualizers pause their animation; macOS Reduced Motion uses a still view.
-- **Audio‑reactive visualizers** — analog VU needles, oscilloscope, spectrum bars and a piano‑roll — driven by a **CoreAudio process tap** on the app's own output. The tapped signal is normalized before analysis, so lowering the app volume does not shrink the visuals; the picture stays perfectly in sync and smooth (up to 30 frames per second).
+- **Audio‑reactive visualizers** — analog VU needles, oscilloscope, spectrum bars and a piano‑roll — driven by a **CoreAudio process tap** on the app's own output. The tapped signal is normalized before analysis, so lowering the app volume does not shrink the visuals; the visuals follow the audio output (up to 30 frames per second).
 - **Now‑playing** artist/title via a built‑in ICY metadata reader (selectable & copyable), with correct decoding of non‑UTF‑8 stations (UTF‑8 → Shift‑JIS/CP932 → Latin‑1, e.g. Japanese senders).
 - **History panel** ("Verlauf") — every track with its date, start/end times and station, kept across station switches. Search titles or artists and combine station and date filters. Date ranges cover whole calendar days, including tracks still playing during them.
 - **Bookmarks** — keep tracks from history or current playback with the heart action. The searchable list stores metadata independently of history and recordings, offers music links, and exports visible matches as UTF-8 text or CSV. Different mixes stay separate.
@@ -104,13 +107,15 @@ open "build/Mucke, Baby!.app"                    # launch
 - Light & dark mode; optional menu‑bar icon (off by default).
 - **Self‑updates via Sparkle** — the app checks a signed appcast (GitHub Pages) and installs only after you confirm; no telemetry, no system profiling.
 
+- **Sleep timer** — presets and a custom duration, with extension, cancellation and fade-out. The saved volume is retained for the next start.
+
 ### Audio‑reactivity permission
 
 The visualizers read the app's own audio output through a CoreAudio process tap. On first launch macOS asks once for audio‑recording permission; granting it is required for the reactive visuals (with a Developer‑ID signature the grant is remembered permanently). The app volume is compensated before analysis; at full mute there is no signal to recover. Without permission the app still plays — the visualizers just idle.
 
 ## Data
 
-Stations live in an editable JSON file:
+On macOS, stations live in an editable JSON file:
 
 ```
 ~/Library/Application Support/MuckeBaby/stations.json
@@ -123,17 +128,16 @@ On first launch it is seeded from `Resources/seed-stations.json` if present, oth
 See [`THIRD-PARTY.md`](THIRD-PARTY.md) for the full breakdown. In short:
 
 - **VLCKit / libVLC** — **LGPLv2.1‑or‑later**, dynamically linked and replaceable inside the bundle. Source: <https://code.videolan.org/videolan/VLCKit>.
-- **Theme textures & app icon** — generated locally with an Apache‑2.0 model (commercial use allowed).
-- **Fonts** — macOS system fonts (not bundled). **Station URLs** are facts; the streams belong to their broadcasters.
+- **Theme textures & app icon** — generated locally with an Apache‑2.0 model.
+- **Qt 6 and libpulse** — system libraries on Linux; full notices and source links are in `THIRD-PARTY.md`.
+- **Fonts** — system fonts; the Linux Fanzine theme includes Zilla Slab under the SIL Open Font License 1.1. **Station URLs** are facts; the streams belong to their broadcasters.
 
 **Project license:** [MIT](LICENSE) for this project's own source code. The bundled VLCKit/libVLC keeps its **LGPL‑2.1‑or‑later** license (dynamically linked and replaceable; obligations met by this notice + the source link above).
 
 ## Requirements
 
-macOS **14.2+**, Apple Silicon, Xcode (including the App Intents metadata tools).
+- **macOS source build:** macOS 14.2+, Apple Silicon and Xcode, including the App Intents metadata tools.
+- **Linux:** x86-64, Qt 6.4 or newer, libVLC 3 and PulseAudio or PipeWire-Pulse. FFmpeg is needed for export. See [runtime and build dependencies](docs/linux.md).
 
----
 
-*Status: private / personal project. Originally sparked by the Linux Mint "Radio++" applet and since grown well beyond it — no code or assets were taken from Radio++.*
-
-The sleep timer in the main player and menu bar offers presets and a custom duration. Extend or cancel it at any time; playback fades out at the end and the saved volume is retained for the next start.
+Inspired by the Linux Mint Radio++ applet; no Radio++ code or assets are included.

@@ -5,7 +5,46 @@ weiterhin libVLC 3; unter Linux wird die vom Betriebssystem gelieferte Bibliothe
 dynamisch geladen. Für die Oberfläche läuft kein Browser und kein Python-Prozess.
 Python wird nur für Installation und Prüfskripte benötigt.
 
-## Bauen und installieren
+## Lokales Archiv installieren
+
+Die erste öffentliche Linux-Binärveröffentlichung wird vorbereitet.
+`./release.sh` erzeugt unter Linux ein lokales TAR.GZ-Archiv samt `SHA256SUMS`.
+Der geprüfte x86-64-Bau verwendet Ubuntu 24.04 und läuft auf Linux Mint 22 sowie
+CachyOS. Andere Distributionen benötigen
+kompatible Qt-6-, libVLC-3-, C++- und glibc-Bibliotheken. Es werden keine
+Systembibliotheken mitgeliefert.
+
+Laufzeitpakete unter Linux Mint 22 / Ubuntu 24.04:
+
+```bash
+sudo apt install libqt6widgets6t64 libqt6network6t64 libqt6dbus6t64 \
+  qt6-qpa-plugins qt6-wayland qt6-translations-l10n libvlc5 vlc-plugin-base \
+  libpulse0 ffmpeg ca-certificates python3
+```
+
+Unter CachyOS / Arch Linux:
+
+```bash
+sudo pacman -S --needed qt6-base qt6-wayland qt6-translations libvlc \
+  vlc-plugins-base vlc-plugin-ffmpeg libpulse ffmpeg ca-certificates python
+```
+
+Das Archiv und `SHA256SUMS` in denselben Downloadordner legen, dann:
+
+```bash
+sha256sum -c SHA256SUMS
+tar -xzf mucke-baby-1.10.1-linux-x86_64.tar.gz
+cd mucke-baby-1.10.1-linux-x86_64
+./install.sh
+~/.local/bin/mucke-baby
+```
+
+Der Installer benötigt keine Administratorrechte. Er installiert nur im eigenen
+Benutzerkonto und startet die App nicht. Alternativ lässt sich die entpackte
+App direkt mit `./bin/mucke-baby` starten. Aktualisieren: neues Archiv entpacken
+und dessen `./install.sh` ausführen; Sender, Verlauf und Aufnahmen bleiben erhalten.
+
+## Aus dem Quellcode bauen
 
 Abhängigkeiten unter Linux Mint 22 / Ubuntu 24.04:
 
@@ -45,7 +84,7 @@ schaltet Starter, Menüeintrag und Symbol um. Bei einem Fehler nimmt er diese
 heißt **Mucke, Baby!**; es wird kein Autostart des Desktops eingerichtet.
 
 `./release.sh` erzeugt unter Linux ausschließlich ein lokales TAR.GZ-Archiv.
-Das Archiv enthält das Programm, Starter, Symbol und Lizenzhinweise; Qt, libVLC,
+Das Archiv enthält das Programm, Installer, Menüeintrag, Symbol und Lizenzhinweise; Qt, libVLC,
 PulseAudio und FFmpeg kommen aus den Systempaketen. Es ist kein AppImage und
 installiert keinen Hintergrunddienst. Ein öffentliches Release wird dadurch
 nicht angelegt.
@@ -102,6 +141,25 @@ abweichender tatsächlicher Decoderrate, MP3 mit Xing/Info/VBRI-Dateikopf und
 andere VLC-Versionen spielen direkt weiter. Ogg/Vorbis, Opus, FLAC und HLS
 spielen ebenfalls direkt; für HLS gibt es weder Aufnahme noch Puffer.
 
+## Oberfläche
+
+Die Linux-App übernimmt den macOS-Aufbau: Sender links, Visualizer in der Mitte,
+Verlauf rechts, Transport und Aktionen im Kopf sowie Titel und Lautstärke im Fuß.
+Unter 780 Pixeln Fensterbreite entfällt die mittlere Bühne. Der Verlauf lässt
+sich ausblenden; Merkliste und Aufnahmen sind über die Bibliotheksauswahl erreichbar.
+
+Die sieben Themes teilen dieselben Bedienelemente. GuitarAmp verwendet eine
+Goldleiste und zwei dunkle VU-Fächer, Retro warme Materialien mit hellem Verlauf,
+Fanzine Papier und Zilla Slab, Danish einen symmetrischen Equalizer und Black MIDI
+einen gemessenen Notenverlauf. Acid und Standard zeigen das Oszilloskop. Alle
+Visualizer reagieren auf den eigenen Audioausgang; bei Stille bleiben sie ruhig.
+Native Fensterrahmen und Systemschriften können sich von macOS unterscheiden.
+
+Sender lassen sich mit einem Klick oder per Eingabetaste aktivieren. Erneutes
+Aktivieren des laufenden Senders stoppt ihn. Leertaste steuert die markierte
+Senderzeile, wenn die Senderliste den Fokus hat, sonst die laufende Wiedergabe.
+Eingabefelder und Schaltflächen behalten ihre normale Tastaturbedienung.
+
 ## Desktop und Audio
 
 Medientasten und Desktopsteuerung verwenden MPRIS über den vorhandenen
@@ -116,9 +174,14 @@ die Radiowiedergabe benötigt den Monitor nicht. Die Analyse arbeitet mit einem
 kleinen PCM-Puffer und pausiert bei unsichtbaren Visualizern. Echte Stille und
 0 Prozent Lautstärke bleiben still.
 
+Im Menü **Hilfe** sind Version, Quellcode und Lizenzübersicht sowie Impressum und
+Datenschutzhinweise erreichbar. Streamanbieter erhalten beim Abspielen die
+Netzwerkverbindung; Katalogsuche nutzt radio-browser.info. Musiklinks und
+Songtextabfragen werden bewusst über die jeweiligen Aktionen geöffnet.
+
 Apple-spezifische Dienste bleiben Plattformgrenzen: ShazamKit-Erkennung und
 Apple-Kurzbefehle sind unter Linux nicht verfügbar. Die Linux-App verwendet keinen
-Sparkle-Updater; Updates erfolgen durch erneutes Bauen und Installieren. Die
+Sparkle-Updater; Updates erfolgen durch erneutes Installieren eines Archivs oder Quellcodebaus. Die
 portablen Datenformate behalten importierte Erkennungsdaten trotzdem bei.
 
 ## Prüfen und automatisieren
@@ -137,7 +200,8 @@ dbus-run-session python3 linux/tests/app_runtime_test.py build/linux/mucke-baby
 Die Laufzeitprüfung erzeugt eigene lokale Tonstreams und einen privaten
 Audio-Server mit Null-Ausgang. Sie verändert weder Senderbestände noch den
 Audioausgang des Desktops. Zusätzliche Testwerkzeuge sind unter anderem
-`pulseaudio`, `pulseaudio-utils`, `dbus-x11` und `ffmpeg`.
+`pulseaudio`, `pulseaudio-utils`, `dbus-x11` und `ffmpeg`. Das MPRIS-Regressionstestziel
+benötigt `dbus-run-session`, das beispielsweise das Paket `dbus-daemon` bereitstellt.
 
 Die laufende App lässt sich aus derselben Benutzersitzung steuern:
 

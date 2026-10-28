@@ -3,6 +3,19 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.1 — 2026-10-28
+
+- Align the Linux window with the macOS console layout, including responsive station/stage/history columns, compact icon controls, a scrolling title footer, themed materials, vertical VU meters and a compact miniplayer.
+- Preserve keyboard station activation, visible preview pause controls, sleep-timer feedback and transient notices across playback updates.
+- Include unmodified OFL-licensed Zilla Slab for the Linux Fanzine theme and verify visualizer signal, silence and live light/dark transitions.
+
+- Preserve the active recording when deleting an older completed file; require fresh Ogg/FLAC headers when recording is switched off and back on.
+- Keep subsequent catalog pages reachable when a full page contains invalid or duplicate stations.
+- Keep pending playlist resolution intact on repeated MPRIS Play requests and announce changing station capabilities to desktop clients.
+- Save recording clips asynchronously with cancellation, exact preview bytes and collision-safe publication.
+- Include a per-user installer in the Linux download, expose license and privacy links in the app, and document binary dependencies separately from source builds.
+- Run Linux regressions in CI and retain the existing macOS Sparkle feed for Linux-only releases.
+
 ## 1.10.0 — 2026-10-28
 
 - Add a native C++17/Qt 6 Linux application using system libVLC 3, with seven shared themes, miniplayer, fullscreen visualizer, MPRIS controls and an optional tray icon.
