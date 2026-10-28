@@ -19,9 +19,10 @@ using namespace Mucke::DataCodec;
 namespace Mucke {
 namespace {
 constexpr int responseLimit = 2 * 1024 * 1024;
-QVector<Station> parseResults(const QByteArray &bytes) {
+QVector<Station> parseResults(const QByteArray &bytes, bool *fullPage = nullptr) {
     const auto j = Json::parse(bytes.constData(), bytes.constData() + bytes.size());
     require(j.is_array() && j.size() <= 50, "Invalid catalog response.");
+    if (fullPage) *fullPage = j.size() == 50;
     QVector<Station> result;
     QSet<QString> seen;
     for (const auto &v : j) {
@@ -273,16 +274,18 @@ void CatalogService::search(QJsonObject filters, int page) {
     const auto cached = d->cache(key, cachedAt);
     if (!cached.isEmpty()) {
         try {
-            const auto list = parseResults(cached);
-            emit results(list, list.size() == 50 && page < 19, cachedAt);
+            bool fullPage = false;
+            const auto list = parseResults(cached, &fullPage);
+            emit results(list, fullPage && page < 19, cachedAt);
         } catch (const std::exception &) {
         }
     }
     d->withServers([this, generation, query, key, page] {
         d->request("/json/stations/search", query, generation, [this, key, page](QByteArray b) {
-            const auto list = parseResults(b);
+            bool fullPage = false;
+            const auto list = parseResults(b, &fullPage);
             d->writeCache(key, b);
-            emit results(list, list.size() == 50 && page < 19, QDateTime());
+            emit results(list, fullPage && page < 19, QDateTime());
         });
     });
 }

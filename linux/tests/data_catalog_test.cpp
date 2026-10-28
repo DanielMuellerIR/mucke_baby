@@ -76,14 +76,24 @@ int main(int argc, char **argv) {
         check(stations[0].radioBrowserID == "11111111-1111-4111-8111-111111111111",
               "portable catalog identity");
         check(!more && cachedAt.isValid(), "cache age and end-of-page");
+        Json fullPage = Json::array();
+        for (int i = 0; i < 49; ++i)
+            fullPage.push_back({{"stationuuid", QString("11111111-1111-4111-8111-%1").arg(i, 12, 10, QChar('0')).toStdString()},
+                               {"name", "Valid station"}, {"url", "https://radio.example/live"}});
+        fullPage.push_back(list[2]);
+        write(path, QByteArray::fromStdString(fullPage.dump()));
+        service.search({});
+        service.cancel();
+        check(responses == 2 && stations.size() == 49 && more,
+              "filtered entry in a full page does not hide subsequent catalog pages");
         write(path, QByteArray(2 * 1024 * 1024 + 1, ' '));
         service.search({});
         service.cancel();
-        check(responses == 1, "oversized cache ignored");
+        check(responses == 2, "oversized cache ignored");
         QEventLoop loop;
         QTimer::singleShot(100, &loop, &QEventLoop::quit);
         loop.exec();
-        check(responses == 1 && errors == 4, "cancelled requests publish no stale result");
+        check(responses == 2 && errors == 4, "cancelled requests publish no stale result");
         if (qEnvironmentVariableIsSet("MUCKE_LIVE_CATALOG_TEST")) {
             QEventLoop live;
             QObject::connect(&service, &CatalogService::results, &live, &QEventLoop::quit);
@@ -91,7 +101,7 @@ int main(int argc, char **argv) {
             QTimer::singleShot(45000, &live, &QEventLoop::quit);
             service.search({{"name", "Radio"}, {"countrycode", "DE"}, {"bitrateMin", 64}, {"codec", "MP3"}});
             live.exec();
-            check(responses > 1 && !stations.isEmpty(), "live TLS catalog search");
+            check(responses > 2 && !stations.isEmpty(), "live TLS catalog search");
             service.cancel();
         }
         QTextStream(stdout) << checks << " catalog checks passed\n";
