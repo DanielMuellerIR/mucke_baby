@@ -42,6 +42,24 @@ int main(int argc, char **argv) {
         check(boundaries.size() == 4 && boundaries[0].trackID == "track-a" && boundaries[2].trackID == "track-b" && boundaries[3].trackID == "track-c", "Typed track IDs and boundaries recover unchanged");
         check(recovered.remove(firstID) && recovered.songBoundaries().size() == 2, "Recording deletion removes only its own boundaries");
     }
+    {
+        QTemporaryDir temporary;
+        Recorder recorder(temporary.path()); recorder.initialize(); recorder.beginSession("Fixture", "first");
+        recorder.setEnabled(true); recorder.audio(mp3); recorder.finish();
+        const QString completedID = recorder.list().first().id;
+        recorder.beginSession("Fixture", "second"); recorder.audio(mp3);
+        const QString activeID = recorder.list().last().id;
+        check(recorder.remove(completedID), "Completed recording can be removed while another records");
+        check(recorder.active(), "Deleting an earlier recording preserves the active recording");
+        recorder.audio(mp3); recorder.finish();
+        const auto recordings = recorder.list();
+        check(recordings.size() == 1 && recordings.first().id == activeID
+            && recordings.first().bytes == 2 * mp3.size() && !recordings.first().active,
+            "Writing and finishing after deletion update the surviving recording");
+        QFile audio(recorder.checkedPath(activeID));
+        check(audio.open(QIODevice::ReadOnly) && audio.readAll() == mp3 + mp3,
+            "Deleting completed audio preserves all bytes of the ongoing recording");
+    }
     const QByteArray flac = QByteArray("fLaC") + QByteArray::fromHex("80000022") + QByteArray(34, '\0') + QByteArray(32, 'a');
     QByteArray opusHead("OpusHead"); opusHead.append(QByteArray(11, '\0')); opusHead[8] = 1; opusHead[9] = 2;
     const QByteArray ogg = oggPage(opusHead) + oggPage(QByteArray("OpusTags") + QByteArray(8, '\0'));
@@ -54,6 +72,14 @@ int main(int argc, char **argv) {
         recorder.audio(header); check(recorder.list().size() == 1, "Midstream header cannot silently append a new container");
         recorder.beginSession("Fixture", "fresh-receiver"); recorder.audio(header);
         check(recorder.active() && !recorder.rolloverNeedsHeader() && recorder.list().size() == 2, "Fresh receiver starts next FLAC/Ogg file without altering prior data");
+        recorder.setEnabled(false);
+        check(recorder.needsFreshHeader(), "Disabling container capture requires fresh headers before reuse");
+        recorder.setEnabled(true); recorder.audio(QByteArray(128, 'x'));
+        check(!recorder.active() && recorder.list().size() == 2,
+            "Re-enabling Ogg/FLAC cannot create a headerless midstream file");
+        recorder.beginSession("Fixture", "enabled-again"); recorder.audio(header);
+        check(recorder.active() && recorder.list().size() == 3,
+            "Fresh receiver resumes Ogg/FLAC recording after off/on");
     }
     std::cout << "media boundaries: track IDs, capture/partial flags, leap-day24h rollover, deferred first write, FLAC/Ogg header restart passed\n";
 }

@@ -150,7 +150,13 @@ void Recorder::beginSession(QString name, QString id) {
 }
 void Recorder::setEnabled(bool value) {
     requested = value;
-    if (!value) { finish(); message = statusText("Recording off", "Aufnahme aus"); }
+    if (!value) {
+        if (!initialAudio && (extension == "ogg" || extension == "flac")) {
+            headerRequired = true;
+            prefix.clear();
+        }
+        finish(); message = statusText("Recording off", "Aufnahme aus");
+    }
     else if (!indexReady) message = statusText("Recording index unavailable; existing audio was preserved", "Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten");
     else message = headerRequired ? statusText("Recording needs a fresh stream header; restart playback", "Aufnahme benötigt einen neuen Stream-Header; Wiedergabe neu starten") : statusText("Waiting for stream audio", "Warte auf Stream-Audio");
 }
@@ -254,6 +260,7 @@ bool Recorder::remove(QString id) {
     for (qsizetype i = 0; i < entries.size(); ++i) if (entries[i].id == id && !entries[i].active) {
         if (checkedPath(id).isEmpty() || ::unlinkat(rootFD, QFile::encodeName(entries[i].file).constData(), 0) != 0) return false;
         entries.removeAt(i);
+        if (activeIndex > i) --activeIndex;
         boundaries.erase(std::remove_if(boundaries.begin(), boundaries.end(), [&](const auto &b) { return b.recordingID == id; }), boundaries.end());
         const bool ok = persist(); if (changed) changed(); return ok;
     }
