@@ -32,3 +32,6 @@ design-proposal_alt/
 
 # Lokaler Commit-Lock.
 .commit-lock
+
+# Python-Pruefungen des Linux-Installers.
+linux/**/__pycache__/

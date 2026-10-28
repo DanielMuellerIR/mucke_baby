@@ -26,4 +26,7 @@
 #   ./release.sh --no-finder-layout  # ohne Finder-Fensterlayout (headless)
 set -euo pipefail
 cd "$(dirname "$0")"
+if [[ "$(uname -s)" == Linux ]]; then
+    exec bash ./release-linux.sh "$@"
+fi
 exec bash wrappers/sign-and-release.sh "$@"

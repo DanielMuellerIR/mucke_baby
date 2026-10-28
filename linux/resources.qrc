@@ -1,0 +1,16 @@
+<RCC><qresource prefix="/">
+<file alias="Resources/seed-stations.example.json">../Resources/seed-stations.example.json</file>
+<file alias="icon.png">../icons/app-icon-s123.png</file>
+<file alias="themes/acid/bg-concrete.png">../Resources/themes/acid/bg-concrete.png</file>
+<file alias="themes/danish/bg-aluminum.png">../Resources/themes/danish/bg-aluminum.png</file>
+<file alias="themes/fanzine/bg-newsprint.png">../Resources/themes/fanzine/bg-newsprint.png</file>
+<file alias="themes/midi/bg-cyber.png">../Resources/themes/midi/bg-cyber.png</file>
+<file alias="themes/retro/bg-brushed.png">../Resources/themes/retro/bg-brushed.png</file>
+<file alias="themes/stack/bg-tolex.png">../Resources/themes/stack/bg-tolex.png</file>
+<file alias="genre-lists/chill.json">../Resources/genre-lists/chill.json</file>
+<file alias="genre-lists/hardstyle.json">../Resources/genre-lists/hardstyle.json</file>
+<file alias="genre-lists/manifest.json">../Resources/genre-lists/manifest.json</file>
+<file alias="genre-lists/oeffentlich-rechtlich.json">../Resources/genre-lists/oeffentlich-rechtlich.json</file>
+<file alias="genre-lists/techno.json">../Resources/genre-lists/techno.json</file>
+<file alias="genre-lists/trance.json">../Resources/genre-lists/trance.json</file>
+</qresource></RCC>

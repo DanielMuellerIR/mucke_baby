@@ -3,6 +3,14 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.0 — 2026-10-28
+
+- Add a native C++17/Qt 6 Linux application using system libVLC 3, with seven shared themes, miniplayer, fullscreen visualizer, MPRIS controls and an optional tray icon.
+- Port stations, groups, catalog search, ICY metadata, history filters, bookmarks and atomic version 1/2/3 library exchange, preserving recognition provenance and exact integer revisions.
+- Add opt-in recordings with storage and rollover protection, bounded MP3/AAC timeshift, a private application-only audio monitor, equalizer and sleep timer.
+- Export individual songs or serial batches as M4A with byte-to-packet cut proposals, explicit partial/approximate-audio consent, fades, metadata, identical preview/save bytes and collision-safe publication.
+- Add a reversible per-user Linux installer, local archive packaging and isolated data, audio, UI and codec regression gates. Apple recognition, Shortcuts and Sparkle remain macOS-specific; Linux limits are documented in `docs/linux.md`.
+
 ## 1.9.32 — 2026-10-22
 
 - Complete library imports and interrupted-import recovery when bookmarks include version 2 recognition provenance or version 3 listening contexts. Preserve those bookmarks during station-only imports.

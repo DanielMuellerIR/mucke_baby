@@ -11,6 +11,32 @@ Anzeigename, Binary, Bundle-ID und historischer Datenordner können abweichen.
 Technische Identitäten nicht kosmetisch ändern: Sie beeinflussen TCC und
 Migration vorhandener Nutzer.
 
+## Linux-Port
+
+Unter `linux/` liegt eine native C++17-/Qt-6-Widgets-Anwendung für Linux Mint 22
+und CachyOS auf x86-64. Sie nutzt system-libVLC 3, einen ausschließlich eigenen
+PulseAudio-/PipeWire-Pulse-Ausgabemonitor, FFmpeg für M4A-Exporte und
+nlohmann::json für exakte UInt64-Austauschrevisionen. Der Browser ist keine
+Laufzeitabhängigkeit. `docs/linux.md` beschreibt Einrichtung und Formatgrenzen.
+
+Die Wurzelskripte wählen unter Linux `build-linux.sh`, `install-linux.sh` und
+`release-linux.sh`. Installation erfolgt atomar im Benutzerpräfix, ohne Appstart;
+Release erzeugt nur ein lokales Archiv. `Sources/Models.swift` bleibt auch für
+den Linux-Bau die einzige Produktversionsquelle.
+
+Linux-Daten liegen unter XDG/MuckeBaby; nicht mit den internen macOS-Dateien
+zusammenlegen. Austausch ausschließlich über V1/V2/V3 mit Importvorschau.
+Aufnahme und Puffer sind zunächst aus. Grenzen, Quellschutz und getrennte
+Löschaktionen gelten auf beiden Plattformen. Keine persönliche Seed-Datei ins
+Linux-Ressourcenbundle aufnehmen.
+
+`ctest --test-dir build/linux --output-on-failure` prüft Daten, Protokolle,
+Puffer, Songgrenzen, Installer und UI. Echte Audio-/Exportprüfungen in
+`linux/tests/` brauchen einen isolierten Pulse-Server und explizites Opt-in;
+keine Desktopaufnahme und keine realen Nutzerdaten verwenden. Decoderprofile
+nur nach vollständigem PCM-Vergleich zulassen, nicht nach alleiniger
+Zeitstempel- oder Kreuzkorrelationsprüfung.
+
 ## Quellen der Wahrheit
 
 - `Sources/Models.swift`: `AppInfo.version`, einzige Produktversionsquelle.

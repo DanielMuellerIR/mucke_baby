@@ -121,9 +121,33 @@ Schreibschrift das Marshall-Logo nachahmte (Trade-Dress). Jetzt Serif.
 - **Kommerziell:** erlaubt (MIT).
 - Quelle: <https://github.com/sparkle-project/Sparkle>.
 
-## 8. Eigenständiger Code
+## 8. Linux-Bibliotheken
 
-- App-Code ist eine eigene SwiftUI-Implementierung. Vom Linux-Mint-Applet „Radio++"
+Die Linux-Anwendung verlinkt dynamisch die vom Betriebssystem bereitgestellten
+Bibliotheken. Sie bündelt weder Qt noch VLC-Plugins oder FFmpeg:
+
+- **Qt 6 Core, Gui, Widgets, Network und DBus:** LGPL-3.0, GPL-3.0 oder kommerzielle
+  Lizenz; verwendet werden die LGPL-Ausgaben der Distribution. Quellen und
+  Lizenzbedingungen: <https://doc.qt.io/qt-6/licensing.html> und
+  <https://code.qt.io/cgit/qt/qtbase.git/>. Dynamischer Austausch bleibt möglich.
+- **libVLC 3:** LGPL-2.1-or-later, aus dem Systempaket. Quellen:
+  <https://code.videolan.org/videolan/vlc>. Die Codec-Plugins unterliegen zusätzlich
+  den Lizenzen ihrer jeweiligen Distributionspakete.
+- **libpulse:** LGPL-2.1-or-later, dynamischer Zugriff auf den eigenen Audioausgang.
+  Quellen: <https://gitlab.freedesktop.org/pulseaudio/pulseaudio>.
+- **nlohmann/json:** MIT, als Systemheader beim Bau verwendet. Vollständiger
+  Lizenztext: `linux/packaging/nlohmann-json-LICENSE.MIT`; er wird mitinstalliert.
+  Quellen: <https://github.com/nlohmann/json>.
+- **FFmpeg:** separates Systemprogramm für lokale Exporte, ohne eingebettete
+  Bibliothekskopie. Lizenz hängt vom Distributionsbuild ab; Quellcode und
+  Lizenzübersicht: <https://ffmpeg.org/legal.html>.
+- Linux-Schriften werden aus vorhandenen Systemfamilien gewählt und nicht
+  mitgeliefert.
+
+## 9. Eigenständiger Code
+
+- App-Code besteht aus einer eigenen SwiftUI-Implementierung für macOS und
+  einer eigenen C++-/Qt-Implementierung für Linux. Vom Linux-Mint-Applet „Radio++"
   **inspiriert** (Features/Ideen sind frei) — **kein** Code/Asset von dort übernommen.
   Die mitgelieferte Beispiel-Senderliste ist generisch.
 

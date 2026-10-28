@@ -4,13 +4,17 @@
 
 ![Mucke, Baby!](icons/social-s123.png)
 
-Ein nativer macOS-Internetradio-Player (SwiftUI + VLCKit) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Ursprünglich vom Linux-Mint-Applet **Radio++** inspiriert — inzwischen ein eigenständiges Projekt, mit Verlauf, Stream-Aufnahme (inkl. songweiser Extraktion), Direktlinks zu Apple Music / Spotify und mehr. Es gibt auch einen iPhone-Ableger: [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
+Ein nativer Internetradio-Player für macOS (SwiftUI + VLCKit) und Linux (Qt 6 + libVLC) mit sieben handgemachten Themes und audio-reaktiven Visualizern, die synchron zum tatsächlichen Klang laufen. Ursprünglich vom Linux-Mint-Applet **Radio++** inspiriert — inzwischen ein eigenständiges Projekt, mit Verlauf, Stream-Aufnahme (inkl. songweiser Extraktion), Direktlinks zu Apple Music / Spotify und mehr. Es gibt auch einen iPhone-Ableger: [Baby, Mucke!](https://github.com/DanielMuellerIR/baby_mucke).
 
 ## Download
 
 **[➜ Aktuelles signiertes & notarisiertes DMG herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/latest)** — öffnen, „Mucke, Baby!“ in den Programme-Ordner ziehen und doppelklicken. Mit Developer ID signiert und von Apple notarisiert, öffnet also ohne Gatekeeper-Warnung. Benötigt macOS 14.2 oder neuer (Apple Silicon).
 
-Lieber selbst aus dem Quellcode bauen? Siehe [Starten](#starten-kommandozeile--headless-tauglich) weiter unten.
+Lieber selbst aus dem Quellcode bauen? Siehe [Starten](#unter-macos-starten-kommandozeile--headless-tauglich) weiter unten.
+
+## Linux
+
+Die native Linux-Version unterstützt Linux Mint 22 und CachyOS auf x86-64. Sie bietet Radiowiedergabe, ICY-Verlauf, Sender- und Gruppenverwaltung, Katalogsuche, Merkliste, Aufnahme, songweisen M4A-Export, sieben Themes, Miniplayer und MPRIS-Desktopsteuerung. Mit `./build.sh` bauen und mit `./install.sh` im Benutzerkonto installieren. [Linux-Einrichtung, Datenpfade und Plattformgrenzen](docs/linux.md) beschreiben die Details. Das oben verlinkte DMG ist der macOS-Download.
 
 ## Screenshots
 
@@ -22,7 +26,7 @@ Lieber selbst aus dem Quellcode bauen? Siehe [Starten](#starten-kommandozeile--h
 | **GuitarAmp** | **Danish** | **Black MIDI** |
 | ![GuitarAmp](assets/screenshots/guitaramp.png) | ![Danish](assets/screenshots/danish.png) | ![Black MIDI](assets/screenshots/midi.png) |
 
-## Starten (Kommandozeile / headless-tauglich)
+## Unter macOS starten (Kommandozeile / headless-tauglich)
 
 Kein Xcode-Projekt — die App wird mit `swiftc` zu einem `.app`-Bundle kompiliert. Erforderlich ist Xcode mit den Werkzeugen für App-Intents-Metadaten. Die gesamte Toolchain ist skriptbar (praktisch für Automatisierung und KI-Agenten):
 
@@ -57,7 +61,7 @@ open "build/Mucke, Baby!.app"                    # starten
   `git config --local muckeBaby.notaryProfile <profil>` — Keychain-Profile sind pro Mac
   lokal und werden nie synchronisiert.
 
-## Funktionen
+## macOS-Funktionen
 
 - **Temporärer MP3-/AAC-ADTS-Puffer** — in den Einstellungen nach Bestätigung der automatischen Bereinigung aktivieren. Der Puffer verwendet die vorhandene Metadatenverbindung, hält höchstens fünf Minuten und 32 MiB komprimiertes Audio plus einen begrenzten Index und stoppt unter 10 GiB freiem Speicher. Abschalten, Senderwechsel und Beenden verwerfen das temporäre Audio. Dauerhafte Aufnahmen und Verlauf bleiben erhalten. Hauptfenster und Miniplayer teilen Pause/Fortsetzen, Pufferregler, Titelzeitleiste und Live. Live startet mit mindestens drei Sekunden Reserve. Sprünge folgen vollständigen Audioframes; der Decoder-Vorlauf wird vor der Ausgabe verarbeitet.
 
