@@ -84,12 +84,19 @@ int main(int argc, char **argv) {
         if (overrun) returnedLive = engine.snapshot().state == Mucke::PlaybackState::Playing && engine.snapshot().timeshiftAvailable && connections >= 1 && connections <= 2;
         engine.stop();
     });
-    QTimer::singleShot(fallback ? 7200 : overrun ? 19200 : 14700, Qt::PreciseTimer, &app, [&] {
-        const auto state = engine.snapshot(); engine.shutdown();
+    QTimer completion; completion.setInterval(25); QElapsedTimer stopWait;
+    QObject::connect(&completion, &QTimer::timeout, &app, [&] {
+        const auto state = engine.snapshot();
+        if ((state.state != Mucke::PlaybackState::Stopped || activeConnections != 0) && stopWait.elapsed() < 2500) return;
+        completion.stop(); engine.shutdown();
         const bool normalOK = stablePause && seekPreservedReception && heardSecond && received == 2 && connections == 1 && seekSignals == 2 && seekPositionsMatch;
         const bool ok = (fallback ? played && !ready && fallbackNative : played && ready && paused && (overrun ? expired && returnedLive : normalOK)) && activeConnections == 0 && state.state == Mucke::PlaybackState::Stopped && (fallback || contentType != "audio/aac" || earlyRMS == 0);
-        std::cout << "timeshift played=" << played << " ready=" << ready << " paused=" << paused << " stablePause=" << stablePause << " receptionPreserved=" << seekPreservedReception << " heardSecond=" << heardSecond << " tracks=" << received << " connections=" << connections << " remaining=" << activeConnections << " overrun=" << overrun << " expired=" << expired << " manualLive=" << returnedLive << " fallback=" << fallbackNative << " seekSignals=" << seekSignals << " seekPositions=" << seekPositionsMatch << " probeEarlyRMS=" << earlyRMS << " probeFrames=" << earlyFrames << " error=" << latestError.toStdString() << '\n';
+        std::cout << "timeshift played=" << played << " ready=" << ready << " paused=" << paused << " stablePause=" << stablePause << " receptionPreserved=" << seekPreservedReception << " heardSecond=" << heardSecond << " tracks=" << received << " connections=" << connections << " remaining=" << activeConnections << " state=" << int(state.state) << " overrun=" << overrun << " expired=" << expired << " manualLive=" << returnedLive << " fallback=" << fallbackNative << " seekSignals=" << seekSignals << " seekPositions=" << seekPositionsMatch << " probeEarlyRMS=" << earlyRMS << " probeFrames=" << earlyFrames << " error=" << latestError.toStdString() << '\n';
         app.exit(ok ? 0 : 1);
+    });
+    QTimer::singleShot(fallback ? 7200 : overrun ? 19200 : 14700, Qt::PreciseTimer, &app, [&] {
+        // Stop und TCP-Abbruch werden asynchron gemeldet; auf beides mit fester Frist warten.
+        stopWait.start(); completion.start();
     });
     QTimer::singleShot(30000, Qt::PreciseTimer, &app, [&] { app.exit(3); });
     return app.exec();
