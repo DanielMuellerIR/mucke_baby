@@ -48,7 +48,7 @@ void MprisBridge::stepStation(int direction) {
 }
 void MprisBridge::play() {
     if (current.state == PlaybackState::Paused) { engine->togglePause(); return; }
-    if (current.state == PlaybackState::Playing || current.state == PlaybackState::Buffering) return;
+    if (current.state == PlaybackState::Playing || current.state == PlaybackState::Buffering || current.state == PlaybackState::Resolving) return;
     const auto selected = store->station(current.stationID);
     if (!selected.id.isEmpty() && selected.enabled) { engine->play(selected); return; }
     stepStation(1);
@@ -66,7 +66,11 @@ void MprisBridge::announce() {
     QString state = QStringLiteral("Stopped");
     if (current.state == PlaybackState::Paused) state = QStringLiteral("Paused");
     else if (current.state == PlaybackState::Playing || current.state == PlaybackState::Buffering || current.state == PlaybackState::Resolving) state = QStringLiteral("Playing");
+    int enabledStations = 0;
+    for (const auto &station : store->stations()) if (station.enabled) ++enabledStations;
     QVariantMap properties{{QStringLiteral("PlaybackStatus"),state}, {QStringLiteral("Metadata"),metadata()},
+        {QStringLiteral("CanPlay"),enabledStations > 0}, {QStringLiteral("CanGoNext"),enabledStations > 1},
+        {QStringLiteral("CanGoPrevious"),enabledStations > 1},
         {QStringLiteral("Volume"),current.volume/100.0}, {QStringLiteral("CanPause"),current.timeshiftAvailable || (current.previewActive && (current.state == PlaybackState::Playing || current.state == PlaybackState::Paused))},
         {QStringLiteral("CanSeek"),current.timeshiftAvailable}};
     if (properties == announcedProperties) return;
