@@ -80,6 +80,10 @@ def install(binary, prefix, source_root, publish=None):
     binary = Path(binary).resolve(strict=True)
     prefix = Path(prefix).expanduser().absolute()
     source_root = Path(source_root).resolve(strict=True)
+    checkout = (source_root / 'linux/packaging').is_dir()
+    licenses = source_root if checkout else source_root / 'share/doc/mucke-baby'
+    packaging = source_root / 'linux/packaging' if checkout else source_root / 'share/applications'
+    icon_source = source_root / 'icons/app-icon-s123.png' if checkout else source_root / 'share/icons/hicolor/1024x1024/apps/mucke-baby.png'
     if prefix == Path('/') or any(ord(c) < 32 for c in str(prefix)):
         raise RuntimeError('Ungültiger Installationspfad.')
     version = version_of(binary)
@@ -101,8 +105,10 @@ def install(binary, prefix, source_root, publish=None):
             if version_of(staged / 'bin/mucke-baby') != version:
                 raise RuntimeError('Die kopierte App hat eine andere Version.')
             for name in ('LICENSE', 'THIRD-PARTY.md'):
-                shutil.copy2(source_root / name, staged / name)
-            shutil.copy2(source_root / 'linux/packaging/nlohmann-json-LICENSE.MIT', staged / 'nlohmann-json-LICENSE.MIT')
+                shutil.copy2(licenses / name, staged / name)
+            shutil.copy2((packaging if checkout else licenses) / 'nlohmann-json-LICENSE.MIT', staged / 'nlohmann-json-LICENSE.MIT')
+            font_license = source_root / 'linux/resources/fonts/OFL.txt' if checkout else licenses / 'ZillaSlab-OFL.txt'
+            shutil.copy2(font_license, staged / 'ZillaSlab-OFL.txt')
             (staged / 'manifest.json').write_text(json.dumps({
                 'version': version, 'sha256': digest,
                 'installedAt': datetime.now(timezone.utc).isoformat()
@@ -119,11 +125,11 @@ def install(binary, prefix, source_root, publish=None):
             for target in (launcher, desktop, icon):
                 target.parent.mkdir(parents=True, exist_ok=True)
             executable = str(launcher).replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%')
-            desktop_bytes = (source_root / 'linux/packaging/de.danielmuller.muckebaby.desktop').read_text().replace('Exec=mucke-baby', 'Exec="' + executable + '"').encode()
+            desktop_bytes = (packaging / 'de.danielmuller.muckebaby.desktop').read_text().replace('Exec=mucke-baby', 'Exec="' + executable + '"').encode()
             actions = [
                 (launcher, lambda: atomic_link(launcher, str(installed / 'bin/mucke-baby'))),
                 (desktop, lambda: atomic_write(desktop, desktop_bytes)),
-                (icon, lambda: atomic_write(icon, (source_root / 'icons/app-icon-s123.png').read_bytes()))
+                (icon, lambda: atomic_write(icon, icon_source.read_bytes()))
             ]
             for index, (target, action) in enumerate(actions):
                 old = snapshot(target)

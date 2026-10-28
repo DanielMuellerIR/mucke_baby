@@ -6,4 +6,6 @@ bash build-linux.sh
 build_dir="${MUCKE_BUILD_DIR:-build/linux}"
 ctest --test-dir "$build_dir" --output-on-failure
 (cd "$build_dir" && cpack -G TGZ)
-echo "RELEASE OK: lokales Archiv in $build_dir"
+IFS= read -r package_name < "$build_dir/linux-package-name.txt"
+(cd "$build_dir" && sha256sum -- "$package_name" > SHA256SUMS)
+echo "RELEASE OK: $build_dir/$package_name und SHA256SUMS"

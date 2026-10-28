@@ -17,6 +17,8 @@ class InstallerTests(unittest.TestCase):
         self.prefix = self.root / 'home with spaces/.local'
         self.source = self.root / 'source'
         (self.source / 'linux/packaging').mkdir(parents=True)
+        (self.source / 'linux/resources/fonts').mkdir(parents=True)
+        (self.source / 'linux/resources/fonts/OFL.txt').write_text('Font OFL fixture')
         (self.source / 'icons').mkdir()
         (self.source / 'LICENSE').write_text('MIT fixture')
         (self.source / 'linux/packaging/nlohmann-json-LICENSE.MIT').write_text('JSON MIT fixture')
@@ -91,6 +93,25 @@ class InstallerTests(unittest.TestCase):
         second = installer.install(self.binary, self.prefix, self.source)
         self.assertEqual(first['directory'], second['directory'])
         self.assertEqual(list((self.prefix / 'lib/mucke-baby').glob('.install-*')), [])
+
+    def test_release_archive_layout_installs_without_source_checkout(self):
+        package = self.root / 'archive'
+        licenses = package / 'share/doc/mucke-baby'
+        desktop = package / 'share/applications'
+        icons = package / 'share/icons/hicolor/1024x1024/apps'
+        for directory in (licenses, desktop, icons):
+            directory.mkdir(parents=True)
+        for name in ('LICENSE', 'THIRD-PARTY.md'):
+            (licenses / name).write_bytes((self.source / name).read_bytes())
+        (licenses / 'nlohmann-json-LICENSE.MIT').write_text('JSON MIT fixture')
+        (licenses / 'ZillaSlab-OFL.txt').write_text('Font OFL fixture')
+        (desktop / 'de.danielmuller.muckebaby.desktop').write_text('[Desktop Entry]\nExec=mucke-baby\n')
+        (icons / 'mucke-baby.png').write_bytes(b'packaged icon')
+        result = installer.install(self.binary, self.prefix, package)
+        self.assertEqual(installer.version_of(self.prefix / 'bin/mucke-baby'), '1.2.3')
+        self.assertEqual((Path(result['directory']) / 'nlohmann-json-LICENSE.MIT').read_text(), 'JSON MIT fixture')
+        self.assertEqual((Path(result['directory']) / 'ZillaSlab-OFL.txt').read_text(), 'Font OFL fixture')
+        self.assertEqual((self.prefix / 'share/icons/hicolor/1024x1024/apps/mucke-baby.png').read_bytes(), b'packaged icon')
 
 
 if __name__ == '__main__':
