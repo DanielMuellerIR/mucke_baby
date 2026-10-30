@@ -54,3 +54,11 @@ Stations and bookmarks commit together. If the app stops after committing but be
 ## Bookmark text and CSV exports
 
 Text exports include the catalog title and recognition provenance for recognized tracks. CSV exports retain the six existing columns; when at least one exported entry has recognition provenance, they add `source`, `recognized_at`, `station_id`, `original_icy`, `shazam_id` and `apple_music_url`. Entries without recognition leave these additional fields empty. Formula-like values remain escaped for spreadsheet applications.
+
+## Pending device acceptance
+
+The remaining device acceptance covers real version 1/2/3 library exchanges and
+confirmation of the resulting state with the companion app. Begin only after
+the companion is ready, the specific test app is approved for installation and
+launch, and its visible start has been confirmed. Until then this is a deferred
+acceptance task; it does not authorize automatic follow-up tests.
