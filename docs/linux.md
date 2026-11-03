@@ -203,7 +203,7 @@ portablen Datenformate behalten importierte Erkennungsdaten trotzdem bei.
 ```bash
 ctest --test-dir build/linux --output-on-failure
 MUCKE_MEDIA_RUNTIME_TEST=1 sh linux/tests/media_run_tests.sh
-# Tatsächliche Drei-Sekunden-Verzögerung und Kontinuität, auch bei gebündelter Lieferung:
+# Tatsächliche Drei-Sekunden-Verzögerung, Lieferpausen sowie Stille bei Pause und Ton nach Fortsetzen:
 MUCKE_MEDIA_RUNTIME_TEST=1 MUCKE_MEDIA_TEST_MODE=continuity sh linux/tests/media_run_tests.sh
 sh linux/tests/ui_song_backend_test.sh build/linux/ui_song_backend_test
 # Optionaler längerer AAC-Lauf; Standard: 18 Minuten, zulässig: 340–1200 Sekunden:

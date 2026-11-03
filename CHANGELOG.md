@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## 1.10.8 — 2026-11-03
 
+- Stop buffered audio output reliably when pausing and resume from the saved listening position while stream reception continues.
 - Restore the last Linux window geometry on startup so a compact window keeps the visualizer hidden. Save changes after resizing and on exit; synthetic screenshots do not replace the saved geometry.
 
 ## 1.10.7 — 2026-11-03

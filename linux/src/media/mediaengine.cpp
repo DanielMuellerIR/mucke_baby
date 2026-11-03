@@ -382,16 +382,30 @@ public:
     }
     void togglePause() {
         if (systemSleeping) { resumeAfterWake = false; return; }
-        if (!player) return;
-        if (state.previewActive) { libvlc_media_player_pause(player); return; }
+        if (state.previewActive) { if (player) libvlc_media_player_pause(player); return; }
         if (outputFromBuffer && shiftBuffer && !outputExpired) {
             const auto view = shiftBuffer->view();
             if (state.timeshiftPaused) {
                 if (pausedPosition < view.oldest) { expireOutput(trMessage("Pause exceeded the buffer; press Live to resume", "Pause hat den Puffer überschritten; zum Fortsetzen Live drücken")); return; }
-                state.timeshiftPaused = false; libvlc_media_player_set_pause(player, 0); state.state = PlaybackState::Buffering; beginHealth();
-            } else { pausedPosition = heardPosition(); state.timeshiftPaused = true; playbackHealth.cancel(); libvlc_media_player_set_pause(player, 1); state.state = PlaybackState::Paused; }
+                if (!playBuffer(shiftBuffer->readerAt(pausedPosition))) {
+                    expireOutput(trMessage("Cannot resume timeshift output; press Live to resume", "Timeshift-Ausgabe kann nicht fortgesetzt werden; zum Fortsetzen Live drücken"));
+                    return;
+                }
+            } else {
+                pausedPosition = heardPosition();
+                playbackHealth.cancel(); healthTimer->stop();
+                // Der getaktete Callback-Eingang unterstützt keine native VLC-Pause.
+                // Nur den Decoder stoppen; Empfang und Puffer laufen weiter.
+                if (player) libvlc_audio_set_mute(player, 1);
+                releasePlayer();
+                bufferFormatPending = false;
+                outputFromBuffer = true;
+                state.timeshiftPaused = true; state.state = PlaybackState::Paused;
+                if (monitor) monitor->setActive(false);
+            }
             updateTimeshift(); return;
         }
+        if (!player) return;
         state.error = trMessage("Pause requires a measured timeshift buffer; live playback continues", "Pause benötigt einen vermessenen Timeshift-Puffer; Live-Wiedergabe läuft weiter"); publish();
     }
     void setVolume(int value) { state.volume = std::clamp(value, 0, 100); applyVolume(); publish(); }

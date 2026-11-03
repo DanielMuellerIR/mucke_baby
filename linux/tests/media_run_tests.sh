@@ -65,8 +65,15 @@ ffmpeg -hide_banner -loglevel error -n \
     -f lavfi -i sine=frequency=2000:sample_rate=48000:duration=10 \
     -filter_complex '[0:a][1:a]concat=n=2:v=0:a=1' \
     -c:a libmp3lame -b:a 128k -write_xing 0 -id3v2_version 0 "$build_dir/continuity.mp3"
-MUCKE_CONTINUITY_BURST=0 "$build_dir/continuity-smoke" "$build_dir/continuity.mp3"
-MUCKE_CONTINUITY_BURST=1 "$build_dir/continuity-smoke" "$build_dir/continuity.mp3"
+MUCKE_CONTINUITY_BURST=0 MUCKE_CONTINUITY_PAUSE=0 "$build_dir/continuity-smoke" "$build_dir/continuity.mp3"
+MUCKE_CONTINUITY_BURST=1 MUCKE_CONTINUITY_PAUSE=0 "$build_dir/continuity-smoke" "$build_dir/continuity.mp3"
+MUCKE_CONTINUITY_BURST=0 MUCKE_CONTINUITY_PAUSE=1 "$build_dir/continuity-smoke" "$build_dir/continuity.mp3"
+ffmpeg -hide_banner -loglevel error -n \
+    -f lavfi -i sine=frequency=1000:sample_rate=48000:duration=10 \
+    -f lavfi -i sine=frequency=2000:sample_rate=48000:duration=10 \
+    -filter_complex '[0:a][1:a]concat=n=2:v=0:a=1' \
+    -c:a aac -b:a 128k -aac_pns 0 -f adts "$build_dir/continuity.aac"
+MUCKE_CONTINUITY_BURST=0 MUCKE_CONTINUITY_PAUSE=1 "$build_dir/continuity-smoke" "$build_dir/continuity.aac"
 exit 0
 fi
 if [ "$test_mode" = all ] || [ "$test_mode" = smoke ]; then
