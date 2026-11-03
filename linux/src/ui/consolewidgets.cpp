@@ -449,6 +449,7 @@ void AdaptiveActions::setInk(QColor color) {
         entry.action->setIcon(image);
     }
     more->setIcon(icon(Symbol::More, ink));
+    arrange();
 }
 void AdaptiveActions::arrange() {
     const bool labels = width() >= sizeHint().width();

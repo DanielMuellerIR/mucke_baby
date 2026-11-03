@@ -6,6 +6,7 @@
 #include "../media/mediaengine.h"
 #include "historyfilter_p.h"
 #include "songtools_p.h"
+#include "updatedialog.h"
 #include "songexportdialog.h"
 #include "songexportfile_p.h"
 #include <QNetworkAccessManager>
@@ -322,6 +323,8 @@ class MainWindow::Impl {
     Impl(MainWindow *window, LibraryStore *s, CatalogService *c, MediaEngine *m)
         : q(window), store(s), catalog(c), media(m) {
         Console::initializeFonts();
+        if (store->settings()["updateChecks"].toBool(false))
+            QTimer::singleShot(3000, q, [this] { checkForUpdates(q, true); });
         auto language = store->settings()["language"].toString();
         if (language == "de" || language == "en")
             QLocale::setDefault(QLocale(language));
@@ -817,6 +820,7 @@ class MainWindow::Impl {
                         "Natives Internetradio mit Qt 6 und libVLC.\nEigener Quellcode unter MIT-Lizenz.",
                         "Native internet radio with Qt 6 and libVLC.\nProject source code is licensed under MIT."));
         });
+        help->addAction(text("Nach Updates suchen …", "Check for updates …"), q, [this] { checkForUpdates(q); });
         help->addAction(text("Quellcode und Lizenzen", "Source code and licenses"), q, [] {
             QDesktopServices::openUrl(
                 QUrl("https://github.com/DanielMuellerIR/mucke_baby/blob/master/THIRD-PARTY.md"));
@@ -2136,6 +2140,10 @@ class MainWindow::Impl {
         language->addItem("English", "en");
         language->setCurrentIndex(std::max(0, language->findData(original["language"].toString("system"))));
         form->addRow(text("Sprache (nach Neustart)", "Language (after restart)"), language);
+        auto *updateChecks = new QCheckBox(text("Beim Start auf GitHub nach Updates suchen", "Check GitHub for updates on startup"));
+        updateChecks->setObjectName("updateChecks");
+        updateChecks->setChecked(original["updateChecks"].toBool(false));
+        form->addRow(updateChecks);
         auto *autostart = new QComboBox;
         autostart->setObjectName("startupMode");
         autostart->addItem(text("Nicht abspielen", "Do not play"), "none");
@@ -2316,6 +2324,7 @@ class MainWindow::Impl {
                 return;
             auto settings = store->settings();
             settings["language"] = language->currentData().toString();
+            settings["updateChecks"] = updateChecks->isChecked();
             settings["autostart"] = autostart->currentData().toString();
             settings["selectedStationID"] = selected->currentData().toString();
             settings["closeToTray"] = tray->isChecked();

@@ -5,6 +5,7 @@
 #include "../src/ui/mainwindow.h"
 #include "../src/ui/consolewidgets.h"
 #include "../src/ui/songtools_p.h"
+#include "../src/ui/updatedialog.h"
 #include <QUrlQuery>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -126,6 +127,51 @@ class UIFlowTest final : public QObject {
             } else { ++reachable; button->click(); }
         }
         QCOMPARE(reachable, 3); QCOMPARE(called, 3);
+    }
+    void githubUpdateDialog() {
+        if (qEnvironmentVariableIntValue("MUCKE_UPDATE_NETWORK_TEST") != 1)
+            QSKIP("Explicit opt-in for the live GitHub check");
+        QWidget parent;
+        checkForUpdates(&parent);
+        auto *dialog = parent.findChild<QDialog *>("updateDialog"); QVERIFY(dialog);
+        auto *progress = dialog->findChild<QProgressBar *>(); QVERIFY(progress);
+        auto *status = dialog->findChild<QLabel *>("updateStatus"); QVERIFY(status);
+        auto *install = dialog->findChild<QPushButton *>("installUpdate"); QVERIFY(install);
+        QVERIFY(!install->isEnabled());
+        QTRY_VERIFY_WITH_TIMEOUT(progress->isHidden(), 35000);
+        QVERIFY2(status->text().startsWith("Version "), qPrintable(status->text()));
+        const auto directory = qEnvironmentVariable("MUCKE_UI_SHOTS");
+        if (!directory.isEmpty()) { QDir().mkpath(directory); QVERIFY(dialog->grab().save(directory + "/github-update.png")); }
+        dialog->close();
+    }
+    void responsiveLibraryPages() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        MainWindow window(&store, &catalog, &media); window.show();
+        auto *tabs = window.findChild<QTabWidget *>("libraryTabs"); QVERIFY(tabs);
+        const auto directory = qEnvironmentVariable("MUCKE_UI_SHOTS");
+        for (const auto &theme : {"schlicht", "acid", "retro", "fanzine", "stack", "danish", "midi"}) {
+            window.applyTheme(theme);
+            for (int width : {620, 940, 1600}) {
+                window.resize(width, 620);
+                for (int page : {0, 1, 2}) {
+                    tabs->setCurrentIndex(page); QApplication::processEvents();
+                    for (const auto &name : {"libraryNavigation", page == 1 ? "bookmarkActionsBar" : "recordingActionsBar"}) {
+                        auto *bar = window.findChild<QWidget *>(name); QVERIFY(bar);
+                        if (!bar->isVisible()) continue;
+                        for (auto *control : bar->findChildren<QPushButton *>())
+                            if (control->isVisible()) QVERIFY(bar->rect().contains(control->geometry()));
+                    }
+                    if (!directory.isEmpty() && QString(theme) == "schlicht") {
+                        QDir().mkpath(directory);
+                        QVERIFY(window.grab().save(directory + QString("/library-%1-%2.png").arg(page).arg(width)));
+                    }
+                }
+            }
+        }
+        media.shutdown();
     }
     void musicLinkEncoding() {
         Track track;

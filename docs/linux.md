@@ -186,8 +186,16 @@ Netzwerkverbindung; Katalogsuche nutzt radio-browser.info. Musiklinks und
 Songtextabfragen werden bewusst über die jeweiligen Aktionen geöffnet.
 
 Apple-spezifische Dienste bleiben Plattformgrenzen: ShazamKit-Erkennung und
-Apple-Kurzbefehle sind unter Linux nicht verfügbar. Die Linux-App verwendet keinen
-Sparkle-Updater; Updates erfolgen durch erneutes Installieren eines Archivs oder Quellcodebaus. Die
+Apple-Kurzbefehle sind unter Linux nicht verfügbar. Unter **Hilfe → Nach Updates suchen** prüft die App die GitHub-Releases auf ein neueres
+Linux-Paket für x86-64. **Jetzt installieren** lädt das Archiv über HTTPS, prüft es
+gegen den SHA-256-Digest der GitHub-Release-Metadaten und installiert es atomar
+in das bestehende Benutzerpräfix. Die bisherige Version bleibt erhalten.
+Die laufende Wiedergabe wird nicht beendet; das Update gilt nach vollständigem
+Beenden und erneutem Öffnen der App. Es benötigt weder sudo noch ein GitHub-Konto.
+Eine automatische Suche beim Start lässt sich in den allgemeinen Einstellungen
+aktivieren; sie ist zunächst aus. Installation erfolgt immer erst nach einem Klick.
+Bei Quellcode- oder portabler Nutzung ohne Benutzerinstallation zuerst `install.sh`
+verwenden. Alternativ bleiben Archivinstallation und Quellcodebau möglich. Die
 portablen Datenformate behalten importierte Erkennungsdaten trotzdem bei.
 
 ## Prüfen und automatisieren

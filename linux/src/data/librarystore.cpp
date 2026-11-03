@@ -153,7 +153,7 @@ Track parseHistory(const Json &j) {
     return t;
 }
 QJsonObject validateSettings(QJsonObject patch) {
-    for (const auto *key : {"recordingEnabled", "timeshiftEnabled", "equalizerEnabled", "closeToTray"})
+    for (const auto *key : {"recordingEnabled", "timeshiftEnabled", "equalizerEnabled", "closeToTray", "updateChecks"})
         if (patch.contains(key))
             require(patch[key].isBool(), "A setting has an invalid type.");
     if (patch.contains("quickSlots")) {

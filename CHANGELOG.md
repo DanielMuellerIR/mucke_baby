@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.5 — 2026-11-03
+
+- Check GitHub for Linux updates from the Help menu, with optional checks on startup. Install a verified Linux release after confirmation using the existing atomic user installer; playback continues and the new version applies on the next launch.
+
 ## 1.10.4 — 2026-11-03
 
 - Use the operating system's region for Apple Music web searches on Linux, including the German storefront for Germany.

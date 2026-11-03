@@ -1,4 +1,6 @@
 <RCC><qresource prefix="/">
+<file alias="updater/update.py">tools/update.py</file>
+<file alias="updater/install.py">tools/install.py</file>
 <file alias="Resources/seed-stations.example.json">../Resources/seed-stations.example.json</file>
 <file alias="icon.png">../icons/app-icon-s123.png</file>
 <file alias="themes/acid/bg-concrete.png">../Resources/themes/acid/bg-concrete.png</file>
