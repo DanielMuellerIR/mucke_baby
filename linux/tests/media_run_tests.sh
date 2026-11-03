@@ -45,7 +45,7 @@ if [ -z "$moc" ] || ! "$moc" -v 2>&1 | grep -q 'moc 6\.'; then echo 'Qt6 moc una
 if [ "$test_mode" = all ] || [ "$test_mode" = smoke ]; then
 $cxx -std=c++17 -fPIC -Wall -Wextra tests/media_engine_smoke.cpp src/media/mediaengine.cpp src/media/streamprotocol.cpp src/media/recorder.cpp src/media/pulsemonitor.cpp src/media/timeshift.cpp src/export/songrangeresolver.cpp src/types.cpp "$build_dir/moc_mediaengine.cpp" "$build_dir/moc_songrangeresolver.cpp" $media_flags -o "$build_dir/engine-smoke"
 fi
-if [ "$test_mode" != audio ] && [ "$test_mode" != soak-aac ]; then
+if [ "$test_mode" != audio ] && [ "$test_mode" != soak-aac ] && [ "$test_mode" != continuity ]; then
 ffmpeg -hide_banner -loglevel error -n -f lavfi -i sine=frequency=440:sample_rate=48000 -t 20 -c:a libmp3lame -b:a 128k "$build_dir/tone.mp3"
 fi
 pulse_dir="$build_dir/pulse"
@@ -57,6 +57,18 @@ pulse_pid=$!
 trap 'kill "$pulse_pid" 2>/dev/null || true; wait "$pulse_pid" 2>/dev/null || true' EXIT INT TERM
 attempt=0
 while [ ! -S "$pulse_dir/native" ] && [ "$attempt" -lt 40 ]; do sleep 0.05; attempt=$((attempt + 1)); done
+[ -S "$pulse_dir/native" ] || { echo 'Privater Pulse-Server ist nicht bereit' >&2; exit 2; }
+if [ "$test_mode" = continuity ]; then
+$cxx -std=c++17 -fPIC -Wall -Wextra tests/media_continuity_smoke.cpp src/media/mediaengine.cpp src/media/streamprotocol.cpp src/media/recorder.cpp src/media/pulsemonitor.cpp src/media/timeshift.cpp src/export/songrangeresolver.cpp src/types.cpp "$build_dir/moc_mediaengine.cpp" "$build_dir/moc_songrangeresolver.cpp" $media_flags -o "$build_dir/continuity-smoke"
+ffmpeg -hide_banner -loglevel error -n \
+    -f lavfi -i sine=frequency=1000:sample_rate=48000:duration=10 \
+    -f lavfi -i sine=frequency=2000:sample_rate=48000:duration=10 \
+    -filter_complex '[0:a][1:a]concat=n=2:v=0:a=1' \
+    -c:a libmp3lame -b:a 128k -write_xing 0 -id3v2_version 0 "$build_dir/continuity.mp3"
+MUCKE_CONTINUITY_BURST=0 "$build_dir/continuity-smoke" "$build_dir/continuity.mp3"
+MUCKE_CONTINUITY_BURST=1 "$build_dir/continuity-smoke" "$build_dir/continuity.mp3"
+exit 0
+fi
 if [ "$test_mode" = all ] || [ "$test_mode" = smoke ]; then
 "$build_dir/engine-smoke" "$build_dir/tone.mp3"
 $cxx -std=c++17 -fPIC -Wall -Wextra tests/media_pulse_tests.cpp src/media/pulsemonitor.cpp $media_flags -o "$build_dir/pulse-tests"

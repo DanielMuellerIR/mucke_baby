@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.6 — 2026-11-03
+
+- Preserve the selected Linux timeshift delay by using decoder pacing for the local MP3/AAC callback input. VLC previously caught up to the live edge despite the displayed three-second reserve, causing playback gaps during bursty delivery.
+- Verify the actual audible delay with a tone marker and measure continuity through bounded delivery pauses on an isolated audio output.
+
 ## 1.10.5 — 2026-11-03
 
 - Check GitHub for Linux updates from the Help menu, with optional checks on startup. Install a verified Linux release after confirmation using the existing atomic user installer; playback continues and the new version applies on the next launch.

@@ -423,7 +423,10 @@ QStringList TimeshiftReader::mediaOptions() const {
     // ADTS benötigt die erste Millisekunde hinter der Framegrenze. Abrunden
     // kann bei libVLC 3.0.20 einen vollständigen AAC-Frame zusätzlich ausgeben.
     const int milliseconds = cursor_->codec == "aac" ? int(std::ceil(skipMilliseconds - epsilon)) : int(std::floor(skipMilliseconds + epsilon));
-    return {":demux=" + (cursor_->codec == "mp3" ? QString("mpga") : QString("aac")), ":file-caching=1000", QString(":audio-desync=-%1").arg(milliseconds)};
+    // Der Callback-Leser hat keinen Seek-Callback. VLC behandelt ihn sonst wie
+    // einen ungepufferten Liveeingang und zieht die lokale Hörreserve zur Livekante.
+    // Die Zeitbasis muss hier vom Decoder getaktet werden, nicht vom Datenempfang.
+    return {":clock-synchro=0", ":demux=" + (cursor_->codec == "mp3" ? QString("mpga") : QString("aac")), ":file-caching=1000", QString(":audio-desync=-%1").arg(milliseconds)};
 }
 ssize_t TimeshiftReader::read(unsigned char *output, size_t count) {
     if (!count) return 0;
