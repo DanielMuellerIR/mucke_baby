@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.7 — 2026-11-03
+
+- Correct the language selection of Linux updater labels.
+- Make selected Linux history and bookmark rows clearly visible in Black MIDI with a stronger pink background and a narrow pink marker at the left edge, including when the list loses focus.
+
 ## 1.10.6 — 2026-11-03
 
 - Preserve the selected Linux timeshift delay by using decoder pacing for the local MP3/AAC callback input. VLC previously caught up to the live edge despite the displayed three-second reserve, causing playback gaps during bursty delivery.

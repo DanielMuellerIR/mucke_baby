@@ -519,8 +519,12 @@ void ItemDelegate::paint(QPainter *p, const QStyleOptionViewItem &option, const 
     const auto c = colors(theme);
     const QRect r = option.rect;
     const bool active = index.data(ActiveRole).toBool(), selected = option.state & QStyle::State_Selected;
-    if (selected || active)
+    if (selected && kind == Kind::Track && theme == "midi") {
+        p->fillRect(r, alpha(c.accent, .20));
+        p->fillRect(QRect(r.left(), r.top() + 3, 3, std::max(0, r.height() - 6)), c.accent);
+    } else if (selected || active) {
         p->fillRect(r, alpha(c.accent, theme == "fanzine" ? .09 : .06));
+    }
     const QColor ink = kind == Kind::Track && theme == "retro" ? QColor("#2A2018") : c.fg;
     const QColor muted = kind == Kind::Track && theme == "retro"  ? QColor("#5C4A38")
                          : kind == Kind::Track && theme == "midi" ? c.secondary
