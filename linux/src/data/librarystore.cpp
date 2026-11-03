@@ -153,6 +153,9 @@ Track parseHistory(const Json &j) {
     return t;
 }
 QJsonObject validateSettings(QJsonObject patch) {
+    if (patch.contains("windowGeometry"))
+        require(patch["windowGeometry"].isString() && patch["windowGeometry"].toString().size() <= 4096,
+                "Invalid window geometry setting.");
     for (const auto *key : {"recordingEnabled", "timeshiftEnabled", "equalizerEnabled", "closeToTray", "updateChecks"})
         if (patch.contains(key))
             require(patch[key].isBool(), "A setting has an invalid type.");

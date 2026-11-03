@@ -302,6 +302,8 @@ class MainWindow::Impl {
     QTimer noticeTimer;
     QString notice;
     QTimer runtimeTimer;
+    QTimer geometrySaveTimer;
+    bool capturing = false;
     QElapsedTimer playbackClock;
     QString clockStation;
     bool framePending = false, visualizationActive = false;
@@ -945,7 +947,13 @@ class MainWindow::Impl {
                 visual->update();
         });
         windowActivity = new ActivityObserver(q);
+        geometrySaveTimer.setSingleShot(true);
+        geometrySaveTimer.setInterval(350);
+        QObject::connect(&geometrySaveTimer, &QTimer::timeout, q, [this] { saveWindowGeometry(); });
+        QObject::connect(qApp, &QCoreApplication::aboutToQuit, q, [this] { saveWindowGeometry(); });
         windowActivity->changed = [this] {
+            if (!capturing && q->isVisible() && !q->isMinimized())
+                geometrySaveTimer.start();
             QTimer::singleShot(0, &callbacks, [this] {
                 updateAnimation();
                 configureTrackColumns(historyView);
@@ -959,6 +967,15 @@ class MainWindow::Impl {
         recordings();
         applyTheme(store->settings()["selectedTheme"].toString(defaultThemeID));
         snapshot(media->snapshot());
+        q->restoreGeometry(QByteArray::fromBase64(store->settings()["windowGeometry"].toString().toLatin1()));
+    }
+    void saveWindowGeometry() {
+        geometrySaveTimer.stop();
+        if (capturing)
+            return;
+        const auto geometry = QString::fromLatin1(q->saveGeometry().toBase64());
+        if (geometry != store->settings()["windowGeometry"].toString())
+            store->saveSettings({{"windowGeometry", geometry}});
     }
     void updateAnimation() {
         bool visible = (q->isVisible() && !q->isMinimized() && visual->isVisible()) ||
@@ -2576,6 +2593,8 @@ class MainWindow::Impl {
         full->showFullScreen();
     }
     void capture(QString directory) {
+        QScopedValueRollback<bool> guard(capturing, true);
+        geometrySaveTimer.stop();
         QDir().mkpath(directory);
         const QString previous = theme;
         const QSize previousSize = q->size();
@@ -2652,7 +2671,7 @@ class MainWindow::Impl {
 };
 MainWindow::MainWindow(LibraryStore *s, CatalogService *c, MediaEngine *m, QWidget *parent)
     : QMainWindow(parent), d(std::make_unique<Impl>(this, s, c, m)) {}
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow() { d->saveWindowGeometry(); }
 void MainWindow::showMiniPlayer() { d->miniPlayer(); }
 void MainWindow::showVisualizer() { d->fullScreen(); }
 void MainWindow::applyTheme(QString id) { d->applyTheme(id); }

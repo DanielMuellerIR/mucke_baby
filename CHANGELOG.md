@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.8 — 2026-11-03
+
+- Restore the last Linux window geometry on startup so a compact window keeps the visualizer hidden. Save changes after resizing and on exit; synthetic screenshots do not replace the saved geometry.
+
 ## 1.10.7 — 2026-11-03
 
 - Correct the language selection of Linux updater labels.

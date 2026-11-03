@@ -173,6 +173,60 @@ class UIFlowTest final : public QObject {
         }
         media.shutdown();
     }
+    void windowGeometrySurvivesRestart() {
+        QTemporaryDir temporary;
+        const auto data = temporary.filePath("data");
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        QString saved;
+        {
+            LibraryStore store(data); QVERIFY(store.load());
+            MainWindow window(&store, &catalog, &media); window.show();
+            window.resize(660, 500);
+            auto *visual = window.findChild<QWidget *>("mainVisualizer"); QVERIFY(visual);
+            QTRY_VERIFY(!visual->isVisible());
+            QTRY_VERIFY_WITH_TIMEOUT(!store.settings()["windowGeometry"].toString().isEmpty(), 2000);
+            saved = store.settings()["windowGeometry"].toString();
+            window.captureScreenshots(temporary.filePath("shots"));
+            QTest::qWait(450);
+            QCOMPARE(window.size(), QSize(660, 500));
+            QCOMPARE(store.settings()["windowGeometry"].toString(), saved);
+            QVERIFY(!store.saveSettings({{"windowGeometry", 5}}));
+            QCOMPARE(store.settings()["windowGeometry"].toString(), saved);
+            QVERIFY(!store.saveSettings({{"windowGeometry", QString(4097, 'a')}}));
+            QCOMPARE(store.settings()["windowGeometry"].toString(), saved);
+        }
+        {
+            LibraryStore reloaded(data); QVERIFY(reloaded.load());
+            MainWindow window(&reloaded, &catalog, &media); window.show();
+            QTRY_COMPARE(window.size(), QSize(660, 500));
+            auto *visual = window.findChild<QWidget *>("mainVisualizer"); QVERIFY(visual);
+            QTRY_VERIFY(!visual->isVisible());
+            window.resize(700, 530);
+            // Auch beim sofortigen Beenden vor Ablauf des Speichertimers sichern.
+        }
+        {
+            LibraryStore reloaded(data); QVERIFY(reloaded.load());
+            MainWindow window(&reloaded, &catalog, &media); window.show();
+            QTRY_COMPARE(window.size(), QSize(700, 530));
+            window.showMaximized();
+            QTRY_VERIFY(window.isMaximized());
+        }
+        {
+            LibraryStore reloaded(data); QVERIFY(reloaded.load());
+            MainWindow window(&reloaded, &catalog, &media); window.show();
+            QTRY_VERIFY(window.isMaximized());
+            window.showNormal();
+            QTRY_COMPARE(window.size(), QSize(700, 530));
+        }
+        {
+            LibraryStore reloaded(data); QVERIFY(reloaded.load());
+            QVERIFY(reloaded.saveSettings({{"windowGeometry", "invalid geometry"}}));
+            MainWindow window(&reloaded, &catalog, &media);
+            QCOMPARE(window.size(), QSize(940, 620));
+        }
+        media.shutdown();
+    }
     void musicLinkEncoding() {
         Track track;
         track.artist = "Artist & Co / ?#";
