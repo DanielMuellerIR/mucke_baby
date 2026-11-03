@@ -10,14 +10,14 @@ Die Oberfläche ist auf Deutsch und Englisch verfügbar. Der iPhone-Ableger hei�
 
 ## Download
 
-- **Linux x86-64:** [Version 1.10.3 herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.3). Das TAR.GZ-Archiv enthält einen Installer für das eigene Benutzerkonto; Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. Die [Linux-Anleitung](docs/linux.md) beschreibt Prüfsumme, Abhängigkeiten und Installation mit `./install.sh`.
+- **Linux x86-64:** [Version 1.10.7 herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.7). Das TAR.GZ-Archiv enthält einen Installer für das eigene Benutzerkonto; Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. Die [Linux-Anleitung](docs/linux.md) beschreibt Prüfsumme, Abhängigkeiten und Installation mit `./install.sh`.
 - **macOS 14.2+, Apple Silicon:** [Signiertes und notarisiertes DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Öffnen und *Mucke, Baby!* in den Programme-Ordner ziehen. Das bleibt die aktuelle macOS-Binärversion; der Quellstand enthält die unten beschriebenen neueren Funktionen.
 
 ## Linux
 
 Die native Qt-6-Anwendung ist unter Linux Mint 22 und CachyOS auf x86-64 geprüft. Enthalten sind Radiowiedergabe, ICY-Verlauf, Sender und Gruppen, Katalogsuche, Merkliste, Aufnahme, songweiser M4A-Export, begrenzter MP3-/AAC-Zeitversatz, sieben Themes, Miniplayer, Equalizer, Einschlaftimer und MPRIS-Desktopsteuerung.
 
-Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. ShazamKit-Erkennung, Apple-Kurzbefehle und Sparkle-Updates bleiben macOS-spezifisch. Aus dem Quellcode bauen und installieren: `./build.sh` und `./install.sh`. Einrichtung, Datenpfade, Codecgrenzen und Tests stehen in der [Linux-Anleitung](docs/linux.md).
+Unter **Hilfe → Nach Updates suchen** lassen sich Updates prüfen und installieren; die automatische Suche beim Start ist in den Einstellungen zuschaltbar. Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. ShazamKit-Erkennung, Apple-Kurzbefehle und Sparkle-Updates bleiben macOS-spezifisch. Aus dem Quellcode bauen und installieren: `./build.sh` und `./install.sh`. Einrichtung, Datenpfade, Codecgrenzen und Tests stehen in der [Linux-Anleitung](docs/linux.md).
 
 Black MIDI ist das Linux-Standardtheme. Unter 780 Pixeln Fensterbreite verschwindet der mittlere Visualizer. Ist kein weiteres Visualizer-Fenster sichtbar, pausiert seine Analyse; die Radiowiedergabe läuft weiter.
 

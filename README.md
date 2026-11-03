@@ -10,14 +10,14 @@ The interface is available in German and English. The iPhone sibling is [Baby, M
 
 ## Download
 
-- **Linux x86-64:** [Download version 1.10.3](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.3). The TAR.GZ archive includes a per-user installer; Qt, libVLC 3 and FFmpeg come from system packages. Follow the [Linux guide](docs/linux.md) to check the checksum, install dependencies and run `./install.sh`.
+- **Linux x86-64:** [Download version 1.10.7](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.7). The TAR.GZ archive includes a per-user installer; Qt, libVLC 3 and FFmpeg come from system packages. Follow the [Linux guide](docs/linux.md) to check the checksum, install dependencies and run `./install.sh`.
 - **macOS 14.2+, Apple Silicon:** [Download the signed and notarized DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Open it and drag *Mucke, Baby!* into Applications. This remains the current macOS binary; the source tree includes later features described below.
 
 ## Linux
 
 The native Qt 6 application has been tested on Linux Mint 22 and CachyOS on x86-64. It includes radio playback, ICY history, stations and groups, catalog search, bookmarks, recording, per-song M4A export, bounded MP3/AAC timeshift, seven themes, a miniplayer, equalizer, sleep timer and MPRIS desktop controls.
 
-Qt, libVLC 3 and FFmpeg come from system packages. ShazamKit identification, Apple Shortcuts and Sparkle updates are specific to macOS. Build from source with `./build.sh` and `./install.sh`; installation, data paths, codec limits and tests are covered in the [Linux guide](docs/linux.md).
+Updates can be checked and installed from **Help → Check for updates**; optional startup checks are available in Settings. Qt, libVLC 3 and FFmpeg come from system packages. ShazamKit identification, Apple Shortcuts and Sparkle updates are specific to macOS. Build from source with `./build.sh` and `./install.sh`; installation, data paths, codec limits and tests are covered in the [Linux guide](docs/linux.md).
 
 Black MIDI is the default Linux theme. Below 780 pixels in window width, the center visualizer disappears. Its analysis pauses when no other visualizer window is visible; radio playback continues.
 
