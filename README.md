@@ -10,7 +10,7 @@ The interface is available in German and English. The iPhone sibling is [Baby, M
 
 ## Download
 
-- **Linux x86-64:** [Download version 1.10.7](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.7). The TAR.GZ archive includes a per-user installer; Qt, libVLC 3 and FFmpeg come from system packages. Follow the [Linux guide](docs/linux.md) to check the checksum, install dependencies and run `./install.sh`.
+- **Linux x86-64:** [Download version 1.10.8](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.8). The TAR.GZ archive includes a per-user installer; Qt, libVLC 3 and FFmpeg come from system packages. Follow the [Linux guide](docs/linux.md) to check the checksum, install dependencies and run `./install.sh`.
 - **macOS 14.2+, Apple Silicon:** [Download the signed and notarized DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Open it and drag *Mucke, Baby!* into Applications. This remains the current macOS binary; the source tree includes later features described below.
 
 ## Linux

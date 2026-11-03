@@ -10,7 +10,7 @@ Die Oberfläche ist auf Deutsch und Englisch verfügbar. Der iPhone-Ableger hei�
 
 ## Download
 
-- **Linux x86-64:** [Version 1.10.7 herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.7). Das TAR.GZ-Archiv enthält einen Installer für das eigene Benutzerkonto; Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. Die [Linux-Anleitung](docs/linux.md) beschreibt Prüfsumme, Abhängigkeiten und Installation mit `./install.sh`.
+- **Linux x86-64:** [Version 1.10.8 herunterladen](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.8). Das TAR.GZ-Archiv enthält einen Installer für das eigene Benutzerkonto; Qt, libVLC 3 und FFmpeg kommen aus den Systempaketen. Die [Linux-Anleitung](docs/linux.md) beschreibt Prüfsumme, Abhängigkeiten und Installation mit `./install.sh`.
 - **macOS 14.2+, Apple Silicon:** [Signiertes und notarisiertes DMG, v1.8.11](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.8.11). Öffnen und *Mucke, Baby!* in den Programme-Ordner ziehen. Das bleibt die aktuelle macOS-Binärversion; der Quellstand enthält die unten beschriebenen neueren Funktionen.
 
 ## Linux

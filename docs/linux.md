@@ -7,7 +7,7 @@ Python wird nur für Installation, Updates und Prüfskripte benötigt.
 
 ## Lokales Archiv installieren
 
-Das [Linux-Release v1.10.7](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.7)
+Das [Linux-Release v1.10.8](https://github.com/DanielMuellerIR/mucke_baby/releases/tag/v1.10.8)
 enthält das x86-64-Archiv und seine Prüfsumme.
 `./release.sh` erzeugt unter Linux ein lokales TAR.GZ-Archiv samt `SHA256SUMS`.
 Der geprüfte x86-64-Bau verwendet Ubuntu 24.04 und läuft auf Linux Mint 22 sowie
@@ -34,8 +34,8 @@ Das Archiv und `SHA256SUMS` in denselben Downloadordner legen, dann:
 
 ```bash
 sha256sum -c SHA256SUMS
-tar -xzf mucke-baby-1.10.7-linux-x86_64.tar.gz
-cd mucke-baby-1.10.7-linux-x86_64
+tar -xzf mucke-baby-1.10.8-linux-x86_64.tar.gz
+cd mucke-baby-1.10.8-linux-x86_64
 ./install.sh
 ~/.local/bin/mucke-baby
 ```
