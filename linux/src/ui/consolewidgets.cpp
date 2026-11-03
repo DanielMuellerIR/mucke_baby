@@ -368,6 +368,105 @@ void ActionButton::paintEvent(QPaintEvent *) {
     p.setFont(labelFont);
     p.drawText(QRect(0, 22, width(), 15), Qt::AlignCenter, text());
 }
+ScrollingTitle::ScrollingTitle(QWidget *parent) : QScrollArea(parent) {
+    timer.setInterval(33);
+    QObject::connect(&timer, &QTimer::timeout, this, [this] { advance(); });
+    QObject::connect(horizontalScrollBar(), &QScrollBar::rangeChanged, this, [this] { restart(); });
+    clock.start();
+    restart();
+}
+void ScrollingTitle::restart() {
+    horizontalScrollBar()->setValue(0);
+    direction = 1;
+    lastStep = clock.elapsed();
+    holdUntil = lastStep + 1800;
+}
+void ScrollingTitle::advance() {
+    const auto now = clock.elapsed();
+    const auto elapsed = std::min<qint64>(100, now - lastStep);
+    lastStep = now;
+    auto *bar = horizontalScrollBar();
+    if (bar->maximum() <= 0 || now < holdUntil || QApplication::mouseButtons() != Qt::NoButton || !isVisible())
+        return;
+    bar->setValue(bar->value() + direction * std::max(1, int(elapsed * .035)));
+    if (bar->value() == 0 || bar->value() == bar->maximum()) {
+        direction = -direction;
+        holdUntil = now + 1800;
+    }
+}
+void ScrollingTitle::showEvent(QShowEvent *event) {
+    QScrollArea::showEvent(event);
+    restart();
+    timer.start();
+}
+void ScrollingTitle::hideEvent(QHideEvent *event) {
+    timer.stop();
+    QScrollArea::hideEvent(event);
+}
+AdaptiveActions::AdaptiveActions(QString accessibleName, QWidget *parent) : QWidget(parent) {
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+    more = new QPushButton;
+    more->setFixedSize(32, 32);
+    more->setProperty("consoleButton", true);
+    more->setToolTip(accessibleName);
+    more->setAccessibleName(accessibleName);
+    overflow = new QMenu(more);
+    more->setMenu(overflow);
+    layout->addWidget(more);
+    layout->addStretch();
+}
+QPushButton *AdaptiveActions::add(Symbol symbol, QString label, const std::function<void()> &callback,
+                                 QString name) {
+    auto *action = new QAction(label, this);
+    QObject::connect(action, &QAction::triggered, this, callback);
+    auto *button = new QPushButton(label);
+    button->setObjectName(name);
+    button->setProperty("consoleButton", true);
+    button->setToolTip(label);
+    button->setAccessibleName(label);
+    button->setFixedHeight(32);
+    QObject::connect(button, &QPushButton::clicked, action, &QAction::trigger);
+    layout->insertWidget(entries.size(), button);
+    entries.append({action, button, symbol});
+    setInk(ink);
+    arrange();
+    return button;
+}
+QSize AdaptiveActions::sizeHint() const {
+    int width = 0;
+    for (const auto &entry : entries)
+        width += entry.button->fontMetrics().horizontalAdvance(entry.action->text()) + 44 + 4;
+    return {width, 32};
+}
+void AdaptiveActions::setInk(QColor color) {
+    ink = color;
+    for (const auto &entry : entries) {
+        const auto image = icon(entry.symbol, ink);
+        entry.button->setIcon(image);
+        entry.action->setIcon(image);
+    }
+    more->setIcon(icon(Symbol::More, ink));
+}
+void AdaptiveActions::arrange() {
+    const bool labels = width() >= sizeHint().width();
+    const bool allIcons = width() >= entries.size() * 36 - 4;
+    const int visible = labels || allIcons ? entries.size() : std::max(0, (width() - 36) / 36);
+    overflow->clear();
+    for (int i = 0; i < entries.size(); ++i) {
+        auto &entry = entries[i];
+        entry.button->setVisible(i < visible);
+        entry.button->setText(labels ? entry.action->text() : QString());
+        entry.button->setFixedWidth(labels ? entry.button->fontMetrics().horizontalAdvance(entry.action->text()) + 44 : 32);
+        if (i >= visible)
+            overflow->addAction(entry.action);
+    }
+    more->setVisible(visible < entries.size());
+}
+void AdaptiveActions::resizeEvent(QResizeEvent *) { arrange(); }
+void AdaptiveActions::showEvent(QShowEvent *) { arrange(); }
 SurfaceWidget::SurfaceWidget(Surface role, QWidget *parent) : QWidget(parent), surface(role) {
     setAttribute(Qt::WA_OpaquePaintEvent);
 }

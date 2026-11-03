@@ -52,6 +52,43 @@ class ActionButton final : public QPushButton {
     void paintEvent(QPaintEvent *) override;
 };
 
+class ScrollingTitle final : public QScrollArea {
+    QTimer timer;
+    QElapsedTimer clock;
+    qint64 lastStep = 0, holdUntil = 0;
+    int direction = 1;
+    void advance();
+
+  public:
+    explicit ScrollingTitle(QWidget *parent = nullptr);
+    void restart();
+
+  protected:
+    void showEvent(QShowEvent *) override;
+    void hideEvent(QHideEvent *) override;
+};
+
+class AdaptiveActions final : public QWidget {
+    struct Entry { QAction *action; QPushButton *button; Symbol symbol; };
+    QVector<Entry> entries;
+    QPushButton *more;
+    QMenu *overflow;
+    QHBoxLayout *layout;
+    QColor ink;
+    void arrange();
+
+  public:
+    explicit AdaptiveActions(QString accessibleName, QWidget *parent = nullptr);
+    QPushButton *add(Symbol, QString label, const std::function<void()> &, QString name = {});
+    void setInk(QColor);
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override { return {32, 32}; }
+
+  protected:
+    void resizeEvent(QResizeEvent *) override;
+    void showEvent(QShowEvent *) override;
+};
+
 class SurfaceWidget final : public QWidget {
   public:
     QString theme = "schlicht";

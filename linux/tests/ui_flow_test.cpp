@@ -16,6 +16,10 @@ using namespace Mucke;
 
 class UIFlowTest final : public QObject {
     Q_OBJECT
+    QUrl openedURL;
+  public slots:
+    void captureURL(QUrl url) { openedURL = url; }
+  private:
     QString shots;
     QString lang;
     QString label(const char *de, const char *en) const { return QString::fromUtf8(lang == "de" ? de : en); }
@@ -60,6 +64,69 @@ class UIFlowTest final : public QObject {
         buttons->button(role)->click();
     }
   private slots:
+    void musicUsesCurrentTrackWithoutSelection() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        Track selected;
+        selected.id = newID(); selected.artist = "Selected artist"; selected.title = "Selected title";
+        selected.raw = "Selected artist - Selected title";
+        selected.receivedAt = selected.heardAt = QDateTime::currentDateTimeUtc();
+        store.receiveTrack(selected);
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        MainWindow window(&store, &catalog, &media); window.show();
+        PlaybackSnapshot state;
+        state.state = PlaybackState::Playing;
+        state.heardTrack.id = newID(); state.heardTrack.artist = "Current artist"; state.heardTrack.title = "Current title";
+        media.snapshotChanged(state);
+        auto *history = window.findChild<QTableView *>("history"); QVERIFY(history);
+        auto *music = window.findChild<QPushButton *>("historyMusic"); QVERIFY(music);
+        auto *spotify = window.findChild<QPushButton *>("historySpotify"); QVERIFY(spotify);
+        QDesktopServices::setUrlHandler("https", this, "captureURL");
+        // Auch ein noch gültiger Fokusindex nach dem Abwählen ist keine Auswahl.
+        history->selectRow(0); history->clearSelection();
+        music->click(); QCOMPARE(openedURL, SongTools::appleMusicURL(state.heardTrack));
+        spotify->click(); QCOMPARE(openedURL, SongTools::spotifyURL(state.heardTrack));
+        history->selectRow(0);
+        music->click(); QCOMPARE(openedURL, SongTools::appleMusicURL(selected));
+        spotify->click(); QCOMPARE(openedURL, SongTools::spotifyURL(selected));
+        QDesktopServices::unsetUrlHandler("https");
+        media.shutdown();
+    }
+    void longTitleScrollsAndRestarts() {
+        Console::ScrollingTitle scroll;
+        auto *label = new QLabel(QString(150, 'W'));
+        label->setFixedSize(label->sizeHint());
+        scroll.setWidget(label); scroll.resize(180, 50); scroll.show();
+        QTRY_VERIFY(scroll.horizontalScrollBar()->maximum() > 0);
+        QTRY_VERIFY_WITH_TIMEOUT(scroll.horizontalScrollBar()->value() > 20, 4000);
+        scroll.restart(); QCOMPARE(scroll.horizontalScrollBar()->value(), 0);
+        scroll.resize(label->width() + 100, 50);
+        QTRY_COMPARE(scroll.horizontalScrollBar()->maximum(), 0);
+        QTest::qWait(2000); QCOMPARE(scroll.horizontalScrollBar()->value(), 0);
+    }
+    void adaptiveActionsKeepEveryActionReachable() {
+        Console::AdaptiveActions bar("More");
+        int called = 0;
+        for (const auto &label : {"Export bookmarks", "Recognition details", "Track actions"})
+            bar.add(Console::Symbol::Export, label, [&] { ++called; });
+        bar.resize(600, 32); bar.show(); QApplication::processEvents();
+        for (auto *button : bar.findChildren<QPushButton *>())
+            if (!button->menu()) { QVERIFY(button->isVisible()); QVERIFY(!button->text().isEmpty()); }
+        bar.resize(110, 32); QApplication::processEvents();
+        for (auto *button : bar.findChildren<QPushButton *>())
+            if (!button->menu()) { QVERIFY(button->isVisible()); QVERIFY(button->text().isEmpty()); }
+        bar.resize(68, 32); QApplication::processEvents();
+        int reachable = 0;
+        for (auto *button : bar.findChildren<QPushButton *>()) {
+            if (!button->isVisible()) continue;
+            QVERIFY(bar.rect().contains(button->geometry()));
+            if (button->menu()) {
+                for (auto *action : button->menu()->actions()) { ++reachable; action->trigger(); }
+            } else { ++reachable; button->click(); }
+        }
+        QCOMPARE(reachable, 3); QCOMPARE(called, 3);
+    }
     void musicLinkEncoding() {
         Track track;
         track.artist = "Artist & Co / ?#";
@@ -68,6 +135,10 @@ class UIFlowTest final : public QObject {
         const QUrl apple = SongTools::appleMusicURL(track), spotify = SongTools::spotifyURL(track);
         QCOMPARE(apple.scheme(), QString("https"));
         QCOMPARE(apple.host(), QString("music.apple.com"));
+        QCOMPARE(SongTools::appleMusicURL(track, QLocale("de_DE")).path(), QString("/de/search"));
+        QCOMPARE(SongTools::appleMusicURL(track, QLocale("de_AT")).path(), QString("/at/search"));
+        QCOMPARE(SongTools::appleMusicURL(track, QLocale("en_GB")).path(), QString("/gb/search"));
+        QCOMPARE(SongTools::appleMusicURL(track, QLocale("en_US")).path(), QString("/us/search"));
         QCOMPARE(QUrlQuery(apple).queryItems().size(), 1);
         QCOMPARE(QUrlQuery(apple).queryItemValue("term", QUrl::FullyDecoded), expected);
         QCOMPARE(spotify.host(), QString("open.spotify.com"));
@@ -252,6 +323,7 @@ class UIFlowTest final : public QObject {
                  "Each lower bar spans the turquoise-to-pink gradient");
         const QString directory = qEnvironmentVariable("MUCKE_UI_SHOTS");
         if (!directory.isEmpty()) {
+            QVERIFY(QDir().mkpath(directory));
             QVERIFY(frame.save(directory + "/midi-energy-colors.png"));
             // Synthetische Spektren füllen das Prüfbild; das Produkt erzeugt keine solchen Signale.
             for (int row = 0; row < 140; ++row) {
@@ -343,6 +415,7 @@ class UIFlowTest final : public QObject {
         track.title = "Example Song";
         track.receivedAt = QDateTime::fromString("2026-10-28T12:00:00Z", Qt::ISODate);
         track.heardAt = track.receivedAt;
+        track.endedAt = track.heardAt.addSecs(120);
         store.receiveTrack(track);
         QVERIFY(store.bookmark(track));
         CatalogService catalog(cache);
@@ -616,7 +689,7 @@ class UIFlowTest final : public QObject {
         otherBookmark.title = "Another Song";
         otherBookmark.raw = "Other Artist - Another Song";
         QVERIFY(store.bookmark(otherBookmark));
-        auto *exportButton = push(&window, label("Exportieren …", "Export …"));
+        auto *exportButton = window.findChild<QPushButton *>("bookmarkExport");
         QVERIFY(exportButton);
         for (bool empty : {false, true}) {
             bookmarkSearch->setText(empty ? "No matching bookmark" : "Example Song");
@@ -701,7 +774,7 @@ class UIFlowTest final : public QObject {
         QVERIFY(action(&window, label("Datenschutz", "Privacy")));
         modal([&] { action(&window, label("Über Mucke, Baby!", "About Mucke, Baby!"))->trigger(); },
               [&](QDialog *dialog) { capture(dialog, "about"); dialog->accept(); });
-        auto *clip = push(&window, label("Ausschnitt …", "Clip …"));
+        auto *clip = window.findChild<QPushButton *>("recordingClip");
         QVERIFY(clip);
         modal([&] { clip->click(); },
               [&](QDialog *dialog) {

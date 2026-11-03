@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.4 — 2026-11-03
+
+- Use the operating system's region for Apple Music web searches on Linux, including the German storefront for Germany.
+- Search the current track in Apple Music or Spotify when no history track is selected; keep explicit selections as the preferred target.
+- Scroll long now-playing titles automatically and adapt library navigation, bookmark actions and recording actions to the available width.
+
 ## 1.10.3 — 2026-10-28
 
 - Match Linux Black MIDI to the macOS spectrogram: 140 fine history rows, smoothed logarithmic bands from the full frequency range, continuous turquoise/pink/white energy colors and a local gradient in each lower spectrum bar.

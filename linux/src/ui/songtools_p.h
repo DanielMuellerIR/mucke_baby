@@ -2,6 +2,7 @@
 #include "../types.h"
 #include <QRegularExpression>
 #include <QUrl>
+#include <QLocale>
 namespace Mucke::SongTools {
 inline QString cleanedTitle(QString title) {
     title.remove(QRegularExpression(
@@ -22,8 +23,12 @@ inline QString query(const Track &track) {
         .trimmed()
         .left(600);
 }
-inline QUrl appleMusicURL(const Track &track) {
-    return QUrl::fromEncoded("https://music.apple.com/search?term=" + QUrl::toPercentEncoding(query(track)));
+inline QUrl appleMusicURL(const Track &track, const QLocale &locale = QLocale::system()) {
+    QString country = QLocale::territoryToCode(locale.territory()).toLower();
+    if (!QRegularExpression("^[a-z]{2}$").match(country).hasMatch())
+        country = locale.language() == QLocale::German ? "de" : "us";
+    return QUrl::fromEncoded("https://music.apple.com/" + country.toLatin1() + "/search?term=" +
+                             QUrl::toPercentEncoding(query(track)));
 }
 inline QUrl spotifyURL(const Track &track) {
     return QUrl::fromEncoded("https://open.spotify.com/search/" + QUrl::toPercentEncoding(query(track)));

@@ -257,6 +257,8 @@ class MainWindow::Impl {
     QStandardItemModel *stationModel, *historyModel, *bookmarkModel, *recordingModel;
     QTabWidget *tabs;
     QLabel *now, *artist, *status, *recordStatus, *bufferStatus;
+    Console::ScrollingTitle *titleScroll;
+    QVector<Console::AdaptiveActions *> adaptiveBars;
     QPushButton *play, *pause, *record, *bookmark;
     QPushButton *fullScreenButton = nullptr;
     QSlider *volume, *delay;
@@ -459,17 +461,17 @@ class MainWindow::Impl {
         historyHeading->setObjectName("historyHeading");
         rightHeading->addWidget(historyHeading);
         rightHeading->addStretch();
-        iconButton(Symbol::Waveform, text("Aufnahmebibliothek", "Recording library"), rightHeading,
-                   [this] { tabs->setCurrentIndex(2); });
-        auto *libraryPicker =
-            iconButton(Symbol::More, text("Bibliothek anzeigen", "Show library"), rightHeading, [] {});
-        auto *libraryMenu = new QMenu(libraryPicker);
-        libraryPicker->setMenu(libraryMenu);
-        for (const auto &entry :
-             {qMakePair(text("Verlauf", "History"), 0), qMakePair(text("Merkliste", "Bookmarks"), 1),
-              qMakePair(text("Aufnahmen", "Recordings"), 2)})
-            libraryMenu->addAction(entry.first, q,
-                                   [this, index = entry.second] { tabs->setCurrentIndex(index); });
+        auto *libraryNavigation = new Console::AdaptiveActions(text("Bibliothek anzeigen", "Show library"));
+        libraryNavigation->setObjectName("libraryNavigation");
+        adaptiveBars.append(libraryNavigation);
+        rightHeading->addWidget(libraryNavigation, 1);
+        int libraryIndex = 0;
+        for (const auto &entry : {qMakePair(Symbol::History, text("Verlauf", "History")),
+                                  qMakePair(Symbol::Bookmarks, text("Merkliste", "Bookmarks")),
+                                  qMakePair(Symbol::Waveform, text("Aufnahmen", "Recordings"))}) {
+            const int index = libraryIndex++;
+            libraryNavigation->add(entry.first, entry.second, [this, index] { tabs->setCurrentIndex(index); });
+        }
         iconButton(Symbol::History, text("Verlauf ausblenden", "Hide history"), rightHeading,
                    [this] { columns->showHistory(false); });
         rl->addLayout(rightHeading);
@@ -556,16 +558,8 @@ class MainWindow::Impl {
         auto *ha = new QHBoxLayout;
         ha->setSpacing(4);
         ha->setContentsMargins(0, 4, 0, 5);
-        actionButton(Symbol::Music, "Music", ha, [this] {
-            for (const auto &track : store->history())
-                if (track.id == selectedID(historyView))
-                    QDesktopServices::openUrl(SongTools::appleMusicURL(track));
-        });
-        actionButton(Symbol::Spotify, "Spotify", ha, [this] {
-            for (const auto &track : store->history())
-                if (track.id == selectedID(historyView))
-                    QDesktopServices::openUrl(SongTools::spotifyURL(track));
-        });
+        actionButton(Symbol::Music, "Music", ha, [this] { openMusic(false); }, "historyMusic");
+        actionButton(Symbol::Spotify, "Spotify", ha, [this] { openMusic(true); }, "historySpotify");
         actionButton(Symbol::Lyrics, "Lyrics", ha, [this] {
             for (const auto &track : store->history())
                 if (track.id == selectedID(historyView)) {
@@ -608,15 +602,17 @@ class MainWindow::Impl {
         bookmarkDelegate = new Console::ItemDelegate(Console::ItemDelegate::Kind::Track, bookmarkView);
         bookmarkView->setItemDelegate(bookmarkDelegate);
         bl->addWidget(bookmarkView, 1);
-        auto *ba = new QHBoxLayout;
-        button(text("Entfernen", "Remove"), ba, [this] {
+        auto *bookmarkBar = new Console::AdaptiveActions(text("Weitere Merklistenaktionen", "More bookmark actions"));
+        bookmarkBar->setObjectName("bookmarkActionsBar");
+        adaptiveBars.append(bookmarkBar);
+        bookmarkBar->add(Symbol::Stop, text("Entfernen", "Remove"), [this] {
             auto id = selectedID(bookmarkView);
             if (!id.isEmpty())
                 store->removeBookmark(id);
         });
-        button(text("Exportieren …", "Export …"), ba, [this] { exportBookmarks(); });
-        button(text("Erkennungsdaten", "Recognition details"), ba, [this] { recognition(); });
-        auto *bookmarkActions = button("...", ba, [this] { trackMenu(bookmarkView, true, QCursor::pos()); });
+        bookmarkBar->add(Symbol::Export, text("Exportieren …", "Export …"), [this] { exportBookmarks(); }, "bookmarkExport");
+        bookmarkBar->add(Symbol::Recognition, text("Erkennungsdaten", "Recognition details"), [this] { recognition(); });
+        auto *bookmarkActions = bookmarkBar->add(Symbol::More, text("Titelaktionen", "Track actions"), [this] { trackMenu(bookmarkView, true, QCursor::pos()); });
         bookmarkActions->setObjectName("bookmarkTrackActions");
         bookmarkActions->setToolTip(
             text("Titelaktionen: Musiklinks und Songtext", "Track actions: music links and lyrics"));
@@ -625,7 +621,7 @@ class MainWindow::Impl {
         QObject::connect(bookmarkView, &QWidget::customContextMenuRequested, q, [this](QPoint position) {
             trackMenu(bookmarkView, true, bookmarkView->viewport()->mapToGlobal(position));
         });
-        bl->addLayout(ba);
+        bl->addWidget(bookmarkBar);
         tabs->addTab(bp, text("Merkliste", "Bookmarks"));
         auto *rp = new QWidget;
         auto *rpl = new QVBoxLayout(rp);
@@ -640,17 +636,19 @@ class MainWindow::Impl {
         recordingView->setColumnWidth(3, 80);
         recordingView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         rpl->addWidget(recordingView);
-        auto *ra = new QHBoxLayout;
-        button(text("Anhören", "Listen"), ra, [this] {
+        auto *recordingBar = new Console::AdaptiveActions(text("Weitere Aufnahmeaktionen", "More recording actions"));
+        recordingBar->setObjectName("recordingActionsBar");
+        adaptiveBars.append(recordingBar);
+        recordingBar->add(Symbol::Play, text("Anhören", "Listen"), [this] {
             auto id = selectedID(recordingView);
             if (!id.isEmpty() && allowPreview())
                 media->previewRecording(id);
         });
-        auto *stopPreview = button("■", ra, [this] { media->stopPreview(); });
+        auto *stopPreview = recordingBar->add(Symbol::Stop, text("Vorschau stoppen", "Stop preview"), [this] { media->stopPreview(); });
         stopPreview->setToolTip(text("Vorschau stoppen", "Stop preview"));
         stopPreview->setAccessibleName(stopPreview->toolTip());
-        button(text("Ausschnitt …", "Clip …"), ra, [this] { exportClip(); });
-        button(text("Löschen …", "Delete …"), ra, [this] {
+        recordingBar->add(Symbol::Export, text("Ausschnitt …", "Clip …"), [this] { exportClip(); }, "recordingClip");
+        recordingBar->add(Symbol::Stop, text("Löschen …", "Delete …"), [this] {
             auto id = selectedID(recordingView);
             for (auto r : media->recordings())
                 if (r.id == id) {
@@ -664,7 +662,7 @@ class MainWindow::Impl {
                         media->removeRecording(id);
                 }
         });
-        rpl->addLayout(ra);
+        rpl->addWidget(recordingBar);
         tabs->addTab(rp, text("Aufnahmen", "Recordings"));
         rl->addWidget(tabs, 1);
         visual = new Visualizer;
@@ -731,7 +729,7 @@ class MainWindow::Impl {
         status->setWordWrap(false);
         status->hide();
         playingText->addWidget(status);
-        auto *titleScroll = new QScrollArea;
+        titleScroll = new Console::ScrollingTitle;
         titleScroll->setObjectName("nowPlayingScroll");
         titleScroll->setFrameShape(QFrame::NoFrame);
         titleScroll->setMinimumWidth(0);
@@ -1189,11 +1187,14 @@ class MainWindow::Impl {
         record->setToolTip(s.recordStatus + "\n" +
                            (s.recordRequested ? text("Aufnahme ausschalten", "Disable recording")
                                               : text("Aufnahme einschalten", "Enable recording")));
+        const auto previousTitle = now->text();
         now->setText(
             trackName(s.heardTrack).isEmpty()
                 ? (s.stationName.isEmpty() ? text("Bereit für Musik", "Ready for music") : s.stationName)
                 : trackName(s.heardTrack));
         now->setToolTip(now->text());
+        if (now->text() != previousTitle)
+            titleScroll->restart();
         artist->setText(s.stationName.isEmpty() ? text("Kein Sender", "No station") : s.stationName);
         runtime->setText(playbackClock.isValid() ? duration(playbackClock.elapsed() / 1000.) : QString());
         QStringList states = {text("Gestoppt", "Stopped"),
@@ -1338,6 +1339,8 @@ class MainWindow::Impl {
                 action->update();
             }
         }
+        for (auto *bar : adaptiveBars)
+            bar->setInk(id == "retro" ? QColor("#6B5432") : c.muted);
         const bool knob = id == "stack" || id == "retro";
         volume->setVisible(!knob);
         volumeKnob->setVisible(knob);
@@ -1830,6 +1833,24 @@ class MainWindow::Impl {
             store->applyImport(preview, selected);
         }
         store->discardImport(preview);
+    }
+    void openMusic(bool spotify) {
+        Track track = state.heardTrack;
+        const auto selected = historyView->selectionModel()->selectedRows();
+        if (!selected.isEmpty()) {
+            QString id = selectedID(historyView);
+            if (!historyView->selectionModel()->isRowSelected(historyView->currentIndex().row(), {}))
+                id = selected.first().data(Qt::UserRole).toString();
+            for (const auto &candidate : store->history())
+                if (candidate.id == id) { track = candidate; break; }
+        }
+        if (SongTools::query(track).isEmpty()) {
+            error(text("Zuerst einen Titel auswählen oder einen Sender abspielen.",
+                       "Select a track or play a station first."));
+            return;
+        }
+        if (!QDesktopServices::openUrl(spotify ? SongTools::spotifyURL(track) : SongTools::appleMusicURL(track)))
+            error(text("Der Browser konnte nicht geöffnet werden.", "Could not open the browser."));
     }
     void exportBookmarks() {
         QString filter;
