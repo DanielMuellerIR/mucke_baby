@@ -80,6 +80,15 @@ interval after recording is toggled within the same title. It is never persisted
 in the cache index. Each segment holds at most 256 reception markers; the existing
 duration, byte and segment bounds also limit their lifetime.
 
+## Linux output timing
+
+The delay shown in the interface is not an audio measurement. In the Linux
+libVLC path, a displayed three-second reserve fell to about 0.6 seconds at the
+actual output and chunked delivery caused dropouts. The pacing correction also
+required a separate pause regression check. When changing this path, measure
+both the audible delay against a controlled source transition and silence at
+the actual output while paused; a paused state label alone is insufficient.
+
 ## Continuous reader
 
 `makeReader(delay:decodedSampleRate:)` returns one non-seekable `InputStream`. Reading at the
