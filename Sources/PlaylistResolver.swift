@@ -55,8 +55,9 @@ enum PlaylistResolver {
             // fehlerkannten Live-Stream endlosen — Body in den RAM (OOM). Darum die
             // Bytes streamen und nach 64 KB abbrechen; die Verbindung wird dann beim
             // Verwerfen der Sequenz geschlossen.
-            let (bytes, _) = try await session.bytes(for: req)
+            let (bytes, response) = try await session.bytes(for: req)
             defer { bytes.task.cancel() }
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
             var data = Data(); data.reserveCapacity(65536)
             for try await b in bytes {
                 data.append(b)

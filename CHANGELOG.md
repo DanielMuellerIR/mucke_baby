@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.9.33 — 2026-10-22
+
+- Reject HTTP error responses during playlist resolution instead of treating their bodies as playable playlists. Preserve successful partial-content responses and cancel rejected downloads.
+
 ## 1.9.32 — 2026-10-22
 
 - Complete library imports and interrupted-import recovery when bookmarks include version 2 recognition provenance or version 3 listening contexts. Preserve those bookmarks during station-only imports.

@@ -580,6 +580,9 @@ enum ReviewHarness {
             "/nested.m3u": .init(body: "\(base)/plain.pls\n"),
             "/redirect.pls": .init(status: "302 Found",
                                    headers: ["Location: \(base)/plain.pls"], body: ""),
+            "/missing.pls": .init(status: "404 Not Found", body: "\(direct)\n"),
+            "/unavailable.pls": .init(status: "503 Service Unavailable", body: "[playlist]\nFile1=\(direct)\n"),
+            "/partial.pls": .init(status: "206 Partial Content", body: "[playlist]\nFile1=\(direct)\n"),
             "/evil.pls": .init(body: "[playlist]\nFile1=file:///etc/passwd\n"),
             "/binary.pls": .init(body: "\u{01}\u{02}\u{03}kein-playlist-inhalt"),
             "/loop.m3u": .init(body: "\(base)/loop.m3u\n"),
@@ -603,6 +606,12 @@ enum ReviewHarness {
               "verschachtelte Playlist wurde nicht rekursiv aufgeloest")
         let redirected = await PlaylistResolver.resolve("\(base)/redirect.pls")
         check(redirected?.absoluteString == direct, "Redirect auf Playlist wurde nicht verfolgt")
+        for path in ["/missing.pls", "/unavailable.pls"] {
+            let failed = await PlaylistResolver.resolve(base + path)
+            check(failed == nil, "HTTP-Fehlerantwort wurde als gültige Playlist verwendet: \(path)")
+        }
+        let partial = await PlaylistResolver.resolve("\(base)/partial.pls")
+        check(partial?.absoluteString == direct, "HTTP 206 wurde trotz gültiger Playlist verworfen")
         let directStream = await PlaylistResolver.resolve("\(base)/direct.mp3")
         check(directStream?.absoluteString == direct,
               "Direktstream ohne Playlist-Endung wurde nicht durchgereicht")
