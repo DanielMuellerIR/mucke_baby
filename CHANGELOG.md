@@ -3,9 +3,65 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## 1.9.33 — 2026-10-22
+## 1.10.9 — 2026-11-10
 
 - Reject HTTP error responses during playlist resolution instead of treating their bodies as playable playlists. Preserve successful partial-content responses and cancel rejected downloads.
+
+## 1.10.8 — 2026-11-03
+
+- Stop buffered audio output reliably when pausing and resume from the saved listening position while stream reception continues.
+- Restore the last Linux window geometry on startup so a compact window keeps the visualizer hidden. Save changes after resizing and on exit; synthetic screenshots do not replace the saved geometry.
+
+## 1.10.7 — 2026-11-03
+
+- Correct the language selection of Linux updater labels.
+- Make selected Linux history and bookmark rows clearly visible in Black MIDI with a stronger pink background and a narrow pink marker at the left edge, including when the list loses focus.
+
+## 1.10.6 — 2026-11-03
+
+- Preserve the selected Linux timeshift delay by using decoder pacing for the local MP3/AAC callback input. VLC previously caught up to the live edge despite the displayed three-second reserve, causing playback gaps during bursty delivery.
+- Verify the actual audible delay with a tone marker and measure continuity through bounded delivery pauses on an isolated audio output.
+
+## 1.10.5 — 2026-11-03
+
+- Check GitHub for Linux updates from the Help menu, with optional checks on startup. Install a verified Linux release after confirmation using the existing atomic user installer; playback continues and the new version applies on the next launch.
+
+## 1.10.4 — 2026-11-03
+
+- Use the operating system's region for Apple Music web searches on Linux, including the German storefront for Germany.
+- Search the current track in Apple Music or Spotify when no history track is selected; keep explicit selections as the preferred target.
+- Scroll long now-playing titles automatically and adapt library navigation, bookmark actions and recording actions to the available width.
+
+## 1.10.3 — 2026-10-28
+
+- Match Linux Black MIDI to the macOS spectrogram: 140 fine history rows, smoothed logarithmic bands from the full frequency range, continuous turquoise/pink/white energy colors and a local gradient in each lower spectrum bar.
+- Resolve the Linux application-menu icon through its installed file and refresh the KDE application cache when available.
+
+## 1.10.2 — 2026-10-28
+
+- Use Black MIDI by default on Linux while retaining explicitly saved theme choices.
+- Verify that shrinking the Linux window below 780 pixels removes the visualizer and disconnects its audio monitor while playback continues; restore analysis when a visualizer becomes visible again.
+
+## 1.10.1 — 2026-10-28
+
+- Align the Linux window with the macOS console layout, including responsive station/stage/history columns, compact icon controls, a scrolling title footer, themed materials, vertical VU meters and a compact miniplayer.
+- Preserve keyboard station activation, visible preview pause controls, sleep-timer feedback and transient notices across playback updates.
+- Include unmodified OFL-licensed Zilla Slab for the Linux Fanzine theme and verify visualizer signal, silence and live light/dark transitions.
+
+- Preserve the active recording when deleting an older completed file; require fresh Ogg/FLAC headers when recording is switched off and back on.
+- Keep subsequent catalog pages reachable when a full page contains invalid or duplicate stations.
+- Keep pending playlist resolution intact on repeated MPRIS Play requests and announce changing station capabilities to desktop clients.
+- Save recording clips asynchronously with cancellation, exact preview bytes and collision-safe publication.
+- Include a per-user installer in the Linux download, expose license and privacy links in the app, and document binary dependencies separately from source builds.
+- Run Linux regressions in CI and retain the existing macOS Sparkle feed for Linux-only releases.
+
+## 1.10.0 — 2026-10-28
+
+- Add a native C++17/Qt 6 Linux application using system libVLC 3, with seven shared themes, miniplayer, fullscreen visualizer, MPRIS controls and an optional tray icon.
+- Port stations, groups, catalog search, ICY metadata, history filters, bookmarks and atomic version 1/2/3 library exchange, preserving recognition provenance and exact integer revisions.
+- Add opt-in recordings with storage and rollover protection, bounded MP3/AAC timeshift, a private application-only audio monitor, equalizer and sleep timer.
+- Export individual songs or serial batches as M4A with byte-to-packet cut proposals, explicit partial/approximate-audio consent, fades, metadata, identical preview/save bytes and collision-safe publication.
+- Add a reversible per-user Linux installer, local archive packaging and isolated data, audio, UI and codec regression gates. Apple recognition, Shortcuts and Sparkle remain macOS-specific; Linux limits are documented in `docs/linux.md`.
 
 ## 1.9.32 — 2026-10-22
 

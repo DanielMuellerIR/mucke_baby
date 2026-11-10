@@ -1,6 +1,6 @@
 # Sparkle-Appcast auf GitHub Pages veroeffentlichen (Ablauf: docs/sparkle-release.md).
 #
-# Laeuft nach jedem veroeffentlichten Release (oder manuell fuer ein Tag):
+# Laeuft fuer Releases mit DMG (oder manuell fuer ein solches Tag):
 # holt das Release-DMG, signiert den Feed mit dem Ed25519-Schluessel aus dem
 # Actions-Secret SPARKLE_PRIVATE_KEY und deployt appcast.xml nach Pages.
 # Die App (SUFeedURL) prueft genau diese URL.
@@ -32,7 +32,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-platform:
+    runs-on: ubuntu-24.04
+    outputs:
+      has_dmg: ${{ steps.assets.outputs.has_dmg }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Release-Plattform prüfen
+        id: assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(gh release view "$RELEASE_TAG" -R "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name | select(endswith(".dmg"))] | length')
+          case "$count" in
+            0) echo 'has_dmg=false' >> "$GITHUB_OUTPUT"
+               echo 'Kein macOS-DMG: der vorhandene Sparkle-Feed bleibt erhalten.' ;;
+            1) echo 'has_dmg=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'FEHLER: Mehrere DMGs im Release.' >&2; exit 1 ;;
+          esac
+
   appcast:
+    needs: release-platform
+    if: needs.release-platform.outputs.has_dmg == 'true'
     runs-on: macos-15
     environment:
       name: github-pages

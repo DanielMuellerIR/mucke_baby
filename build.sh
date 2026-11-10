@@ -5,6 +5,9 @@
 # und ins .app-Bundle kopiert. Komplett kommandozeilen-/agent-steuerbar.
 set -euo pipefail
 cd "$(dirname "$0")"
+if [[ "$(uname -s)" == Linux ]]; then
+    exec bash ./build-linux.sh "$@"
+fi
 
 # Bundle heisst "Mucke, Baby!" (Anzeigename); Binary/Prozessname "MuckeBaby"
 # (sichtbar z.B. im Aktivitaetsmonitor). Bundle-ID bleibt aus Kontinuitaet de.danielmuller.macradio.

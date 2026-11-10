@@ -1,0 +1,2 @@
+#pragma once
+#define MUCKE_VERSION "@MUCKE_VERSION@"

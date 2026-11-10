@@ -1,4 +1,4 @@
-name: Headless macOS tests
+name: Headless tests
 
 on:
   push:
@@ -24,3 +24,24 @@ jobs:
           persist-credentials: false
       - name: Run headless harnesses
         run: bash Tests/run-tests.sh
+
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ pkg-config qt6-base-dev qt6-translations-l10n \
+            libvlc-dev vlc-plugin-base libpulse-dev nlohmann-json3-dev ffmpeg \
+            pulseaudio pulseaudio-utils dbus-x11
+      - name: Build and run isolated regression tests
+        run: |
+          ./build.sh
+          ctest --test-dir build/linux --output-on-failure
+          sh linux/tests/ui_song_backend_test.sh build/linux/ui_song_backend_test
+          dbus-run-session -- python3 linux/tests/app_runtime_test.py build/linux/mucke-baby

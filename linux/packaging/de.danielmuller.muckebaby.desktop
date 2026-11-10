@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Mucke, Baby!
+GenericName=Internet Radio
+GenericName[de]=Internetradio
+Comment=Internet radio, listening history and optional stream recording
+Comment[de]=Internetradio, Titelverlauf und optionale Stream-Aufnahme
+Exec=mucke-baby
+Icon=mucke-baby
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=Radio;Stream;Music;
+StartupNotify=true
+StartupWMClass=MuckeBaby

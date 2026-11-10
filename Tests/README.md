@@ -1,5 +1,25 @@
 # Kernprüfungen
 
+## Linux
+
+`bash build-linux.sh` baut die Qt-/libVLC-Anwendung und ihre Prüfprogramme.
+`ctest --test-dir build/linux --output-on-failure` prüft Daten, Ressourcen,
+Installation, MPRIS sowie die deutsche und englische Oberfläche ohne sichtbares
+Fenster. Die Oberflächenprüfung erfasst alle sieben Themes bei normaler und
+schmaler Breite, Mini-Player, Tastaturbedienung und Visualizer mit Signal/Stille.
+
+`MUCKE_MEDIA_RUNTIME_TEST=1 sh linux/tests/media_run_tests.sh` prüft zusätzlich
+Wiedergabe, Aufnahme, Audiopuffer, Export, Timer und Audioeffekte gegen lokale
+Tonfixtures mit einem eigenen PulseAudio-Server und Null-Ausgang.
+`dbus-run-session -- python3 linux/tests/app_runtime_test.py build/linux/mucke-baby`
+prüft die echte Anwendung einschließlich MPRIS und lokaler Prozesskommunikation;
+`MUCKE_RUNTIME_GUI=1` bezieht das Hauptfenster über den Qt-Offscreen-Treiber ein.
+Diese Läufe benötigen die in [docs/linux.md](../docs/linux.md) genannten Werkzeuge
+und verwenden eigene temporäre Daten. Sie ersetzen keinen Hörtest oder die
+visuelle Abnahme auf dem Ziel-Desktop.
+
+## macOS
+
 Der `RecordingLibraryHarness` prüft Audioverfügbarkeit und Zeitgrenzen, aktive/fehlende/manipulierte Dateien, getrennte Verlaufsdaten, Schreib-/Löschfehler und die Wiederherstellung unterbrochener Entfernungen. `recording-preview.py` prüft den lokalen VLC-Vorschaupfad einschließlich alter Ereignisse, Dateiende und Stop.
 
 `bash Tests/run-tests.sh` kompiliert und startet die vorhandenen Swift-Harnesses,

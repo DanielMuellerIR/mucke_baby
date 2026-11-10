@@ -2,23 +2,49 @@
 
 ## Projekt
 
-Mucke, Baby! ist ein macOS-Webradio-Player. Er spielt Streams
-über VLCKit/libVLC, verwaltet Sender, zeigt ICY-Metadaten und Verlauf, kann Streams
+Mucke, Baby! ist ein nativer Webradio-Player für macOS und Linux. Er spielt Streams
+über VLCKit beziehungsweise libVLC, verwaltet Sender, zeigt ICY-Metadaten und Verlauf, kann Streams
 optional aufnehmen und besitzt sieben visuelle Themes mit audio-reaktiven
-Visualizern. Zielplattform ist macOS 14.2+ auf Apple Silicon.
+Visualizern. Zielplattformen sind macOS 14.2+ auf Apple Silicon und Linux auf x86-64.
 
 Anzeigename, Binary, Bundle-ID und historischer Datenordner können abweichen.
 Technische Identitäten nicht kosmetisch ändern: Sie beeinflussen TCC und
 Migration vorhandener Nutzer.
 
+## Linux-Port
+
+Unter `linux/` liegt eine native C++17-/Qt-6-Widgets-Anwendung für Linux Mint 22
+und CachyOS auf x86-64. Sie nutzt system-libVLC 3, einen ausschließlich eigenen
+PulseAudio-/PipeWire-Pulse-Ausgabemonitor, FFmpeg für M4A-Exporte und
+nlohmann::json für exakte UInt64-Austauschrevisionen. Der Browser ist keine
+Laufzeitabhängigkeit. `docs/linux.md` beschreibt Einrichtung und Formatgrenzen.
+
+Die Wurzelskripte wählen unter Linux `build-linux.sh`, `install-linux.sh` und
+`release-linux.sh`. Installation erfolgt atomar im Benutzerpräfix, ohne Appstart;
+Release erzeugt nur ein lokales Archiv. `Sources/Models.swift` bleibt auch für
+den Linux-Bau die einzige Produktversionsquelle.
+
+Linux-Daten liegen unter XDG/MuckeBaby; nicht mit den internen macOS-Dateien
+zusammenlegen. Austausch ausschließlich über V1/V2/V3 mit Importvorschau.
+Aufnahme und Puffer sind zunächst aus. Grenzen, Quellschutz und getrennte
+Löschaktionen gelten auf beiden Plattformen. Keine persönliche Seed-Datei ins
+Linux-Ressourcenbundle aufnehmen.
+
+`ctest --test-dir build/linux --output-on-failure` prüft Daten, Protokolle,
+Puffer, Songgrenzen, Installer und UI. Echte Audio-/Exportprüfungen in
+`linux/tests/` brauchen einen isolierten Pulse-Server und explizites Opt-in;
+keine Desktopaufnahme und keine realen Nutzerdaten verwenden. Decoderprofile
+nur nach vollständigem PCM-Vergleich zulassen, nicht nach alleiniger
+Zeitstempel- oder Kreuzkorrelationsprüfung.
+
 ## Quellen der Wahrheit
 
 - `Sources/Models.swift`: `AppInfo.version`, einzige Produktversionsquelle.
-- `Sources/`: Verhalten und Architektur.
+- `Sources/`, `linux/src/`: Verhalten und Architektur der jeweiligen Plattform.
 - `Resources/Info.plist`: Berechtigungen und Bundle-Grunddaten; die Version wird
   beim Build aus `Models.swift` gespiegelt.
 - `build.sh`: reproduzierbarer lokaler App-Build und VLCKit-Pin.
-- `install.sh`, `release.sh`: Einstiegspunkte für Installation nach
+- `install.sh`, `release.sh`: plattformabhängige Einstiegspunkte; unter macOS für Installation nach
   `/Applications` und für das Release-DMG; `notarize-lib.sh` hält Signierkette
   und App-Notarisierung, `wrappers/sign-and-release.sh` ist der Unterbau von
   `release.sh` inklusive ausdrücklich opt-in Veröffentlichung.
@@ -32,7 +58,7 @@ frischem Build ermitteln, nicht in AGENTS festschreiben.
 
 ## Architektur
 
-Die App wird ohne Xcode-Projekt direkt mit `swiftc` gebaut. Modelle und Store,
+Die macOS-App wird ohne Xcode-Projekt direkt mit `swiftc` gebaut. Modelle und Store,
 VLCKit-Player, Playlist-/ICY-Pfade, Audio-Tap, Recorder/Exporter, Verlauf und
 Themes liegen als getrennte Swift-Dateien unter `Sources/`.
 `ScreenshotDebug.swift` ist ausschließlich durch `MUCKE_SHOTS` aktiviert.

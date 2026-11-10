@@ -18,6 +18,9 @@
 # Letzte Zeile bei Erfolg: INSTALL OK: /Applications/Mucke, Baby!.app (<version>)
 set -euo pipefail
 cd "$(dirname "$0")"
+if [[ "$(uname -s)" == Linux ]]; then
+    exec bash ./install-linux.sh "$@"
+fi
 source ./notarize-lib.sh
 
 require_notary_profile
