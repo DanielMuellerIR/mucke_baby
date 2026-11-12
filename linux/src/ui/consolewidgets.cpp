@@ -1,6 +1,7 @@
 #include "consolewidgets.h"
 #include <algorithm>
 #include <cmath>
+#include <QStyleOptionSlider>
 
 namespace Mucke::Console {
 namespace {
@@ -779,6 +780,44 @@ void Visualizer::paintEvent(QPaintEvent *) {
         p.setFont(consoleFont("DejaVu Sans Mono", 8, QFont::Bold));
         p.drawText(QPointF(area.left() + 4, area.bottom() - 4), theme == "fanzine" ? "OSC" : "SCOPE");
     }
+}
+VolumeSlider::VolumeSlider(QWidget *parent) : QSlider(Qt::Horizontal, parent) {
+    setRange(0, 100);
+    setMinimumSize(140, 40);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    setProperty("volumeControl", true);
+}
+int VolumeSlider::valueAt(int x) const {
+    QStyleOptionSlider option;
+    initStyleOption(&option);
+    const QRect groove = style()->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderGroove, this);
+    const QRect handle = style()->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, this);
+    return QStyle::sliderValueFromPosition(minimum(), maximum(), x - groove.x() - handle.width() / 2,
+                                         std::max(1, groove.width() - handle.width()), option.upsideDown);
+}
+void VolumeSlider::mousePressEvent(QMouseEvent *event) {
+    if (event->button() != Qt::LeftButton) { QSlider::mousePressEvent(event); return; }
+    QStyleOptionSlider option;
+    initStyleOption(&option);
+    const QRect handle = style()->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, this);
+    const QPoint position = event->position().toPoint();
+    // Beim Greifen des Reglers bleibt dessen Abstand zum Mauszeiger erhalten.
+    const bool onHandle = handle.contains(position);
+    dragOffset = onHandle ? position.x() - handle.x() - handle.width() / 2 : 0;
+    setFocus(Qt::MouseFocusReason);
+    setSliderDown(true);
+    if (!onHandle) setSliderPosition(valueAt(position.x()));
+    event->accept();
+}
+void VolumeSlider::mouseMoveEvent(QMouseEvent *event) {
+    if (!isSliderDown()) { QSlider::mouseMoveEvent(event); return; }
+    setSliderPosition(valueAt(qRound(event->position().x()) - dragOffset));
+    event->accept();
+}
+void VolumeSlider::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() != Qt::LeftButton) { QSlider::mouseReleaseEvent(event); return; }
+    setSliderDown(false);
+    event->accept();
 }
 VolumeKnob::VolumeKnob(QWidget *parent) : QSlider(Qt::Horizontal, parent) {
     setRange(0, 100);

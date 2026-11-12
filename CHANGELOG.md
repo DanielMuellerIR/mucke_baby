@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.12 — 2026-11-12
+
+- Linux: Jump directly to the clicked volume in the main window and miniplayer. Enlarge volume sliders to at least 140 × 40 pixels with a wider track and larger handle; preserve dragging and keyboard control.
+
 ## 1.10.11 — 2026-11-12
 
 - Linux: Make desktop Play/Pause interrupt live radio when no usable timeshift buffer is available and restart the same station at the live point. Keep buffered playback and local previews pausable.

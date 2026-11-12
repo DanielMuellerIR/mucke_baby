@@ -147,6 +147,19 @@ class Visualizer final : public QWidget {
     void hideEvent(QHideEvent *) override;
 };
 
+class VolumeSlider final : public QSlider {
+    int dragOffset = 0;
+    int valueAt(int x) const;
+
+  public:
+    explicit VolumeSlider(QWidget *parent = nullptr);
+
+  protected:
+    void mousePressEvent(QMouseEvent *) override;
+    void mouseMoveEvent(QMouseEvent *) override;
+    void mouseReleaseEvent(QMouseEvent *) override;
+};
+
 class VolumeKnob final : public QSlider {
     QPoint dragOrigin;
     int dragValue = 0;

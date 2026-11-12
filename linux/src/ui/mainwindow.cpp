@@ -785,10 +785,10 @@ class MainWindow::Impl {
         runtime = new QLabel;
         runtime->setObjectName("runtime");
         footer->addWidget(runtime);
-        volume = new QSlider(Qt::Horizontal);
+        volume = new Console::VolumeSlider;
         volume->setObjectName("volume");
         volume->setRange(0, 100);
-        volume->setFixedWidth(96);
+        volume->setFixedWidth(140);
         volume->setAccessibleName(text("Lautstärke", "Volume"));
         footer->addWidget(volume);
         volumeKnob = new Console::VolumeKnob;
@@ -1322,6 +1322,9 @@ class MainWindow::Impl {
                 "QSlider::groove:horizontal{height:4px;background:%8;border-radius:2px;} "
                 "QSlider::handle:horizontal{width:18px;height:18px;margin:-7px 0;background:%4;border-radius:9px;} "
                 "QSlider::sub-page:horizontal{background:%6;border-radius:2px;} "
+                "QSlider[volumeControl=\"true\"]::groove:horizontal{height:8px;border-radius:4px;} "
+                "QSlider[volumeControl=\"true\"]::handle:horizontal{width:24px;height:24px;margin:-8px 0;border-radius:12px;} "
+                "QSlider[volumeControl=\"true\"]::sub-page:horizontal{border-radius:4px;} "
                 "QScrollBar:vertical{width:7px;background:transparent;} QScrollBar::handle:vertical{background:%8;border-radius:3px;min-height:24px;} "
                 "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;} "
                 "QPushButton#mainPlay{font-size:11px;font-weight:600;color:%6;} "
@@ -2483,7 +2486,7 @@ class MainWindow::Impl {
             miniPlay->setObjectName("miniPlay");
             miniPlay->setProperty("consoleButton", true);
             miniPlay->setMinimumWidth(65);
-            auto *vol = new QSlider(Qt::Horizontal);
+            auto *vol = new Console::VolumeSlider;
             vol->setObjectName("miniVolume");
             vol->setRange(0, 100);
             vol->setValue(state.volume);

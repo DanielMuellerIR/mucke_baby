@@ -335,6 +335,56 @@ class UIFlowTest final : public QObject {
         }
         media.shutdown();
     }
+    void volumeSliderClicksAndDrag() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        MainWindow window(&store, &catalog, &media); window.show();
+        auto exercise = [&](QSlider *slider) {
+            QVERIFY(slider); QVERIFY(slider->isVisible());
+            QVERIFY(slider->height() >= 40); QVERIFY(slider->width() >= 140);
+            slider->setValue(10);
+            QTest::mouseClick(slider, Qt::LeftButton, Qt::NoModifier, QPoint(slider->width() * 3 / 4, 2));
+            QVERIFY(slider->value() >= 70 && slider->value() <= 85);
+            QTRY_COMPARE(media.snapshot().volume, slider->value());
+            QTest::mousePress(slider, Qt::LeftButton, Qt::NoModifier, QPoint(slider->width() / 4, slider->height() - 3));
+            QVERIFY(slider->value() >= 15 && slider->value() <= 30);
+            QVERIFY(slider->isSliderDown());
+            QTest::mouseMove(slider, QPoint(slider->width() - 1, slider->height() - 3));
+            QTest::mouseRelease(slider, Qt::LeftButton, Qt::NoModifier, QPoint(slider->width() - 1, slider->height() - 3));
+            QCOMPARE(slider->value(), 100); QVERIFY(!slider->isSliderDown());
+            QTest::mouseClick(slider, Qt::LeftButton, Qt::NoModifier, QPoint(0, 2));
+            QCOMPARE(slider->value(), 0);
+            QTest::keyClick(slider, Qt::Key_Right); QCOMPARE(slider->value(), 1);
+            slider->setValue(35);
+            QTRY_COMPARE(media.snapshot().volume, 35);
+        };
+        for (const auto &theme : {"schlicht", "acid", "retro", "fanzine", "stack", "danish", "midi"}) {
+            window.applyTheme(theme);
+            for (int width : {940, 660}) {
+                window.resize(width, 620); QApplication::processEvents();
+                auto *volume = window.findChild<QSlider *>("volume"); QVERIFY(volume);
+                if (volume->isVisible()) exercise(volume);
+            }
+            window.showMiniPlayer(); QApplication::processEvents();
+            auto *mini = window.findChild<QDialog *>("miniPlayer"); QVERIFY(mini);
+            exercise(mini->findChild<QSlider *>("miniVolume"));
+            const QString directory = qEnvironmentVariable("MUCKE_UI_SHOTS");
+            if (!directory.isEmpty()) {
+                QVERIFY(QDir().mkpath(directory));
+                QVERIFY(mini->grab().save(directory + "/volume-mini-" + theme + ".png"));
+            }
+            mini->hide();
+        }
+        Console::VolumeSlider rtl;
+        rtl.setLayoutDirection(Qt::RightToLeft); rtl.resize(160, 40); rtl.show();
+        QTest::mouseClick(&rtl, Qt::LeftButton, Qt::NoModifier, QPoint(0, 2));
+        QCOMPARE(rtl.value(), 100);
+        QTest::mouseClick(&rtl, Qt::LeftButton, Qt::NoModifier, QPoint(159, 2));
+        QCOMPARE(rtl.value(), 0);
+        media.shutdown();
+    }
     void stationClickSwitchesAndStops() {
         QTemporaryDir temporary;
         LibraryStore store(temporary.filePath("data")); QVERIFY(store.load());
