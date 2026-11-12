@@ -408,6 +408,18 @@ public:
         if (!player) return;
         state.error = trMessage("Pause requires a measured timeshift buffer; live playback continues", "Pause benötigt einen vermessenen Timeshift-Puffer; Live-Wiedergabe läuft weiter"); publish();
     }
+    void pauseOrStop() {
+        if (state.state == PlaybackState::Paused || state.state == PlaybackState::Stopped || state.state == PlaybackState::Error) return;
+        if (state.state == PlaybackState::Playing && state.previewActive && player) libvlc_media_player_set_pause(player, 1);
+        else if (state.state == PlaybackState::Playing && state.timeshiftAvailable) togglePause();
+        // Ohne nutzbaren Puffer kann ein Live-Stream nur unterbrochen werden.
+        else stop();
+    }
+    void resume() {
+        if (state.state == PlaybackState::Paused && state.previewActive && player) libvlc_media_player_set_pause(player, 0);
+        else if (state.state == PlaybackState::Paused) togglePause();
+        else if ((state.state == PlaybackState::Stopped || state.state == PlaybackState::Error) && validStreamURL(station.url)) play(station);
+    }
     void setVolume(int value) { state.volume = std::clamp(value, 0, 100); applyVolume(); publish(); }
     void applyVolume() {
         effectiveVolume = aacProbeStage == AACProbeStage::Decoding ? 0 : int(std::round(state.volume * (state.sleepRemaining > 0 ? std::min(1.0, state.sleepRemaining / 30.0) : 1.0)));
@@ -932,6 +944,8 @@ void MediaEngine::play(Station value) { d->enqueue([value](auto &w) { w.play(val
 void MediaEngine::previewStation(Station value) { d->enqueue([value](auto &w) { w.previewStation(value); }); }
 void MediaEngine::stop() { d->enqueue([](auto &w) { w.stop(); }); }
 void MediaEngine::togglePause() { d->enqueue([](auto &w) { w.togglePause(); }); }
+void MediaEngine::pauseOrStop() { d->enqueue([](auto &w) { w.pauseOrStop(); }); }
+void MediaEngine::resume() { d->enqueue([](auto &w) { w.resume(); }); }
 void MediaEngine::setVolume(int value) { d->enqueue([value](auto &w) { w.setVolume(value); }); }
 void MediaEngine::setRecordingEnabled(bool value) { d->enqueue([value](auto &w) { w.setRecording(value); }); }
 void MediaEngine::setTimeshiftEnabled(bool value) { d->enqueue([value](auto &w) { w.setTimeshift(value); }); }

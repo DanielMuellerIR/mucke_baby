@@ -169,7 +169,12 @@ Eingabefelder und Schaltflächen behalten ihre normale Tastaturbedienung.
 ## Desktop und Audio
 
 Medientasten und Desktopsteuerung verwenden MPRIS über den vorhandenen
-D-Bus-Benutzersitzungsbus. Ein optionales Tray-Symbol kann die App beim Schließen
+D-Bus-Benutzersitzungsbus. Play/Pause pausiert mit nutzbarem Puffer oder bei
+lokaler Audiovorschau; sonst stoppt es den Live-Stream und startet ihn beim
+nächsten Drücken am aktuellen Live-Punkt. Vor/Zurück wechselt keine Sender.
+Die [separate Anleitung für Mediatasten](linux-media-keys.md) beschreibt Keychron,
+KDE/Cinnamon, Diagnose und die Nachrüstung in weiteren Audioprojekten.
+Ein optionales Tray-Symbol kann die App beim Schließen
 weiterlaufen lassen. Der private Steuerkanal ist ein benutzergeschützter lokaler
 Socket; es wird kein Netzwerkport für die Bedienung geöffnet.
 

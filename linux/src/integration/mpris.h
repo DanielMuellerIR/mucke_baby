@@ -12,13 +12,14 @@ class MprisBridge : public QObject {
     Q_OBJECT
 public:
     MprisBridge(MediaEngine*, LibraryStore*, MainWindow*, QObject *parent = nullptr);
+    ~MprisBridge() override;
     MediaEngine *engine;
     LibraryStore *store;
     MainWindow *window;
     PlaybackSnapshot current;
     QString serviceName;
-    void stepStation(int direction);
     void play();
+    void playPause();
     QVariantMap metadata() const;
 private:
     void announce();
@@ -80,7 +81,7 @@ public:
     double volume() const;
     void setVolume(double);
     qlonglong position() const;
-    bool canStep() const;
+    bool canStep() const { return false; }
     bool canPlay() const;
     bool canPause() const;
     bool canSeek() const;

@@ -16,6 +16,8 @@ public:
     void previewStation(Station);
     void stop();
     void togglePause();
+    void pauseOrStop();
+    void resume();
     void setVolume(int);
     void setRecordingEnabled(bool);
     void setTimeshiftEnabled(bool);

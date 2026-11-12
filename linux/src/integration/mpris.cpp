@@ -30,28 +30,30 @@ MprisBridge::MprisBridge(MediaEngine *e, LibraryStore *s, MainWindow *w, QObject
         serviceName += QStringLiteral(".instance%1").arg(QCoreApplication::applicationPid());
         if (!bus.registerService(serviceName)) serviceName.clear();
     }
-    if (!serviceName.isEmpty()) bus.registerObject(QStringLiteral("/org/mpris/MediaPlayer2"), this, QDBusConnection::ExportAdaptors);
+    if (!serviceName.isEmpty() && !bus.registerObject(QStringLiteral("/org/mpris/MediaPlayer2"), this, QDBusConnection::ExportAdaptors)) {
+        bus.unregisterService(serviceName);
+        serviceName.clear();
+    }
+    if (serviceName.isEmpty()) qWarning("MPRIS registration failed; desktop media controls are unavailable");
     connect(e, &MediaEngine::snapshotChanged, this, [this](const PlaybackSnapshot &next) {
         current = next;
         announce();
     });
     connect(s, &LibraryStore::libraryChanged, this, &MprisBridge::announce);
 }
-void MprisBridge::stepStation(int direction) {
-    QVector<Station> enabled;
-    for (const auto &station : store->stations()) if (station.enabled && validStreamURL(station.url)) enabled.append(station);
-    if (enabled.isEmpty()) return;
-    int index = -1;
-    for (int i = 0; i < enabled.size(); ++i) if (enabled[i].id == current.stationID) index = i;
-    const int target = index < 0 ? (direction > 0 ? 0 : enabled.size()-1) : (index + direction + enabled.size()) % enabled.size();
-    engine->play(enabled[target]);
+MprisBridge::~MprisBridge() {
+    if (!serviceName.isEmpty()) QDBusConnection::sessionBus().unregisterService(serviceName);
 }
 void MprisBridge::play() {
-    if (current.state == PlaybackState::Paused) { engine->togglePause(); return; }
     if (current.state == PlaybackState::Playing || current.state == PlaybackState::Buffering || current.state == PlaybackState::Resolving) return;
-    const auto selected = store->station(current.stationID);
-    if (!selected.id.isEmpty() && selected.enabled) { engine->play(selected); return; }
-    stepStation(1);
+    if (!current.stationID.isEmpty() || current.state == PlaybackState::Paused) { engine->resume(); return; }
+    for (const auto &station : store->stations()) {
+        if (station.enabled && validStreamURL(station.url)) { engine->play(station); return; }
+    }
+}
+void MprisBridge::playPause() {
+    if (current.state == PlaybackState::Playing || current.state == PlaybackState::Buffering || current.state == PlaybackState::Resolving) engine->pauseOrStop();
+    else play();
 }
 QVariantMap MprisBridge::metadata() const {
     QVariantMap result;
@@ -66,13 +68,12 @@ void MprisBridge::announce() {
     QString state = QStringLiteral("Stopped");
     if (current.state == PlaybackState::Paused) state = QStringLiteral("Paused");
     else if (current.state == PlaybackState::Playing || current.state == PlaybackState::Buffering || current.state == PlaybackState::Resolving) state = QStringLiteral("Playing");
-    int enabledStations = 0;
-    for (const auto &station : store->stations()) if (station.enabled) ++enabledStations;
+    const auto *player = findChild<MprisPlayer*>();
     QVariantMap properties{{QStringLiteral("PlaybackStatus"),state}, {QStringLiteral("Metadata"),metadata()},
-        {QStringLiteral("CanPlay"),enabledStations > 0}, {QStringLiteral("CanGoNext"),enabledStations > 1},
-        {QStringLiteral("CanGoPrevious"),enabledStations > 1},
-        {QStringLiteral("Volume"),current.volume/100.0}, {QStringLiteral("CanPause"),current.timeshiftAvailable || (current.previewActive && (current.state == PlaybackState::Playing || current.state == PlaybackState::Paused))},
-        {QStringLiteral("CanSeek"),current.timeshiftAvailable}};
+        {QStringLiteral("CanPlay"),player->canPlay()}, {QStringLiteral("CanGoNext"),player->canStep()},
+        {QStringLiteral("CanGoPrevious"),player->canStep()},
+        {QStringLiteral("Volume"),current.volume/100.0}, {QStringLiteral("CanPause"),player->canPause()},
+        {QStringLiteral("CanSeek"),player->canSeek()}};
     if (properties == announcedProperties) return;
     announcedProperties = properties;
     auto message = QDBusMessage::createSignal(QStringLiteral("/org/mpris/MediaPlayer2"), QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("PropertiesChanged"));
@@ -95,14 +96,17 @@ QVariantMap MprisPlayer::metadata() const { return bridge->metadata(); }
 double MprisPlayer::volume() const { return bridge->current.volume/100.0; }
 void MprisPlayer::setVolume(double value) { if (std::isfinite(value)) bridge->engine->setVolume(qRound(std::clamp(value,0.0,1.0)*100)); }
 qlonglong MprisPlayer::position() const { return qlonglong(std::max(0.0, bridge->current.bufferSeconds-bridge->current.delaySeconds)*1000000); }
-bool MprisPlayer::canStep() const { int count=0; for (const auto &s:bridge->store->stations()) if(s.enabled) ++count; return count>1; }
-bool MprisPlayer::canPlay() const { for (const auto &s:bridge->store->stations()) if(s.enabled) return true; return false; }
-bool MprisPlayer::canPause() const { return bridge->current.timeshiftAvailable || (bridge->current.previewActive && (bridge->current.state == PlaybackState::Playing || bridge->current.state == PlaybackState::Paused)); }
+bool MprisPlayer::canPlay() const {
+    if (!bridge->current.stationID.isEmpty() || bridge->current.previewActive) return true;
+    for (const auto &s:bridge->store->stations()) if(s.enabled && validStreamURL(s.url)) return true;
+    return false;
+}
+bool MprisPlayer::canPause() const { return canPlay(); }
 bool MprisPlayer::canSeek() const { return bridge->current.timeshiftAvailable; }
-void MprisPlayer::Next() { bridge->stepStation(1); }
-void MprisPlayer::Previous() { bridge->stepStation(-1); }
-void MprisPlayer::Pause() { if (canPause() && bridge->current.state == PlaybackState::Playing) bridge->engine->togglePause(); }
-void MprisPlayer::PlayPause() { if (bridge->current.state == PlaybackState::Playing || bridge->current.state == PlaybackState::Paused) bridge->engine->togglePause(); else bridge->play(); }
+void MprisPlayer::Next() {}
+void MprisPlayer::Previous() {}
+void MprisPlayer::Pause() { if (canPause()) bridge->engine->pauseOrStop(); }
+void MprisPlayer::PlayPause() { bridge->playPause(); }
 void MprisPlayer::Stop() { bridge->engine->stop(); }
 void MprisPlayer::Play() { bridge->play(); }
 void MprisPlayer::Seek(qlonglong offset) {

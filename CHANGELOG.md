@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.11 — 2026-11-12
+
+- Linux: Make desktop Play/Pause interrupt live radio when no usable timeshift buffer is available and restart the same station at the live point. Keep buffered playback and local previews pausable.
+- Linux: Disable MPRIS Next/Previous instead of switching stations from track keys, and document reusable media-key integration and desktop diagnostics.
+
 ## 1.10.10 — 2026-11-12
 
 - Linux: Sperrt den Aufnahmeordner für konkurrierende Instanzen, damit Index und laufende Aufnahmen erhalten bleiben.

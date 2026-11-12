@@ -149,7 +149,7 @@ int main(int argc,char **argv) {
     auto *showAction=trayMenu.addAction(localText("Mucke, Baby! öffnen","Open Mucke, Baby!"));
     QObject::connect(showAction,&QAction::triggered,&app,[&]{if(window){window->showNormal();window->raise();window->activateWindow();}});
     trayMenu.addSeparator();
-    QObject::connect(trayMenu.addAction(localText("Wiedergabe / Pause","Play / Pause")),&QAction::triggered,&app,[&]{if(engine.snapshot().state==PlaybackState::Playing||engine.snapshot().state==PlaybackState::Paused)engine.togglePause();else mpris.play();});
+    QObject::connect(trayMenu.addAction(localText("Wiedergabe / Pause","Play / Pause")),&QAction::triggered,&mpris,&MprisBridge::playPause);
     QObject::connect(trayMenu.addAction(localText("Stoppen","Stop")),&QAction::triggered,&engine,&MediaEngine::stop);
     trayMenu.addSeparator();
     QObject::connect(trayMenu.addAction(localText("Beenden","Quit")),&QAction::triggered,&app,&QApplication::quit);

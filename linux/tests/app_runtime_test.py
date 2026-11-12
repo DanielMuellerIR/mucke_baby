@@ -167,6 +167,25 @@ def main():
             reported = json.loads(cli('--status').stdout)
             assert reported['volume'] == 50
             results['tests'].append('MPRIS-properties-volume-local-IPC-status')
+            for capability, expected in [('CanPlay', True), ('CanPause', True),
+                                         ('CanSeek', False), ('CanGoNext', False), ('CanGoPrevious', False)]:
+                value = dbus('org.freedesktop.DBus.Properties', 'Get',
+                             'string:org.mpris.MediaPlayer2.Player', 'string:' + capability)
+                assert ('boolean ' + str(expected).lower()) in value, (capability, value)
+            original_station = state()['stationID']
+            dbus('org.mpris.MediaPlayer2.Player', 'Next')
+            dbus('org.mpris.MediaPlayer2.Player', 'Previous')
+            assert state()['stationID'] == original_station
+            for action in ['PlayPause', 'Pause', 'Stop']:
+                dbus('org.mpris.MediaPlayer2.Player', action)
+                wait_for(lambda: state()['state'] == 'stopped')
+                dbus('org.mpris.MediaPlayer2.Player', 'Pause')
+                assert state()['state'] == 'stopped'
+                dbus('org.mpris.MediaPlayer2.Player', 'PlayPause' if action == 'PlayPause' else 'Play')
+                wait_for(lambda: state()['state'] == 'playing')
+                assert state()['stationID'] == original_station
+                assert not state()['recordRequested'] and not state()['timeshiftAvailable']
+            results['tests'].append('MPRIS-live-play-pause-stop-restart-same-URL-no-skip-no-recording-or-buffer')
             time.sleep(.6)
             dbus('org.freedesktop.DBus.Properties', 'Set', 'string:org.mpris.MediaPlayer2.Player', 'string:Volume', 'variant:double:0.7')
             dbus('org.freedesktop.DBus.Properties', 'Set', 'string:org.mpris.MediaPlayer2.Player', 'string:Volume', 'variant:double:0.5')
@@ -181,6 +200,13 @@ def main():
             results['playing'] = metrics(app.pid, 5)
             cli('--recording', 'on')
             wait_for(lambda: state()['recordActive'], 8)
+            dbus('org.mpris.MediaPlayer2.Player', 'Pause')
+            wait_for(lambda: state()['state'] == 'stopped' and not state()['recordActive'])
+            assert state()['recordRequested']
+            assert any(p.stat().st_size > 0 for p in (root / 'recordings').glob('*.mp3'))
+            dbus('org.mpris.MediaPlayer2.Player', 'Play')
+            wait_for(lambda: state()['state'] == 'playing' and state()['recordActive'])
+            results['tests'].append('MPRIS-interruption-preserves-recording-and-explicit-recording-choice')
             cli('--recording', 'off')
             wait_for(lambda: not state()['recordActive'])
             assert any(p.stat().st_size > 0 for p in (root / 'recordings').glob('*.mp3'))
