@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <sys/statvfs.h>
 #include <cerrno>
 namespace Mucke::MediaPrivate {
@@ -69,6 +70,11 @@ void Recorder::initialize() {
     if (rootFD >= 0) return;
     if (!QDir().mkpath(root) || QFileInfo(root).isSymLink()) { message = statusText("Recording directory unavailable", "Aufnahmeordner nicht verfügbar"); return; }
     rootFD = ::open(QFile::encodeName(root).constData(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (rootFD >= 0 && ::flock(rootFD, LOCK_EX | LOCK_NB) != 0) {
+        ::close(rootFD); rootFD = -1;
+        message = statusText("Recording directory is in use by another instance", "Aufnahmeordner wird bereits von einer anderen Instanz verwendet");
+        return;
+    }
     indexReady = rootFD >= 0 && load();
     if (!indexReady) message = statusText("Recording index unavailable; existing audio was preserved", "Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten");
 }

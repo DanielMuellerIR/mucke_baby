@@ -1,4 +1,5 @@
 #include "../src/export/songrangeresolver.h"
+#include "../src/data/librarystore.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -8,6 +9,7 @@
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QUuid>
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
@@ -87,6 +89,28 @@ void codecCase(const QString &root, const QString &codec, const QString &extensi
     check(proposal.status == SongAudioStatus::Available || proposal.status == SongAudioStatus::Approximate, "codec is supported");
     check(proposal.suggestedStart >= 0 && proposal.suggestedEnd <= proposal.audioEnd && proposal.suggestedEnd > proposal.suggestedStart, "finite audio range");
     check(resolver.validate(proposal), "issued proposal validates");
+    {
+        auto local = track;
+        local.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        local.sessionID = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        auto localRecording = recording; localRecording.sessionID = local.sessionID;
+        auto localStart = start; localStart.trackID = local.id;
+        const auto data = root + "/bookmark-data-" + extension;
+        {
+            LibraryStore store(data); check(store.load(), "Load bookmark fixture");
+            store.receiveTrack(local);
+            check(store.history().size() == 1 && store.bookmark(store.history().first()), "History song can be bookmarked");
+            auto immediate = prepare(resolver, "bookmark-now", store.bookmarks(), {localRecording}, {localStart, end});
+            check(immediate.first().status == proposal.status, "Bookmark export works immediately without session field");
+        }
+        LibraryStore restored(data); check(restored.load(), "Reload bookmark fixture");
+        auto saved = prepare(resolver, "bookmark-restored", restored.bookmarks(), {localRecording}, {localStart, end});
+        check(saved.first().status == proposal.status, "Bookmark export works after restart");
+        auto other = localRecording; other.id = "other"; other.sessionID = "different-session";
+        auto otherStart = localStart; otherStart.recordingID = other.id;
+        auto ambiguous = prepare(resolver, "bookmark-ambiguous", restored.bookmarks(), {localRecording, other}, {localStart, otherStart, end});
+        check(ambiguous.first().status == SongAudioStatus::MissingBoundaries, "Ambiguous track identity never guesses a recording session");
+    }
     auto forged = proposal; forged.suggestedStart += .001; check(!resolver.validate(forged), "modified proposal rejected");
     const auto pcm = run("ffmpeg", {"-hide_banner", "-loglevel", "error", "-ss", QString::number(proposal.suggestedStart, 'f', 6), "-i", path,
         "-t", QString::number(proposal.suggestedEnd - proposal.suggestedStart, 'f', 6), "-f", "f32le", "-ac", "1", "-ar", "8000", "pipe:1"});

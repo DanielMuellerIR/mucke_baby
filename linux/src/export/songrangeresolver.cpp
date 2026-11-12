@@ -405,6 +405,13 @@ void SongRangeResolver::prepare(QString requestID, QVector<Track> tracks, QVecto
     d->request = requestID;
     if (requestID.isEmpty()) { emit prepared(requestID, {}); return; }
     d->tracks = tracks.mid(0, maxTracks);
+    // Portable Merkeinträge tragen keine lokale Session. Nur eine eindeutige
+    // Track-ID in den lokalen Aufnahmegrenzen darf diese Herkunft ergänzen.
+    QMap<QString, QSet<QString>> recordingSessions, trackSessions;
+    for (const auto &r : recordings) if (!r.sessionID.isEmpty()) recordingSessions[r.id].insert(r.sessionID);
+    for (const auto &b : boundaries) if (!b.trackID.isEmpty()) trackSessions[b.trackID].unite(recordingSessions.value(b.recordingID));
+    for (auto &t : d->tracks) if (t.sessionID.isEmpty() && !t.id.isEmpty() && trackSessions.value(t.id).size() == 1)
+        t.sessionID = *trackSessions.value(t.id).constBegin();
     d->proposals.resize(d->tracks.size());
     if (tracks.size() > maxTracks) {
         for (int i = 0; i < d->tracks.size(); ++i) {

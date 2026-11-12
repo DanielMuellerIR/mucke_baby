@@ -19,6 +19,22 @@ int main(int argc, char **argv) {
     QString firstID, secondID;
     QByteArray mp3 = QByteArray::fromHex("fffb") + QByteArray(32766, 'a');
     {
+        QTemporaryDir shared;
+        Recorder first(shared.path()); first.initialize(); first.beginSession("Fixture", "session");
+        first.setEnabled(true); first.audio(mp3);
+        QFile index(shared.filePath("index.json")); check(index.open(QIODevice::ReadOnly), "First index readable");
+        const auto before = index.readAll(); index.close();
+        {
+            Recorder second(shared.path()); second.initialize();
+            check(second.list().isEmpty(), "Second instance cannot recover the live recording");
+            second.beginSession("Other", "other-session"); second.setEnabled(true); second.audio(mp3); second.finish();
+            check(!second.active() && !second.remove(first.list().first().id), "Second instance cannot write or delete shared audio");
+        }
+        check(index.open(QIODevice::ReadOnly) && index.readAll() == before, "Second instance preserves the first index");
+        first.audio(mp3); first.finish();
+        check(first.list().first().bytes == 2 * mp3.size(), "Owner continues recording under exclusive directory lock");
+    }
+    {
         Recorder recorder(directory.path(), [&] { return time; }); recorder.initialize(); recorder.beginSession("Fixture", "session");
         const Track a = track("track-a", "Artist - First", time); recorder.title(a); recorder.setEnabled(true); recorder.audio(mp3);
         check(recorder.active(), "Initial recording active after bytes"); firstID = recorder.list().first().id;

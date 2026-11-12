@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.10 — 2026-11-12
+
+- Linux: Sperrt den Aufnahmeordner für konkurrierende Instanzen, damit Index und laufende Aufnahmen erhalten bleiben.
+- Linux: Audioexport lokaler Merkeinträge findet die Aufnahme nach eindeutiger Track-ID auch nach einem Neustart.
+
 ## 1.10.9 — 2026-11-10
 
 - Reject HTTP error responses during playlist resolution instead of treating their bodies as playable playlists. Preserve successful partial-content responses and cancel rejected downloads.
