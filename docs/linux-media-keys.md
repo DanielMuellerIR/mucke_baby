@@ -168,8 +168,9 @@ isolierten `PULSE_SERVER` unter `unix:/tmp/mucke-…`; ohne Opt-in wird er über
 
 Prüfstand 2026-11-12: Linux x86-64, Ubuntu 24.04, Qt 6.4.2 und libVLC 3.0.20.
 Build, die vier betroffenen CTest-Ziele sowie App-Laufzeitprüfung und zusätzlicher
-Puffer-/Vorschautest sind bestanden. Die physische Tastenzustellung unter KDE
-und Cinnamon bleibt als [Desktop-Abnahme](../BACKLOG.md) offen.
+Puffer-/Vorschautest sind bestanden. Mediatasten und Lautstärkeregler wurden mit
+Version 1.10.12 unter CachyOS/KDE manuell bestätigt. Die physische Tastenzustellung
+unter Linux Mint/Cinnamon bleibt als [Desktop-Abnahme](../BACKLOG.md) offen.
 
 ## Primärquellen
 

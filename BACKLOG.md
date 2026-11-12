@@ -63,8 +63,9 @@
     müssen die neue Version schützen. Reale Hör- und Mindest-macOS-Abnahmen
     werden durch kontrollierte Audiofixtures nicht ersetzt.
 
-15. Linux-Mediatasten ab v1.10.11: physische Keychron-Q1-HE-Zustellung unter
-    KDE Plasma und Cinnamon noch mit fokussierter und minimierter App abnehmen.
+15. Linux-Mediatasten und Lautstärkeregler: Bedienung mit v1.10.12 unter
+    CachyOS/KDE am 2026-11-12 manuell bestätigt. Physische Keychron-Q1-HE-Zustellung
+    unter Linux Mint/Cinnamon noch mit fokussierter und minimierter App abnehmen.
     Die [separate Anleitung](docs/linux-media-keys.md) enthält Ablauf und Grenzen;
     isolierte D-Bus-/Audiofixtures ersetzen diese Desktop-Abnahme nicht.
 
