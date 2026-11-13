@@ -89,6 +89,7 @@ void codecCase(const QString &root, const QString &codec, const QString &extensi
     check(proposal.status == SongAudioStatus::Available || proposal.status == SongAudioStatus::Approximate, "codec is supported");
     check(proposal.suggestedStart >= 0 && proposal.suggestedEnd <= proposal.audioEnd && proposal.suggestedEnd > proposal.suggestedStart, "finite audio range");
     check(resolver.validate(proposal), "issued proposal validates");
+    auto forged = proposal; forged.suggestedStart += .001; check(!resolver.validate(forged), "modified proposal rejected");
     {
         auto local = track;
         local.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -111,7 +112,6 @@ void codecCase(const QString &root, const QString &codec, const QString &extensi
         auto ambiguous = prepare(resolver, "bookmark-ambiguous", restored.bookmarks(), {localRecording, other}, {localStart, otherStart, end});
         check(ambiguous.first().status == SongAudioStatus::MissingBoundaries, "Ambiguous track identity never guesses a recording session");
     }
-    auto forged = proposal; forged.suggestedStart += .001; check(!resolver.validate(forged), "modified proposal rejected");
     const auto pcm = run("ffmpeg", {"-hide_banner", "-loglevel", "error", "-ss", QString::number(proposal.suggestedStart, 'f', 6), "-i", path,
         "-t", QString::number(proposal.suggestedEnd - proposal.suggestedStart, 'f', 6), "-f", "f32le", "-ac", "1", "-ar", "8000", "pipe:1"});
     check(pcm.size() > 1000, "decoded excerpt");

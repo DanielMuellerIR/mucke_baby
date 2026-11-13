@@ -3,6 +3,11 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.13 — 2026-11-13
+
+- Linux: Keep station previews separate from regular playback after Pause or Stop. Resuming a preview keeps recording and history disabled; closing the preview cancels its resume target.
+- Restore the song-export regression check for modified proposals.
+
 ## 1.10.12 — 2026-11-12
 
 - Linux: Jump directly to the clicked volume in the main window and miniplayer. Enlarge volume sliders to at least 140 × 40 pixels with a wider track and larger handle; preserve dragging and keyboard control.

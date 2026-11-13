@@ -156,9 +156,18 @@ public:
         if (positionTimer) positionTimer->stop();
         if (monitor) monitor->setActive(false);
         state.state = PlaybackState::Stopped; state.previewActive = false; state.timeshiftPaused = false;
-        stationPreview = false; recordOverride.clear(); recorder.setEnabled(state.recordRequested);
+        // Der Quelltyp bleibt für Resume erhalten, auch wenn die Vorschau gerade gestoppt ist.
+        recordOverride.clear(); recorder.setEnabled(state.recordRequested);
         state.timeshiftAvailable = false; state.delaySeconds = state.bufferSeconds = 0; state.heardTrack = {}; liveTrack = {}; state.error.clear(); publish();
         releasePlayer(); shiftBuffer.reset();
+    }
+    void stopPreview() {
+        if (!state.previewActive && !stationPreview) return;
+        stop();
+        if (stationPreview) {
+            stationPreview = false; station = {};
+            state.stationID.clear(); state.stationName.clear(); publish();
+        }
     }
     void play(Station value) {
         startStation(std::move(value), false);
@@ -168,7 +177,7 @@ public:
     }
     void startStation(Station value, bool preview) {
         if (systemSleeping) {
-            resumeAfterWake = false; station = std::move(value); state.stationID = station.id; state.stationName = station.name;
+            resumeAfterWake = false; stationPreview = preview; station = std::move(value); state.stationID = station.id; state.stationName = station.name;
             state.error = trMessage("Playback stays stopped while the system sleeps", "Wiedergabe bleibt während des Systemschlafs gestoppt"); publish(); return;
         }
         stop(); stationPreview = preview; state.previewActive = preview; station = std::move(value); retryCount = 0;
@@ -418,7 +427,7 @@ public:
     void resume() {
         if (state.state == PlaybackState::Paused && state.previewActive && player) libvlc_media_player_set_pause(player, 0);
         else if (state.state == PlaybackState::Paused) togglePause();
-        else if ((state.state == PlaybackState::Stopped || state.state == PlaybackState::Error) && validStreamURL(station.url)) play(station);
+        else if ((state.state == PlaybackState::Stopped || state.state == PlaybackState::Error) && validStreamURL(station.url)) startStation(station, stationPreview);
     }
     void setVolume(int value) { state.volume = std::clamp(value, 0, 100); applyVolume(); publish(); }
     void applyVolume() {
@@ -708,7 +717,7 @@ public:
         if (systemSleeping) { resumeAfterWake = false; state.error = trMessage("Preview is unavailable during system sleep", "Vorschau ist während des Systemruhezustands nicht verfügbar"); publish(); return; }
         const QFileInfo info(path);
         if (!info.isFile() || info.isSymLink() || !info.isReadable()) { state.error = trMessage("Preview file unavailable", "Vorschaudatei nicht verfügbar"); publish(); return; }
-        stop(); if (!ensurePlayer()) { state.state = PlaybackState::Error; state.error = trMessage("Preview audio output unavailable", "Audioausgang für Vorschau nicht verfügbar"); publish(); return; }
+        stop(); stationPreview = false; if (!ensurePlayer()) { state.state = PlaybackState::Error; state.error = trMessage("Preview audio output unavailable", "Audioausgang für Vorschau nicht verfügbar"); publish(); return; }
         libvlc_media_t *media = libvlc_media_new_path(instance, QFile::encodeName(info.absoluteFilePath()).constData());
         if (!media) { state.state = PlaybackState::Error; state.error = trMessage("Preview media cannot be opened", "Vorschaumedium kann nicht geöffnet werden"); publish(); return; }
         libvlc_media_player_set_media(player, media); hasOutputMedia = true; libvlc_media_release(media); attachEvents(); libvlc_audio_set_mute(player, 0); applyVolume();
@@ -958,7 +967,7 @@ void MediaEngine::prepareForSleep(bool sleeping) { d->enqueue([sleeping](auto &w
 void MediaEngine::setVisualizationActive(bool active) { d->enqueue([active](auto &w) { w.setVisualization(active); }); }
 void MediaEngine::previewRecording(QString id) { d->enqueue([id](auto &w) { w.previewRecording(id); }); }
 void MediaEngine::previewFile(QString path) { d->enqueue([path](auto &w) { w.preview(path); }); }
-void MediaEngine::stopPreview() { d->enqueue([](auto &w) { if (w.state.previewActive) w.stop(); }); }
+void MediaEngine::stopPreview() { d->enqueue([](auto &w) { w.stopPreview(); }); }
 void MediaEngine::removeRecording(QString id) { d->enqueue([id](auto &w) { w.removeRecording(id); }); }
 void MediaEngine::removeCompletedRecordings() { d->enqueue([](auto &w) { w.removeCompleted(); }); }
 void MediaEngine::exportClip(QString jobID, QString recordingID, double start, double duration, double fadeIn, double fadeOut, QJsonObject metadata, QString destination) {

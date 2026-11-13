@@ -116,6 +116,49 @@ private slots:
         QTRY_COMPARE(engine.snapshot().state, PlaybackState::Stopped);
         engine.shutdown();
     }
+    void stoppedStationPreviewNeverBecomesRegularPlayback() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data")); clearStations(store);
+        QTcpServer server; QVERIFY(server.listen(QHostAddress::LocalHost));
+        int requests = 0;
+        connect(&server, &QTcpServer::newConnection, &server, [&] {
+            while (auto *socket = server.nextPendingConnection()) {
+                connect(socket, &QTcpSocket::readyRead, socket, [&, socket] {
+                    if (socket->property("counted").toBool()) return;
+                    if (!socket->readAll().isEmpty()) { ++requests; socket->setProperty("counted", true); }
+                });
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            }
+        });
+        MediaEngine engine(temporary.filePath("recordings"), temporary.filePath("cache"));
+        MprisBridge bridge(&engine, &store, nullptr);
+        QSignalSpy tracks(&engine, &MediaEngine::receivedTrack);
+        engine.setRecordingEnabled(true);
+        engine.previewStation({newID(), "Preview", QString("http://127.0.0.1:%1/slow.m3u").arg(server.serverPort()), {}});
+        QTRY_COMPARE(requests, 1);
+        int expectedRequests = 1;
+        for (const auto &method : {"Pause", "Stop"}) {
+            call(bridge, method);
+            QTRY_COMPARE(engine.snapshot().state, PlaybackState::Stopped);
+            call(bridge, "Play");
+            QTRY_COMPARE(engine.snapshot().state, PlaybackState::Resolving);
+            ++expectedRequests;
+            QTRY_COMPARE(requests, expectedRequests);
+            QVERIFY(engine.snapshot().previewActive);
+            QVERIFY(engine.snapshot().recordRequested);
+            QVERIFY(!engine.snapshot().recordActive);
+        }
+        engine.stopPreview();
+        QTRY_COMPARE(engine.snapshot().state, PlaybackState::Stopped);
+        QVERIFY(engine.snapshot().stationID.isEmpty());
+        const int completedRequests = requests;
+        call(bridge, "Play"); QTest::qWait(150);
+        QCOMPARE(engine.snapshot().state, PlaybackState::Stopped);
+        QCOMPARE(requests, completedRequests);
+        QVERIFY(engine.recordings().isEmpty());
+        QVERIFY(tracks.isEmpty());
+        engine.shutdown();
+    }
     void bufferedAndPreviewTransport() {
         const QString fixture = qEnvironmentVariable("MUCKE_MPRIS_AUDIO_FIXTURE");
         if (fixture.isEmpty()) QSKIP("Requires a local MP3 fixture and an explicitly isolated Pulse server");

@@ -166,6 +166,12 @@ Der zusätzliche QtTest-Fall `bufferedAndPreviewTransport` benötigt ein lokales
 MP3 ohne Xing-/ID3-Dateikopf in `MUCKE_MPRIS_AUDIO_FIXTURE` und einen ausdrücklich
 isolierten `PULSE_SERVER` unter `unix:/tmp/mucke-…`; ohne Opt-in wird er übersprungen.
 
+Seit 1.10.13 bleibt auch eine per Pause oder Stop unterbrochene Katalog-
+Sendervorschau beim Fortsetzen eine Vorschau: Aufnahme und Verlauf bleiben aus.
+Das Schließen der Vorschau entfernt auch ihr gestopptes Fortsetzungsziel.
+`stoppedStationPreviewNeverBecomesRegularPlayback` prüft diesen Ablauf mit
+aktivierter Aufnahme und einem langsamen lokalen Playlist-Server.
+
 Prüfstand 2026-11-12: Linux x86-64, Ubuntu 24.04, Qt 6.4.2 und libVLC 3.0.20.
 Build, die vier betroffenen CTest-Ziele sowie App-Laufzeitprüfung und zusätzlicher
 Puffer-/Vorschautest sind bestanden. Mediatasten und Lautstärkeregler wurden mit
