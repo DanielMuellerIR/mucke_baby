@@ -256,6 +256,7 @@ class MainWindow::Impl {
     QWidget *historyDates;
     QTableView *stationView, *historyView, *bookmarkView, *recordingView;
     QStandardItemModel *stationModel, *historyModel, *bookmarkModel, *recordingModel;
+    QString newestHistoryID;
     QTabWidget *tabs;
     QLabel *now, *artist, *status, *recordStatus, *bufferStatus;
     Console::ScrollingTitle *titleScroll;
@@ -868,7 +869,7 @@ class MainWindow::Impl {
             history();
         });
         QObject::connect(store, &LibraryStore::libraryChanged, q, [this] { library(); });
-        QObject::connect(store, &LibraryStore::historyChanged, q, [this] { history(); });
+        QObject::connect(store, &LibraryStore::historyChanged, q, [this](const QString &addedID) { history(addedID); });
         QObject::connect(store, &LibraryStore::bookmarksChanged, q, [this] { bookmarks(); });
         QObject::connect(media, &MediaEngine::snapshotChanged, q,
                          [this](PlaybackSnapshot s) { snapshot(s); });
@@ -1105,9 +1106,22 @@ class MainWindow::Impl {
         view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         view->resizeRowsToContents();
     }
-    void history() {
+    void history(const QString &addedID = {}) {
+        auto *selection = historyView->selectionModel();
+        QSet<QString> selectedIDs;
+        for (const auto &index : selection->selectedRows())
+            selectedIDs.insert(index.data(Qt::UserRole).toString());
+        const auto currentID = selectedID(historyView);
+        auto *scrollBar = historyView->verticalScrollBar();
+        const int scrollPosition = scrollBar->value();
+        const bool follow = !addedID.isEmpty() &&
+                            (selectedIDs.isEmpty() || (selectedIDs.size() == 1 && selectedIDs.contains(newestHistoryID)));
+
         historyModel->removeRows(0, historyModel->rowCount());
-        auto list = store->history();
+        const auto list = store->history();
+        newestHistoryID = list.isEmpty() ? QString{} : list.last().id;
+        QModelIndex nextSelection, currentIndex;
+        QItemSelection retainedSelection;
         for (auto it = list.cbegin(); it != list.cend(); ++it) {
             auto t = *it;
             auto date = t.heardAt.isValid() ? t.heardAt : t.receivedAt;
@@ -1126,12 +1140,27 @@ class MainWindow::Impl {
             row(historyModel,
                 {date.toLocalTime().toString("yyyy-MM-dd · HH:mm:ss") + " – " + end, trackName(t), t.station},
                 t.id);
-            historyModel->item(historyModel->rowCount() - 1)
-                ->setData(t.id == state.heardTrack.id, Console::ActiveRole);
+            const int rowIndex = historyModel->rowCount() - 1;
+            historyModel->item(rowIndex)->setData(t.id == state.heardTrack.id, Console::ActiveRole);
+            const auto index = historyModel->index(rowIndex, 0);
+            if (follow && t.id == addedID)
+                nextSelection = index;
+            if (selectedIDs.contains(t.id))
+                retainedSelection.select(index, index);
+            if (t.id == currentID)
+                currentIndex = index;
         }
         historyCount->setText(
             text("%1 von %2 Titeln", "%1 of %2 tracks").arg(historyModel->rowCount()).arg(list.size()));
         configureTrackColumns(historyView);
+        if (nextSelection.isValid()) {
+            selection->setCurrentIndex(nextSelection, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            historyView->scrollTo(nextSelection, QAbstractItemView::EnsureVisible);
+        } else {
+            selection->setCurrentIndex(currentIndex, QItemSelectionModel::NoUpdate);
+            selection->select(retainedSelection, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+            scrollBar->setValue(scrollPosition);
+        }
     }
     void bookmarks() {
         bookmarkModel->removeRows(0, bookmarkModel->rowCount());

@@ -319,7 +319,7 @@ class LibraryStore::Impl {
             return fail(QObject::tr("The library could not be saved: %1").arg(QString::fromUtf8(e.what())));
         }
     }
-    bool writeHistory(const QVector<Track> &next) {
+    bool writeHistory(const QVector<Track> &next, const QString &addedID = {}) {
         if (!historyWritable)
             return fail(QObject::tr("Listening history is read-only."));
         try {
@@ -334,7 +334,7 @@ class LibraryStore::Impl {
             require(saveFile(path("history.json"), b), "Listening history could not be saved.");
             history = next;
             historyBytes = b;
-            emit q->historyChanged();
+            emit q->historyChanged(addedID);
             return true;
         } catch (const std::exception &e) {
             return fail(QString::fromUtf8(e.what()));
@@ -651,7 +651,7 @@ void LibraryStore::receiveTrack(Track t) {
     next.append(t);
     while (next.size() > 2000)
         next.removeFirst();
-    d->writeHistory(next);
+    d->writeHistory(next, t.id);
 }
 void LibraryStore::endReception(QDateTime at) {
     if (d->history.isEmpty() || d->history.last().endedAt.isValid())

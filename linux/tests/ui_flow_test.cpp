@@ -94,6 +94,58 @@ class UIFlowTest final : public QObject {
         QDesktopServices::unsetUrlHandler("https");
         media.shutdown();
     }
+    void historySelectionFollowsNewSongs() {
+        QTemporaryDir temporary;
+        LibraryStore store(temporary.filePath("data"));
+        QVERIFY(store.load());
+        const auto start = QDateTime::currentDateTimeUtc().addSecs(-1200);
+        auto addSong = [&](int number) {
+            Track song;
+            song.id = newID();
+            song.title = QString("Song %1").arg(number);
+            song.raw = song.title;
+            song.receivedAt = song.heardAt = start.addSecs(number * 10);
+            store.receiveTrack(song);
+            return song;
+        };
+        for (int number = 0; number < 60; ++number)
+            addSong(number);
+
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        MainWindow window(&store, &catalog, &media);
+        window.show();
+        auto *view = window.findChild<QTableView *>("history");
+        QVERIFY(view);
+        auto *selection = view->selectionModel();
+        auto *scrollBar = view->verticalScrollBar();
+        QTRY_VERIFY(scrollBar->maximum() > 0);
+        const auto selectedID = [&] {
+            const auto rows = selection->selectedRows();
+            return rows.size() == 1 ? rows.first().data(Qt::UserRole).toString() : QString();
+        };
+
+        const auto first = addSong(60);
+        QCOMPARE(selectedID(), first.id);
+        QVERIFY(view->viewport()->rect().contains(view->visualRect(selection->currentIndex())));
+        view->scrollToTop();
+        QVERIFY(!view->viewport()->rect().intersects(view->visualRect(selection->currentIndex())));
+        const auto second = addSong(61);
+        QCOMPARE(selectedID(), second.id);
+        QVERIFY(view->viewport()->rect().contains(view->visualRect(selection->currentIndex())));
+
+        view->selectRow(0);
+        view->scrollToTop();
+        const auto older = selectedID();
+        QVERIFY(!older.isEmpty());
+        addSong(62);
+        QCOMPARE(selectedID(), older);
+        QCOMPARE(scrollBar->value(), 0);
+        selection->select(view->model()->index(2, 0), QItemSelectionModel::Select | QItemSelectionModel::Rows);
+        addSong(63);
+        QCOMPARE(selection->selectedRows().size(), 2);
+        QCOMPARE(selection->selectedRows().first().data(Qt::UserRole).toString(), older);
+    }
     void longTitleScrollsAndRestarts() {
         Console::ScrollingTitle scroll;
         auto *label = new QLabel(QString(150, 'W'));

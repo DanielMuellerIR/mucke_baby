@@ -240,7 +240,6 @@ struct HistoryPanel: View {
         .sheet(item: $batchRequest) { request in ExportBatchView(request: request) }
         .onChange(of: selectingMultiple) { _, enabled in if !enabled { batchSelection.removeAll() } }
         .onChange(of: history.entries.map(\.id)) { _, ids in
-            if let selection, !ids.contains(selection) { self.selection = nil }
             batchSelection.formIntersection(ids)
         }
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
@@ -453,12 +452,21 @@ struct HistoryPanel: View {
                 }
             }
             .onChange(of: history.entries) { old, entries in
-                let follow = !filter.isActive && followsLatest && old.last?.id != entries.last?.id
+                var followedID: UUID?
+                if !selectingMultiple, let latest = visible.last,
+                   latest.id == entries.last?.id, latest.id != old.last?.id,
+                   !old.contains(where: { $0.id == latest.id }),
+                   selection == nil || selection == old.last?.id {
+                    selection = latest.id
+                    followedID = latest.id
+                } else if let selection, !entries.contains(where: { $0.id == selection }) {
+                    self.selection = nil
+                }
                 let retained = HistoryFilter.retainedAnchor(lastVisibleAnchor, entries: entries, visible: visible)
                 DispatchQueue.main.async {
                     guard entries == history.entries else { return }
-                    if follow, let last = visible.last?.id {
-                        proxy.scrollTo(last, anchor: .bottom)
+                    if let followedID, selection == followedID {
+                        proxy.scrollTo(followedID)
                     // Erhaltene Zeilen behalten ihren Pixeloffset; scrollTo würde
                     // auch bei bloßem Anhängen oder einer Endzeitänderung einrasten.
                     } else if let previous = lastVisibleAnchor,
@@ -472,7 +480,12 @@ struct HistoryPanel: View {
             }
             .onAppear {
                 displayedEntries = history.entries
-                if let last = visible.last?.id { proxy.scrollTo(last, anchor: .bottom) }
+                if let last = visible.last {
+                    if selection == nil, last.id == history.entries.last?.id, last.end == nil {
+                        selection = last.id
+                    }
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
             }
         }
     }

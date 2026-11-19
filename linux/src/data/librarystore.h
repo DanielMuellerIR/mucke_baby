@@ -37,7 +37,7 @@ public slots:
     void endReception(QDateTime);
 signals:
     void libraryChanged();
-    void historyChanged();
+    void historyChanged(const QString &addedID = {});
     void bookmarksChanged();
     void settingsChanged();
     void error(QString);
