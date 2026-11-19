@@ -3,6 +3,10 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.14 — 2026-11-19
+
+- macOS and Linux: When a new song appears in listening history, select it and scroll it into view if the selection was empty or on the previous latest song. Keep older selections so history actions still target the chosen song.
+
 ## 1.10.13 — 2026-11-13
 
 - Linux: Keep station previews separate from regular playback after Pause or Stop. Resuming a preview keeps recording and history disabled; closing the preview cancels its resume target.

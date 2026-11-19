@@ -35,16 +35,22 @@ VOLNAME="Mucke, Baby!"            # sichtbarer DMG-Volume-Name
 # Früh auswerten und unbekannte Flags sofort ablehnen: Ein Tippfehler soll nicht
 # erst nach dem minutenlangen Notarisieren auffallen.
 PUBLISH=0
+DRAFT=false
 FINDER_LAYOUT=1
 for arg in "$@"; do
   case "$arg" in
     --publish)          PUBLISH=1 ;;
+    --draft)            DRAFT=true ;;
     --no-finder-layout) FINDER_LAYOUT=0 ;;
     *) echo "Unbekannte Option: $arg" >&2
-       echo "Aufruf: ./release.sh [--publish] [--no-finder-layout]" >&2
+       echo "Aufruf: ./release.sh [--publish [--draft]] [--no-finder-layout]" >&2
        exit 1 ;;
   esac
 done
+if [ "$DRAFT" = true ] && [ "$PUBLISH" = 0 ]; then
+  echo "FEHLER: --draft erfordert --publish." >&2
+  exit 1
+fi
 
 # ---------- Pfade ----------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -259,12 +265,17 @@ if [ "$PUBLISH" = "1" ]; then
   echo "==> Veröffentliche GitHub-Release $TAG"
   command -v gh >/dev/null || { echo "FEHLER: gh CLI fehlt (brew install gh)" >&2; exit 1; }
 
-  # Release-Notes aus CHANGELOG.md ziehen: Zeilen ab "## [VERSION]" bis zum nächsten "## [".
+  # Aktuelle und ältere Versionsüberschriften im Changelog unterstützen.
   NOTES_FILE="$BUILD_DIR/release-notes-${APP_VERSION}.md"
   awk -v ver="$APP_VERSION" '
-    $0 ~ "^## \\[" ver "\\]" { grab=1; next }
-    grab && /^## \[/         { exit }
-    grab                     { print }
+    /^## / {
+      if (grab) exit
+      heading = $2
+      gsub(/[][]/, "", heading)
+      grab = heading == ver
+      next
+    }
+    grab { print }
   ' "$PROJECT_ROOT/CHANGELOG.md" > "$NOTES_FILE"
   [ -s "$NOTES_FILE" ] || echo "Mucke, Baby! $TAG" > "$NOTES_FILE"
 
@@ -339,9 +350,14 @@ if [ "$PUBLISH" = "1" ]; then
   # statt still ein Release am Default-Branch-HEAD zu erzeugen.
   gh release create "$TAG" "$DMG_PATH" -R "$REPO" \
     --verify-tag \
+    --draft="$DRAFT" \
     --title "Mucke, Baby! $TAG" \
     --notes-file "$NOTES_FILE"
-  echo "==> Release online: https://github.com/$REPO/releases/tag/$TAG"
+  if [ "$DRAFT" = true ]; then
+    echo "==> Release-Entwurf erstellt: $TAG"
+  else
+    echo "==> Release online: https://github.com/$REPO/releases/tag/$TAG"
+  fi
 fi
 
 echo
