@@ -1,61 +1,42 @@
 #!/usr/bin/env bash
-# Tests/run-tests.sh — kompiliert den Headless-Test-Harness und fuehrt ihn aus.
-#
-# Der Harness testet reinen Foundation-Code (URL-Policy, Playlist-Resolver,
-# Recorder-Loeschgrenzen, Preview-Koordinator) sowie den Store — ohne App-Start,
-# VLCKit oder Netzverbindungen nach aussen (HTTP-Fixtures: 127.0.0.1). Der Store
-# nutzt SwiftUI nur fuer ObservableObject; es wird keine GUI gestartet. Er laeuft
-# damit auch in CI-/Agent-Umgebungen ohne App-Build und ohne Vendor-Cache.
-# Exit-Code 0 = alle Pruefungen gruen.
+# Kompiliert und startet die macOS-Harnesses ohne App-Start und ohne Vendor-Cache.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BUILD="build/tests"
 mkdir -p "$BUILD"
-SDK="$(xcrun --show-sdk-path)"
-TARGET="arm64-apple-macos14.2"   # gleicher Zielwert wie build.sh
+compiler=(swiftc -parse-as-library -target arm64-apple-macos14.2 -sdk "$(xcrun --show-sdk-path)"
+          -module-cache-path "$BUILD/module-cache")
 
-# Nur die Quelldateien, die der Harness wirklich braucht (kein VLCKit-Import):
-# Safety/PlaylistResolver sind die Pruefobjekte, Recorder + Models/SongHistory
-# liefern Recorder samt seiner Hilfssymbole (migrateLegacyAppDir, JSONDecoder.iso).
-swiftc -parse-as-library \
-  -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift \
-  Sources/PlaylistResolver.swift \
-  Sources/RecordingState.swift Sources/Recorder.swift \
-  Sources/Models.swift \
-  Sources/SongRecognition.swift Sources/SongHistory.swift \
-  Sources/HistoryFilter.swift \
-  Tests/ReviewHarness.swift \
-  -o "$BUILD/review-harness"
+run_harness() {
+    local name=$1
+    shift
+    "${compiler[@]}" "$@" -o "$BUILD/$name"
+    "$BUILD/$name"
+}
 
-"$BUILD/review-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/BookmarkStore.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
-  Tests/StoreHarness.swift -o "$BUILD/store-harness"
-"$BUILD/store-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/BookmarkStore.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift Sources/RadioBrowser.swift Sources/StationRepair.swift \
-  Tests/StationSelectionHarness.swift -o "$BUILD/station-selection-harness"
-"$BUILD/station-selection-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StartupSettings.swift \
-  Tests/StartupHarness.swift -o "$BUILD/startup-harness"
-"$BUILD/startup-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/MiniWindowPlacement.swift Tests/MiniWindowHarness.swift \
-  -o "$BUILD/mini-window-harness"
-"$BUILD/mini-window-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Models.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
-  Sources/RecordingState.swift Sources/Recorder.swift Sources/BookmarkStore.swift Sources/Safety.swift Sources/StationSelection.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift Tests/BookmarkHarness.swift \
-  -o "$BUILD/bookmark-harness"
-MUCKE_BOOKMARK_EXPORT_FIXTURE="$BUILD/bookmarks.csv" "$BUILD/bookmark-harness"
+history_sources=(Sources/Models.swift Sources/SongRecognition.swift Sources/SongHistory.swift)
+recorder_sources=(Sources/RecordingState.swift Sources/Recorder.swift)
+export_sources=(Sources/ExportRange.swift Sources/ExportMetadata.swift Sources/SongExporter.swift)
+recognition_sources=(Sources/SongRecognition.swift Sources/RecognitionModels.swift Sources/RecognitionCapture.swift)
+recognition_service_sources=(
+  "${recognition_sources[@]}" Sources/MusicRecognitionService.swift Sources/ShazamRecognitionClient.swift
+)
+exchange_sources=(
+  "${history_sources[@]}" Sources/Safety.swift Sources/StationSelection.swift Sources/HistoryFilter.swift
+  Sources/BookmarkStore.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift
+)
+store_sources=("${exchange_sources[@]}" Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift)
+
+run_harness review-harness Sources/Safety.swift Sources/PlaylistResolver.swift "${recorder_sources[@]}" \
+  "${history_sources[@]}" Sources/HistoryFilter.swift Tests/ReviewHarness.swift
+run_harness store-harness "${store_sources[@]}" Tests/StoreHarness.swift
+run_harness station-selection-harness "${store_sources[@]}" Tests/StationSelectionHarness.swift
+run_harness startup-harness Sources/Safety.swift Sources/Models.swift Sources/StartupSettings.swift \
+  Tests/StartupHarness.swift
+run_harness mini-window-harness Sources/MiniWindowPlacement.swift Tests/MiniWindowHarness.swift
+MUCKE_BOOKMARK_EXPORT_FIXTURE="$BUILD/bookmarks.csv" run_harness bookmark-harness \
+  "${exchange_sources[@]}" "${recorder_sources[@]}" Tests/BookmarkHarness.swift
 python3 - <<'PY'
 import csv
 from pathlib import Path
@@ -69,149 +50,73 @@ assert rows[0]['station'] == "' =HYPERLINK(\"bad\")"
 assert rows[0]['heard_at'] == rows[0]['saved_at']
 print('Bookmark CSV: unabhängiger UTF-8-/CSV-Roundtrip OK')
 PY
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift \
-  Sources/SongRecognition.swift Sources/SongHistory.swift Tests/ICYHarness.swift -o "$BUILD/icy-harness"
-"$BUILD/icy-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/TimeshiftBuffer.swift Tests/TimeshiftHarness.swift \
-  -o "$BUILD/timeshift-harness"
-"$BUILD/timeshift-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/MetadataTimeline.swift Sources/TimeshiftBuffer.swift Sources/TimeshiftSegments.swift Sources/RecordingState.swift Sources/TimeshiftCapture.swift Tests/TimeshiftSegmentsHarness.swift \
-  -o "$BUILD/timeshift-segments-harness"
-"$BUILD/timeshift-segments-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/ExportRange.swift Sources/ExportMetadata.swift Sources/SongExporter.swift Sources/ICYMetadataReader.swift Sources/RecordingState.swift Sources/Recorder.swift \
-  Sources/Models.swift Sources/SongRecognition.swift Sources/SongHistory.swift Tests/ExportHarness.swift \
-  -o "$BUILD/export-harness"
-"$BUILD/export-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/ExportRange.swift Tests/ExportRangeHarness.swift -o "$BUILD/export-range-harness"
-"$BUILD/export-range-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/ExportRange.swift Sources/ExportMetadata.swift Sources/SongExporter.swift Sources/ExportEditorModel.swift \
-  Tests/ExportEditorHarness.swift -o "$BUILD/export-editor-harness"
-"$BUILD/export-editor-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift Sources/SongRecognition.swift Sources/SongHistory.swift \
-  Sources/ICYMetadataReader.swift Tests/CaptureHarness.swift -o "$BUILD/capture-harness"
-"$BUILD/capture-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/RecordingState.swift Sources/Recorder.swift Sources/Models.swift Sources/SongRecognition.swift Sources/SongHistory.swift \
-  Tests/RecordingLibraryHarness.swift -o "$BUILD/recording-library-harness"
-"$BUILD/recording-library-harness"
+run_harness icy-harness Sources/ICYMetadataReader.swift "${recorder_sources[@]}" "${history_sources[@]}" \
+  Tests/ICYHarness.swift
+run_harness timeshift-harness Sources/TimeshiftBuffer.swift Tests/TimeshiftHarness.swift
+run_harness timeshift-segments-harness Sources/MetadataTimeline.swift Sources/TimeshiftBuffer.swift \
+  Sources/TimeshiftSegments.swift Sources/RecordingState.swift Sources/TimeshiftCapture.swift \
+  Tests/TimeshiftSegmentsHarness.swift
+run_harness export-harness "${export_sources[@]}" Sources/ICYMetadataReader.swift \
+  "${recorder_sources[@]}" "${history_sources[@]}" Tests/ExportHarness.swift
+run_harness export-range-harness Sources/ExportRange.swift Tests/ExportRangeHarness.swift
+run_harness export-editor-harness Sources/Safety.swift "${export_sources[@]}" \
+  Sources/ExportEditorModel.swift Tests/ExportEditorHarness.swift
+run_harness capture-harness "${recorder_sources[@]}" "${history_sources[@]}" \
+  Sources/ICYMetadataReader.swift Tests/CaptureHarness.swift
+run_harness recording-library-harness "${recorder_sources[@]}" "${history_sources[@]}" \
+  Tests/RecordingLibraryHarness.swift
 bash Tests/fleet-rules.sh
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/PlaybackReconnect.swift Tests/ReconnectClock.swift Tests/ReconnectHarness.swift \
-  -o "$BUILD/reconnect-harness"
-"$BUILD/reconnect-harness"
+run_harness reconnect-harness Sources/PlaybackReconnect.swift Tests/ReconnectClock.swift \
+  Tests/ReconnectHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/CatalogCache.swift \
-  Tests/CatalogHarness.swift -o "$BUILD/catalog-harness"
-"$BUILD/catalog-harness"
+run_harness catalog-harness Sources/Safety.swift Sources/Models.swift Sources/RadioBrowser.swift \
+  Sources/StationRepair.swift Sources/CatalogCache.swift Tests/CatalogHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/SystemMedia.swift \
-  Tests/SystemMediaHarness.swift -o "$BUILD/system-media-harness"
-"$BUILD/system-media-harness"
+run_harness system-media-harness Sources/Safety.swift "${history_sources[@]}" Sources/SystemMedia.swift \
+  Tests/SystemMediaHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/AudioSettings.swift Tests/AudioSettingsHarness.swift \
-  -o "$BUILD/audio-settings-harness"
-"$BUILD/audio-settings-harness"
+run_harness audio-settings-harness Sources/AudioSettings.swift Tests/AudioSettingsHarness.swift
 
-python3 Tests/player-events.py
-python3 Tests/timeshift-player.py
-python3 Tests/player-rollover.py
-python3 Tests/recording-preview.py
+bash Tests/run-player-tests.sh
 
-cat Sources/AudioTap.swift Tests/AudioTapHarness.swift > "$BUILD/AudioTapCombined.swift"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/SongRecognition.swift Sources/RecognitionModels.swift Sources/RecognitionCapture.swift "$BUILD/AudioTapCombined.swift" \
-  -o "$BUILD/audio-tap-harness"
-"$BUILD/audio-tap-harness"
+run_harness audio-tap-harness "${recognition_sources[@]}" -D AUDIO_TAP_HARNESS Sources/AudioTap.swift \
+  Tests/AudioTapHarness.swift
 python3 Tests/release-mount.py
 python3 Tests/release-publish.py
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/Store.swift Sources/BookmarkStore.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift Sources/ExchangeCodec.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift \
-  Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/StationHealth.swift Sources/PlaylistResolver.swift \
-  Sources/ExchangeMerge.swift Sources/LibraryExchange.swift Tests/StationRepairHarness.swift -o "$BUILD/station-repair-harness"
-"$BUILD/station-repair-harness"
+run_harness station-repair-harness "${store_sources[@]}" Sources/StationHealth.swift \
+  Sources/PlaylistResolver.swift Sources/ExchangeMerge.swift Sources/LibraryExchange.swift \
+  Tests/StationRepairHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
-  Sources/BookmarkStore.swift Sources/ExchangeCodec.swift Sources/ExchangeMerge.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift \
-  Tests/ExchangeCodecHarness.swift -o "$BUILD/exchange-codec-harness"
-"$BUILD/exchange-codec-harness"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/ExchangeTransaction.swift Tests/ExchangeTransactionHarness.swift \
-  -o "$BUILD/exchange-transaction-harness"
-"$BUILD/exchange-transaction-harness"
+run_harness exchange-codec-harness "${exchange_sources[@]}" Sources/ExchangeMerge.swift \
+  Tests/ExchangeCodecHarness.swift
+run_harness exchange-transaction-harness Sources/ExchangeTransaction.swift \
+  Tests/ExchangeTransactionHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
-  Sources/BookmarkStore.swift Sources/ExchangeCodec.swift Sources/ExchangeMerge.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift \
-  Sources/Store.swift Sources/RadioBrowser.swift Sources/StationRepair.swift Sources/LibraryExchange.swift \
-  Tests/LibraryExchangeHarness.swift -o "$BUILD/library-exchange-harness"
-"$BUILD/library-exchange-harness"
+run_harness library-exchange-harness "${store_sources[@]}" Sources/ExchangeMerge.swift \
+  Sources/LibraryExchange.swift Tests/LibraryExchangeHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Tests/FixtureTone.swift Tests/FixtureToneHarness.swift \
-  -o "$BUILD/fixture-tone-harness"
-"$BUILD/fixture-tone-harness"
+run_harness fixture-tone-harness Tests/FixtureTone.swift Tests/FixtureToneHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/Safety.swift Sources/Models.swift \
-  Sources/RecordingState.swift Sources/Recorder.swift Sources/SongRecognition.swift Sources/SongHistory.swift Sources/HistoryFilter.swift \
-  Sources/RadioCommands.swift Tests/RadioCommandsHarness.swift -o "$BUILD/radio-commands-harness"
-"$BUILD/radio-commands-harness"
+run_harness radio-commands-harness Sources/Safety.swift "${history_sources[@]}" "${recorder_sources[@]}" \
+  Sources/HistoryFilter.swift Sources/RadioCommands.swift Tests/RadioCommandsHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/ExportMetadata.swift Sources/ExportRange.swift Sources/SongExporter.swift Sources/ExportQueue.swift Tests/ExportQueueHarness.swift \
-  -o "$BUILD/export-queue-harness"
-"$BUILD/export-queue-harness"
+run_harness export-queue-harness "${export_sources[@]}" Sources/ExportQueue.swift \
+  Tests/ExportQueueHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/ExportMetadata.swift Sources/SongDragProvider.swift Tests/SongDragHarness.swift \
-  -o "$BUILD/song-drag-harness"
-"$BUILD/song-drag-harness"
+run_harness song-drag-harness Sources/ExportMetadata.swift Sources/SongDragProvider.swift \
+  Tests/SongDragHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/SongRecognition.swift Sources/RecognitionModels.swift Sources/RecognitionCapture.swift \
-  Sources/MusicRecognitionService.swift Sources/ShazamRecognitionClient.swift Tests/RecognitionHarness.swift \
-  -o "$BUILD/recognition-harness"
-"$BUILD/recognition-harness"
+run_harness recognition-harness "${recognition_service_sources[@]}" Tests/RecognitionHarness.swift
 
-cat Sources/ShazamRecognitionClient.swift Tests/RecognitionSDKHarness.swift > "$BUILD/RecognitionSDKCombined.swift"
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" Sources/SongRecognition.swift Sources/RecognitionModels.swift Sources/RecognitionCapture.swift \
-  Sources/MusicRecognitionService.swift "$BUILD/RecognitionSDKCombined.swift" \
-  -o "$BUILD/recognition-sdk-harness"
-"$BUILD/recognition-sdk-harness"
+run_harness recognition-sdk-harness "${recognition_service_sources[@]}" Tests/RecognitionSDKHarness.swift
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/Safety.swift Sources/Models.swift Sources/StationSelection.swift Sources/SongRecognition.swift Sources/SongHistory.swift \
-  Sources/RecognitionModels.swift Sources/RecognitionSong.swift Sources/BookmarkStore.swift Sources/ExchangeCodec.swift \
-  Sources/ExchangeMerge.swift Sources/ExchangeTransaction.swift Sources/LibraryExchangeStorage.swift \
-  Tests/RecognitionBookmarkHarness.swift -o "$BUILD/recognition-bookmark-harness"
-MUCKE_RECOGNITION_EXPORT_FIXTURE="$BUILD/recognition-bookmarks.csv" "$BUILD/recognition-bookmark-harness"
+MUCKE_RECOGNITION_EXPORT_FIXTURE="$BUILD/recognition-bookmarks.csv" run_harness recognition-bookmark-harness \
+  Sources/Safety.swift "${history_sources[@]}" Sources/StationSelection.swift \
+  Sources/RecognitionModels.swift Sources/RecognitionSong.swift Sources/BookmarkStore.swift \
+  Sources/ExchangeCodec.swift Sources/ExchangeMerge.swift Sources/ExchangeTransaction.swift \
+  Sources/LibraryExchangeStorage.swift Tests/RecognitionBookmarkHarness.swift
 python3 - <<'CHECK_CSV'
 import csv
 from pathlib import Path
@@ -231,8 +136,5 @@ assert rows[2]['audio_received_at'] < rows[2]['heard_at'] < rows[2]['recognized_
 print('Erkennung CSV: unabhängiger Unicode-/Herkunfts-Roundtrip OK')
 CHECK_CSV
 
-swiftc -parse-as-library -target "$TARGET" -sdk "$SDK" \
-  -module-cache-path "$BUILD/module-cache" \
-  Sources/SleepTimer.swift Sources/SleepTimerController.swift Tests/SleepTimerHarness.swift \
-  -o "$BUILD/sleep-timer-harness"
-"$BUILD/sleep-timer-harness"
+run_harness sleep-timer-harness Sources/SleepTimer.swift Sources/SleepTimerController.swift \
+  Tests/SleepTimerHarness.swift

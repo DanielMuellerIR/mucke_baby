@@ -1,4 +1,5 @@
 import Foundation
+import VLCKit
 
 // Echte Reader-, Recorder- und Verlaufsklassen; nur VLC und Netzwerk sind Fixtures.
 enum RolloverFixture {
@@ -58,8 +59,11 @@ struct PlayerRolloverHarness {
         let suite = "MuckeRollover-" + UUID().uuidString
         let preferences = UserDefaults(suiteName: suite)!
         defer { preferences.removePersistentDomain(forName: suite) }
-        let recorder = Recorder(directory: RolloverFixture.root.appendingPathComponent("recordings"), minimumFreeBytes: -1)
-        let radio = RadioPlayer(recorder: recorder, preferences: preferences)
+        let recorder = Recorder(directory: RolloverFixture.root.appendingPathComponent("recordings"),
+            minimumFreeBytes: -1, captureStateQueue: RolloverFixture.states)
+        let history = SongHistory(directory: RolloverFixture.root.appendingPathComponent("history"))
+        let icy = ICYMetadataReader(configuration: RolloverFixture.configuration, titleQueue: RolloverFixture.titles)
+        let radio = RadioPlayer(recorder: recorder, preferences: preferences, history: history, icy: icy)
         check(!radio.recordingRequested, "Aufnahme-Default ist nicht aus")
         radio.setRecordingRequested(true)
         radio.play(Station(name: "Rollover", url: "https://fixture.invalid/rollover"))

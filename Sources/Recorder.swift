@@ -142,6 +142,7 @@ final class Recorder: @unchecked Sendable {
     private var publishedBytes: Int64 = -1
     private var capacityTimer: DispatchSourceTimer?
     private let capacityCheckInterval: TimeInterval
+    private let captureStateQueue: DispatchQueue
     private let writeAudio: @Sendable (FileHandle, Data) throws -> Void
     private let removeAudio: @Sendable (URL) throws -> Void
 
@@ -162,7 +163,8 @@ final class Recorder: @unchecked Sendable {
          writeAudio: @escaping @Sendable (FileHandle, Data) throws -> Void = { try $0.write(contentsOf: $1) },
          removeAudio: @escaping @Sendable (URL) throws -> Void = {
              guard unlink($0.path) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
-         }) {
+         },
+         captureStateQueue: DispatchQueue = .main) {
         if let directory {
             // Expliziter Pfad ist fuer Headless-Tests/isolierte Werkzeuge; dabei
             // niemals reale Musikordner migrieren oder beruehren.
@@ -175,6 +177,7 @@ final class Recorder: @unchecked Sendable {
         self.writeAudio = writeAudio
         self.removeAudio = removeAudio
         self.capacityCheckInterval = max(0.01, capacityCheckInterval)
+        self.captureStateQueue = captureStateQueue
         self.minimumFreeBytes = minimumFreeBytes
         self.availableCapacity = availableCapacity
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -279,7 +282,7 @@ final class Recorder: @unchecked Sendable {
     private func publishCapture(rollover: RecordingState.Rollover? = nil) {
         var state = currentCaptureState(); publishedBytes = captureBytes
         state.rollover = rollover
-        DispatchQueue.main.async { self.onCaptureState?(state) }
+        captureStateQueue.async { self.onCaptureState?(state) }
     }
 
     deinit { capacityTimer?.cancel() }

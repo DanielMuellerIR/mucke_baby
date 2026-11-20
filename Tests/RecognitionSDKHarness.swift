@@ -1,5 +1,5 @@
-// Wird mit ShazamRecognitionClient.swift kompiliert, damit der echte Delegate
-// gegen einen lokalen SDK-Katalog geprüft wird. Das ersetzt keine Shazam-Abnahme.
+// Prüft den Produktdelegate gegen einen lokalen SDK-Katalog.
+// Die Abnahme mit dem öffentlichen Shazam-Katalog ist separat.
 import Foundation
 import ShazamKit
 

@@ -1,17 +1,6 @@
-#!/usr/bin/env python3
-"""Lokale VLC-Vorschau mit echten Delegate-/Generationspfaden und VLC-Double."""
-from pathlib import Path
-import subprocess
+import Foundation
+import VLCKit
 
-root = Path(__file__).resolve().parents[1]
-build = root / 'build/tests'
-fixture = (root / 'Tests/PlayerFixture.swift').read_text()
-vlc = fixture[:fixture.index('struct Station')]
-radio = (root / 'Sources/RadioPlayer.swift').read_text()
-shim = radio[radio.index('final class PlayerDelegateShim'):radio.index('// Kapselt VLCMediaPlayer')]
-source = build / 'RecordingPreviewCombined.swift'
-source.write_text(vlc + '\n' + shim + '\n' +
-    (root / 'Sources/RecordingPreview.swift').read_text().replace('import VLCKit\n', '') + '''
 @main struct RecordingPreviewHarness {
     @MainActor static func main() async {
         func check(_ value: Bool, _ message: String) { if !value { fatalError(message) } }
@@ -71,6 +60,3 @@ source.write_text(vlc + '\n' + shim + '\n' +
         print("RecordingPreviewHarness: Start, Wechsel, alte Ereignisse, Dateiende, Fehler und Stop OK")
     }
 }
-''')
-subprocess.run(['swiftc', '-parse-as-library', str(source), '-o', str(build / 'recording-preview-harness')], check=True)
-subprocess.run([str(build / 'recording-preview-harness')], check=True)

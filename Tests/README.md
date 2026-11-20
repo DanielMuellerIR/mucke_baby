@@ -20,7 +20,7 @@ visuelle Abnahme auf dem Ziel-Desktop.
 
 ## macOS
 
-Der `RecordingLibraryHarness` prüft Audioverfügbarkeit und Zeitgrenzen, aktive/fehlende/manipulierte Dateien, getrennte Verlaufsdaten, Schreib-/Löschfehler und die Wiederherstellung unterbrochener Entfernungen. `recording-preview.py` prüft den lokalen VLC-Vorschaupfad einschließlich alter Ereignisse, Dateiende und Stop.
+Der `RecordingLibraryHarness` prüft Audioverfügbarkeit und Zeitgrenzen, aktive/fehlende/manipulierte Dateien, getrennte Verlaufsdaten, Schreib-/Löschfehler und die Wiederherstellung unterbrochener Entfernungen. `RecordingPreviewHarness` prüft den lokalen VLC-Vorschaupfad einschließlich alter Ereignisse, Dateiende und Stop.
 
 `bash Tests/run-tests.sh` kompiliert und startet die vorhandenen Swift-Harnesses,
 prüft Fleet-Regeln und Wiedergabeereignisse. Es startet keine App und nutzt keine
@@ -69,7 +69,7 @@ Der `MiniWindowHarness` prüft gespeicherte Fenstergeometrie mit negativen und v
 
 ## Zeitversatz im Player
 
-`Tests/timeshift-player.py` prüft die Produktklasse mit steuerbaren VLC-Ereignissen
+Der `TimeshiftPlayerHarness` aus `Tests/run-player-tests.sh` prüft die Produktklasse mit steuerbaren VLC-Ereignissen
 und echtem MP3-Puffer: Startreserve, gehörte statt empfangene Titel, Seek in Pause,
 Live, alte Ausgangsereignisse und Überlauf. `Tests/timeshift-transport.py` baut
 einen isolierten nativen Prüfhost mit echten Produktansichten; der Lauf gehört

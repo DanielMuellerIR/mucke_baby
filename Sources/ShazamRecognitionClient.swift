@@ -5,8 +5,8 @@ import os
 
 private let recognitionLog = Logger(subsystem: "de.danielmuller.macradio", category: "recognition")
 
-private final class ShazamMatchDelegate: NSObject, SHSessionDelegate {
-    let completed: @Sendable (Result<RecognizedTrack?, RecognitionFailure>) -> Void
+final class ShazamMatchDelegate: NSObject, SHSessionDelegate {
+    private let completed: @Sendable (Result<RecognizedTrack?, RecognitionFailure>) -> Void
     init(completed: @escaping @Sendable (Result<RecognizedTrack?, RecognitionFailure>) -> Void) { self.completed = completed }
     func session(_ session: SHSession, didFind match: SHMatch) {
         let track = match.mediaItems.first.flatMap {

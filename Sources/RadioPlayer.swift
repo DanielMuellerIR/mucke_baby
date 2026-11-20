@@ -6,35 +6,6 @@ import os
 
 private let log = Logger(subsystem: "de.danielmuller.macradio", category: "player")
 
-// Delegate-Bruecke: VLCKit ruft ObjC-Delegate-Methoden auf. Diese kleine
-// NSObject-Klasse faengt sie ab und leitet sie als Closures auf den Main-Thread.
-final class PlayerDelegateShim: NSObject, VLCMediaPlayerDelegate {
-    // Jede Bruecke gehoert genau einer VLC-Instanz und einer Wiedergabe.
-    // Die Closures bleiben unveraendert, auch wenn ein Ereignis auf Main wartet.
-    let onState: (VLCMediaPlayerState) -> Void
-    let onTime: () -> Void
-
-    init(onState: @escaping (VLCMediaPlayerState) -> Void, onTime: @escaping () -> Void) {
-        self.onState = onState
-        self.onTime = onTime
-        super.init()
-    }
-
-    func mediaPlayerStateChanged(_ aNotification: Notification) {
-        // VLCKit liefert die betroffene Instanz als Notification-Objekt. Den
-        // Zustand jetzt sichern: bis zur Main-Queue kann .error bereits von
-        // .stopped abgeloest sein, wodurch der Fehlerhinweis verloren ginge.
-        guard let player = aNotification.object as? VLCMediaPlayer else { return }
-        let state = player.state
-        DispatchQueue.main.async { self.onState(state) }
-    }
-    // Zeit laeuft -> zuverlaessiges "spielt jetzt"-Signal (state bleibt bei
-    // Live-Streams oft auf .buffering haengen).
-    func mediaPlayerTimeChanged(_ aNotification: Notification) {
-        DispatchQueue.main.async { self.onTime() }
-    }
-}
-
 // Kapselt VLCMediaPlayer (libVLC, spielt ALLE Codecs) plus einen eigenen
 // ICY-Metadaten-Reader fuer den Now-Playing-Titel (VLCKit liefert den nicht).
 @MainActor
@@ -77,8 +48,8 @@ final class RadioPlayer: ObservableObject {
     var listeningReceivedAt: Date? { timeshift.receivedAt(position: timeshiftTransport.position) }
     var canSeekTimeshift: Bool { timeshiftTransport.timeline.canStart && (!timeshift.requiresDecodedSampleRate || decodedSampleRate != nil) }
     private let makeTimeshiftBuffer: () throws -> TimeshiftSegments
-    private lazy var timeshift: TimeshiftCapture = TimeshiftCapture(makeBuffer: makeTimeshiftBuffer, onState: { [weak self] _ in
-        DispatchQueue.main.async {
+    private lazy var timeshift: TimeshiftCapture = TimeshiftCapture(makeBuffer: makeTimeshiftBuffer, onState: { [weak self, deliverEvent] _ in
+        deliverEvent { [weak self] in
             guard let self else { return }
             switch self.timeshift.currentState {
             case .off: self.timeshiftStatus = String(localized: "Zeitversatz ist aus.")
@@ -99,7 +70,8 @@ final class RadioPlayer: ObservableObject {
     private var player: VLCMediaPlayer
     private let makePlayer: () -> VLCMediaPlayer
     private var shim: PlayerDelegateShim?
-    private let icy = ICYMetadataReader()
+    private let icy: ICYMetadataReader
+    private let deliverEvent: PlayerEventDelivery
     private var desiredVolume: Float = 0.77
     private var audioConfiguration = AudioConfiguration()
     private var installedStationID: UUID?
@@ -132,8 +104,22 @@ final class RadioPlayer: ObservableObject {
                 position: position, receivedAt: receivedAt))
     }
 
-    init(reconnect: PlaybackReconnect? = nil, makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() }, recorder: Recorder = Recorder(), preferences: UserDefaults = .standard, metadataReconnect: PlaybackReconnect? = nil, sleepTimer: SleepTimerController? = nil, history: SongHistory? = nil, timeshiftRoot: URL = TimeshiftSegments.defaultRoot, makeTimeshiftBuffer: (() throws -> TimeshiftSegments)? = nil) {
+    init(
+        reconnect: PlaybackReconnect? = nil,
+        makePlayer: @escaping () -> VLCMediaPlayer = { VLCMediaPlayer() },
+        recorder: Recorder = Recorder(),
+        preferences: UserDefaults = .standard,
+        metadataReconnect: PlaybackReconnect? = nil,
+        sleepTimer: SleepTimerController? = nil,
+        history: SongHistory? = nil,
+        timeshiftRoot: URL = TimeshiftSegments.defaultRoot,
+        makeTimeshiftBuffer: (() throws -> TimeshiftSegments)? = nil,
+        icy: ICYMetadataReader = ICYMetadataReader(),
+        deliverEvent: @escaping PlayerEventDelivery = deliverPlayerEventOnMain
+    ) {
         self.history = history ?? SongHistory()
+        self.icy = icy
+        self.deliverEvent = deliverEvent
         self.makeTimeshiftBuffer = makeTimeshiftBuffer ?? { try TimeshiftSegments(root: timeshiftRoot) }
         self.sleepTimer = sleepTimer ?? SleepTimerController()
         self.preferences = preferences
@@ -302,7 +288,7 @@ final class RadioPlayer: ObservableObject {
             timeshiftTransport = TimeshiftTransport(phase: paused ? .paused : (live ? .live : .delayed),
                 timeline: timeshift.timeline, position: reader.playbackStart)
             nowPlayingTitle = timeshiftTransport.timeline.title(at: reader.playbackStart)
-            let delegate = PlayerDelegateShim(onState: { [weak self] state in
+            let delegate = PlayerDelegateShim(deliverEvent: deliverEvent, onState: { [weak self] state in
                 guard let self, self.outputGeneration == ticket else { return }
                 switch state {
                 case .error, .ended, .stopped: self.expireTimeshift()
@@ -529,6 +515,7 @@ final class RadioPlayer: ObservableObject {
         previous.audio?.volume = 0
         player = makePlayer()
         let nextShim = PlayerDelegateShim(
+            deliverEvent: deliverEvent,
             onState: { [weak self] state in
                 guard let self, self.outputGeneration == outputTicket else { return }
                 self.handleState(state, generation: generation)
@@ -590,20 +577,20 @@ final class RadioPlayer: ObservableObject {
                       recorder.songBoundary(title: title, at: boundary)
                       timeshift.noteTitle(title, at: boundary, session: streamID)
                   },
-                  onAudioAt: { [weak self] data, date, uptime in
+                  onAudioAt: { [weak self, deliverEvent] data, date, uptime in
                       recorder.captureAudio(data, at: date, receivedUptime: uptime, streamID: streamID)
                       timeshift.append(data, at: date, session: streamID)
-                      DispatchQueue.main.async { self?.metadataActivity(ticket: ticket, uptime: uptime) }
+                      deliverEvent { [weak self] in self?.metadataActivity(ticket: ticket, uptime: uptime) }
                   },
-                  onCompletion: { [weak self] date in
-                      DispatchQueue.main.async {
+                  onCompletion: { [weak self, deliverEvent] date in
+                      deliverEvent { [weak self] in
                           guard let self, self.metadataGeneration == ticket else { return }
                           self.metadataEnded(at: date)
                       }
                       recorder.finishCapture(streamID: streamID, at: date)
                       timeshift.end(streamID)
-                  }, onUnsupportedFormat: { [weak self] _ in
-                      DispatchQueue.main.async { self?.hlsCaptureUnavailable(ticket: ticket, streamID: streamID) }
+                  }, onUnsupportedFormat: { [weak self, deliverEvent] _ in
+                      deliverEvent { [weak self] in self?.hlsCaptureUnavailable(ticket: ticket, streamID: streamID) }
                   })
     }
 
@@ -792,9 +779,9 @@ final class RadioPlayer: ObservableObject {
         stopMonitoringNetwork()
         let token = networkToken
         let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { [weak self] path in
+        monitor.pathUpdateHandler = { [weak self, deliverEvent] path in
             let available = path.status != .unsatisfied
-            DispatchQueue.main.async { [weak self] in
+            deliverEvent { [weak self] in
                 guard let self, self.networkToken == token, self.desiredStation != nil else { return }
                 self.reconnect.setNetworkAvailable(available)
                 self.metadataReconnect.setNetworkAvailable(available)

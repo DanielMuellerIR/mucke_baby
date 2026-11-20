@@ -1,3 +1,6 @@
+import Foundation
+import VLCKit
+
 @main struct TimeshiftPlayerHarness {
     static func check(_ value: Bool, _ message: String) { precondition(value, message) }
     @MainActor static func wait(_ condition: () -> Bool) async {
@@ -14,7 +17,7 @@
         let suite = "TimeshiftPlayer-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
-        let player = RadioPlayer(preferences: defaults, timeshiftRoot: root)
+        let player = RadioPlayer(preferences: defaults, timeshiftRoot: root, deliverEvent: TestEvents.enqueue)
         check(!player.timeshiftRequested && !player.recordingRequested, "Defaults nicht aus")
         player.setTimeshiftRequested(true)
         let station = Station(name: "Fixture", url: "https://fixture.invalid/test")
@@ -79,7 +82,7 @@
         check(dirs.filter { UUID(uuidString: $0) != nil }.isEmpty, "Stop behält Leserdateien")
         var timerNow = 0.0
         let timed = RadioPlayer(preferences: defaults, metadataReconnect: PlaybackReconnect(delays: [0.01]),
-            sleepTimer: SleepTimerController(now: { timerNow }), timeshiftRoot: root)
+            sleepTimer: SleepTimerController(now: { timerNow }), timeshiftRoot: root, deliverEvent: TestEvents.enqueue)
         timed.setTimeshiftRequested(true); timed.play(station)
         await wait { timed.currentStreamURL != nil }
         let timedICY = ICYMetadataReader.latest!
@@ -135,7 +138,7 @@
         try? await Task.sleep(for: .milliseconds(150))
         check(timedICY.startCount == noICY && timed.metadataStatus != nil, "HLS öffnet ICY/Retry")
         timed.stop()
-        let aacPlayer = RadioPlayer(preferences: defaults, timeshiftRoot: root)
+        let aacPlayer = RadioPlayer(preferences: defaults, timeshiftRoot: root, deliverEvent: TestEvents.enqueue)
         aacPlayer.setTimeshiftRequested(true)
         aacPlayer.play(Station(name: "AAC", url: "https://fixture.invalid/aac"))
         await wait { aacPlayer.currentStreamURL != nil }

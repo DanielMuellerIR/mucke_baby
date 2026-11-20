@@ -520,3 +520,28 @@ final class AudioTap: ObservableObject {
         return min(half - 1, max(0, Int(idx)))
     }
 }
+
+#if AUDIO_TAP_HARNESS
+// Synthetische Eingabe für den Harness ohne CoreAudio-Gerät oder Berechtigungsdialog.
+extension AudioTap {
+    func simulateRunningTap(sampleRate: Double) {
+        lifecycleQueue.sync {
+            tapChannels = 2
+            tapInterleaved = true
+            tapSampleRate = sampleRate
+            os_unfair_lock_lock(&lock)
+            isActive = true
+            _captureRate = sampleRate
+            os_unfair_lock_unlock(&lock)
+        }
+    }
+
+    func receiveMonoFixture(_ samples: [Float]) {
+        feedMono(samples)
+    }
+
+    func receivePCMFixture(_ buffers: UnsafePointer<AudioBufferList>) {
+        handleTapInput(buffers)
+    }
+}
+#endif
