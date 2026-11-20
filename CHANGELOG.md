@@ -3,7 +3,7 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased
+## 1.10.16 — 2026-11-20
 
 - macOS asks for confirmation before clearing listening history and preserves all recordings.
 - Audio analysis runs outside the CoreAudio callback. Timeshift keeps the transport controls current with fewer updates to the rest of the window.
