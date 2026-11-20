@@ -553,6 +553,7 @@ class MainWindow::Impl {
         historyView->setObjectName("history");
         historyView->setMinimumHeight(90);
         historyView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        historyView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
         historyView->horizontalHeader()->hide();
         historyView->setColumnHidden(1, true);
         historyView->setColumnHidden(2, true);
@@ -1114,13 +1115,22 @@ class MainWindow::Impl {
         const auto currentID = selectedID(historyView);
         auto *scrollBar = historyView->verticalScrollBar();
         const int scrollPosition = scrollBar->value();
+        const int firstVisibleRow = historyView->rowAt(0);
+        int anchorRank = historyModel->rowCount();
+        int anchorOffset = 0;
+        QHash<QString, int> anchorRanks;
+        if (firstVisibleRow >= 0) {
+            anchorOffset = historyView->rowViewportPosition(firstVisibleRow);
+            for (int row = firstVisibleRow; row < anchorRank; ++row)
+                anchorRanks.insert(historyModel->index(row, 0).data(Qt::UserRole).toString(), row);
+        }
         const bool follow = !addedID.isEmpty() &&
                             (selectedIDs.isEmpty() || (selectedIDs.size() == 1 && selectedIDs.contains(newestHistoryID)));
 
         historyModel->removeRows(0, historyModel->rowCount());
         const auto list = store->history();
         newestHistoryID = list.isEmpty() ? QString{} : list.last().id;
-        QModelIndex nextSelection, currentIndex;
+        QModelIndex nextSelection, currentIndex, scrollAnchor;
         QItemSelection retainedSelection;
         for (auto it = list.cbegin(); it != list.cend(); ++it) {
             auto t = *it;
@@ -1149,6 +1159,11 @@ class MainWindow::Impl {
                 retainedSelection.select(index, index);
             if (t.id == currentID)
                 currentIndex = index;
+            const int rank = anchorRanks.value(t.id, anchorRank);
+            if (rank < anchorRank) {
+                anchorRank = rank;
+                scrollAnchor = index;
+            }
         }
         historyCount->setText(
             text("%1 von %2 Titeln", "%1 of %2 tracks").arg(historyModel->rowCount()).arg(list.size()));
@@ -1159,7 +1174,12 @@ class MainWindow::Impl {
         } else {
             selection->setCurrentIndex(currentIndex, QItemSelectionModel::NoUpdate);
             selection->select(retainedSelection, QItemSelectionModel::Select | QItemSelectionModel::Rows);
-            scrollBar->setValue(scrollPosition);
+            if (scrollAnchor.isValid()) {
+                historyView->scrollTo(scrollAnchor, QAbstractItemView::PositionAtTop);
+                scrollBar->setValue(scrollBar->value() + historyView->rowViewportPosition(scrollAnchor.row()) - anchorOffset);
+            } else {
+                scrollBar->setValue(scrollPosition);
+            }
         }
     }
     void bookmarks() {

@@ -454,7 +454,7 @@ struct HistoryPanel: View {
             .onChange(of: history.entries) { old, entries in
                 var followedID: UUID?
                 if !selectingMultiple, let latest = visible.last,
-                   latest.id == entries.last?.id, latest.id != old.last?.id,
+                   latest.id == entries.last?.id,
                    !old.contains(where: { $0.id == latest.id }),
                    selection == nil || selection == old.last?.id {
                     selection = latest.id
@@ -464,13 +464,16 @@ struct HistoryPanel: View {
                 }
                 let retained = HistoryFilter.retainedAnchor(lastVisibleAnchor, entries: entries, visible: visible)
                 DispatchQueue.main.async {
-                    guard entries == history.entries else { return }
-                    if let followedID, selection == followedID {
+                    // Eine Endzeitänderung kann eintreffen, bevor der neue Titel sichtbar gescrollt wird.
+                    let shouldFollow = followedID != nil && !selectingMultiple && selectedEntry?.id == followedID
+                    if let followedID, shouldFollow {
                         proxy.scrollTo(followedID)
+                    }
+                    guard entries == history.entries else { return }
                     // Erhaltene Zeilen behalten ihren Pixeloffset; scrollTo würde
                     // auch bei bloßem Anhängen oder einer Endzeitänderung einrasten.
-                    } else if let previous = lastVisibleAnchor,
-                              !visible.contains(where: { $0.id == previous }), let retained {
+                    if !shouldFollow, let previous = lastVisibleAnchor,
+                       !visible.contains(where: { $0.id == previous }), let retained {
                         scrollAnchor = retained
                         proxy.scrollTo(retained, anchor: .top)
                         lastVisibleAnchor = retained

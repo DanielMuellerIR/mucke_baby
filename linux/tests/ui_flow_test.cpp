@@ -146,6 +146,58 @@ class UIFlowTest final : public QObject {
         QCOMPARE(selection->selectedRows().size(), 2);
         QCOMPARE(selection->selectedRows().first().data(Qt::UserRole).toString(), older);
     }
+    void historyKeepsVisibleRowWhenOldSongsExpire() {
+        QTemporaryDir temporary;
+        const auto start = QDateTime::currentDateTimeUtc().addSecs(-61000);
+        QJsonArray fixture;
+        for (int number = 0; number < 2000; ++number) {
+            const auto date = start.addSecs(number * 30);
+            fixture.append(QJsonObject{{"id", newID()}, {"station", "Test station"}, {"raw", QString("Song %1").arg(number)},
+                                       {"start", date.toString(Qt::ISODate)}, {"end", date.addSecs(25).toString(Qt::ISODate)}});
+        }
+        QFile file(temporary.filePath("history.json"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        const auto data = QJsonDocument(fixture).toJson(QJsonDocument::Compact);
+        QCOMPARE(file.write(data), data.size());
+        file.close();
+        LibraryStore store(temporary.path());
+        QVERIFY(store.load());
+        CatalogService catalog(temporary.filePath("cache"));
+        MediaEngine media(temporary.filePath("recordings"), temporary.filePath("cache"));
+        MainWindow window(&store, &catalog, &media);
+        window.show();
+        auto *view = window.findChild<QTableView *>("history");
+        QVERIFY(view);
+        QCOMPARE(view->model()->rowCount(), 2000);
+        auto *scrollBar = view->verticalScrollBar();
+        QTRY_VERIFY(scrollBar->maximum() > 7);
+        const auto idAt = [&](int row) { return view->model()->index(row, 0).data(Qt::UserRole).toString(); };
+        auto appendSong = [&](int number) {
+            Track song;
+            song.id = newID();
+            song.raw = QString("Song %1").arg(number);
+            song.receivedAt = start.addSecs(number * 30);
+            store.receiveTrack(song);
+        };
+
+        view->selectRow(29);
+        view->scrollTo(view->model()->index(29, 0), QAbstractItemView::PositionAtTop);
+        scrollBar->setValue(scrollBar->value() + 7);
+        const auto reading = idAt(29);
+        QCOMPARE(view->rowAt(0), 29);
+        QCOMPARE(view->rowViewportPosition(29), -7);
+        appendSong(2000);
+        QCOMPARE(idAt(view->rowAt(0)), reading);
+        QCOMPARE(view->rowViewportPosition(view->rowAt(0)), -7);
+        QCOMPARE(view->selectionModel()->selectedRows().value(0).data(Qt::UserRole).toString(), reading);
+
+        view->scrollToTop();
+        scrollBar->setValue(7);
+        const auto successor = idAt(1);
+        appendSong(2001);
+        QCOMPARE(idAt(view->rowAt(0)), successor);
+        QCOMPARE(view->rowViewportPosition(view->rowAt(0)), -7);
+    }
     void longTitleScrollsAndRestarts() {
         Console::ScrollingTitle scroll;
         auto *label = new QLabel(QString(150, 'W'));
