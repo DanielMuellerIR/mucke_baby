@@ -4,7 +4,9 @@ import os
 
 private let uiLog = Logger(subsystem: "de.danielmuller.macradio", category: "ui")
 
+#if !MUCKE_TRANSPORT_PROBE
 @main
+#endif
 struct MacRadioApp: App {
     @StateObject private var services = RadioServices.shared
     private var store: Store { services.store }

@@ -21,22 +21,24 @@ import urllib.request
 def prepare(root, probe='TimeshiftTransportProbe.swift'):
     root.mkdir(parents=True, exist_ok=False)
     repo = Path(__file__).resolve().parents[1]
-    sources = root / 'sources'
-    sources.mkdir()
-    for file in (repo / 'Sources').glob('*.swift'):
-        text = file.read_text()
-        if file.name == 'MacRadioApp.swift':
-            text = text.replace('@main\n', '', 1)
-        (sources / file.name).write_text(text)
-    shutil.copy(repo / 'Tests' / probe, root / 'Probe.swift')
+    sources = sorted((repo / 'Sources').glob('*.swift'))
     app = root / 'TimeshiftTransportProbe.app'
     binary = app / 'Contents/MacOS/TimeshiftTransportProbe'
     binary.parent.mkdir(parents=True)
     vlc = repo / '.vendor/VLCKit.xcframework/macos-arm64_x86_64'
     sparkle = repo / '.vendor/Sparkle-2.9.4'
-    subprocess.run(['swiftc', '-whole-module-optimization', '-parse-as-library', '-target', 'arm64-apple-macos14.2',
-        '-module-cache-path', str(repo / 'build/module-cache'), '-F', str(vlc), '-framework', 'VLCKit', '-F', str(sparkle), '-framework', 'Sparkle',
-        '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks', *map(str, sources.glob('*.swift')), str(root / 'Probe.swift'), str(repo / 'Tests/TimeshiftIntegration.swift'), str(repo / 'Tests/TimeshiftRecognition.swift'), str(repo / 'Tests/FixtureTone.swift'), '-o', str(binary)], check=True, timeout=300)
+    subprocess.run([
+        'swiftc', '-whole-module-optimization', '-parse-as-library', '-D', 'MUCKE_TRANSPORT_PROBE',
+        '-target', 'arm64-apple-macos14.2', '-module-cache-path', str(repo / 'build/module-cache'),
+        '-F', str(vlc), '-framework', 'VLCKit', '-F', str(sparkle), '-framework', 'Sparkle',
+        '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks',
+        *map(str, sources),
+        str(repo / 'Tests' / probe),
+        str(repo / 'Tests/TimeshiftIntegration.swift'),
+        str(repo / 'Tests/TimeshiftRecognition.swift'),
+        str(repo / 'Tests/FixtureTone.swift'),
+        '-o', str(binary),
+    ], check=True, timeout=300)
     for name, parent in [('VLCKit', vlc), ('Sparkle', sparkle)]:
         shutil.copytree(parent / (name + '.framework'), app / ('Contents/Frameworks/' + name + '.framework'), symlinks=True)
     resources = app / 'Contents/Resources'
