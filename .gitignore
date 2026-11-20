@@ -12,23 +12,18 @@ Resources/seed-stations.json
 # Generierte Icon-Kandidaten (Skript + Motive bleiben versioniert).
 icons/candidates/
 
-# Gemini/Antigravity-Artefakt im Design-Ordner
-design-proposal/.system_generated/
-
 # Scratch: MUCKE_SHOTS-Screenshots, Diag-Logs etc.
 tmp/
 
 # Fremde/persönliche untracked Datei
 macradio-sender.json
 
-# Interner Design-Scratch (Mockups, /Users-Pfade, gemini-brain-Links) — nicht veroeffentlichen
+# Lokale Designentwürfe und Zwischenstände.
 design-proposal/
-
-# Roadmap/Todos werden projektextern gepflegt, nicht im public Repo.
-TODO.md
-
-# Lokale KI-Design-Entwürfe (nicht ins public Repo)
 design-proposal_alt/
+
+# Lokale Aufgabenliste.
+TODO.md
 
 # Lokaler Commit-Lock.
 .commit-lock

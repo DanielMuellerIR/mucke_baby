@@ -17,7 +17,6 @@
 #
 # Aufruf:  ./release.sh              (dieser Wrapper ist der Unterbau davon)
 #          ./release.sh --publish    # setzt git-Tag + lädt DMG zu GitHub hoch
-# Wissen:  siehe lokalen Wissensindex (knowledge/macos-app-distribution.md)
 
 set -euo pipefail
 
@@ -118,9 +117,9 @@ fi
 echo "==> Baue App-Bundle"
 bash "$PROJECT_ROOT/build.sh"
 
-# ---------- 1a. Fleet-Regeln am gebauten Artefakt prüfen ----------
-echo "==> Prüfe Fleet-Regeln am gebauten Artefakt"
-FLEET_RULES_REQUIRE_ARTIFACT=1 bash "$PROJECT_ROOT/Tests/fleet-rules.sh"
+# ---------- 1a. Bundle-Regeln am gebauten Artefakt prüfen ----------
+echo "==> Prüfe Bundle-Regeln am gebauten Artefakt"
+REQUIRE_BUNDLE_ARTIFACT=1 bash "$PROJECT_ROOT/Tests/verify-bundle-rules.sh"
 
 # ---------- 1b. Seed-Liste im Bundle muss die öffentliche Vorlage sein ----------
 # build.sh bevorzugt eine lokale, gitignorierte Resources/seed-stations.json

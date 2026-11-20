@@ -27,7 +27,7 @@ jobs:
       - name: Build and verify the macOS app
         run: |
           bash build.sh
-          FLEET_RULES_REQUIRE_ARTIFACT=1 bash Tests/fleet-rules.sh
+          REQUIRE_BUNDLE_ARTIFACT=1 bash Tests/verify-bundle-rules.sh
 
   linux:
     runs-on: ubuntu-24.04

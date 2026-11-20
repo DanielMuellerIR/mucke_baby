@@ -65,7 +65,7 @@ run_harness capture-harness "${recorder_sources[@]}" "${history_sources[@]}" \
   Sources/ICYMetadataReader.swift Tests/CaptureHarness.swift
 run_harness recording-library-harness "${recorder_sources[@]}" "${history_sources[@]}" \
   Tests/RecordingLibraryHarness.swift
-bash Tests/fleet-rules.sh
+bash Tests/verify-bundle-rules.sh
 
 run_harness reconnect-harness Sources/PlaybackReconnect.swift Tests/ReconnectClock.swift \
   Tests/ReconnectHarness.swift

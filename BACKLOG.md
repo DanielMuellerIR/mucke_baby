@@ -1,73 +1,19 @@
-# Mucke, Baby! — offene Arbeit
+# Offene Produkt- und Laufzeitprüfungen
 
-1. Seit v1.8.6 geprüft: Recorder-/Export-Laufzeitfälle für MP3, AAC, Ogg/Vorbis
-   und Ogg/Opus mit kontrollierten Tonstreams auf macOS 26.6.2. Kern- und
-   notarisierte GUI-Ausgaben sind decodierbar; Quellschutz, Abbruch, Sanitizing
-   und Temp-Cleanup sind abgedeckt. Codecunterstützung auf macOS 14.2 bleibt
-   separat zu prüfen.
-2. Festgelegter Löschvertrag: „gesamten Verlauf löschen“ entfernt ausschließlich
-   Verlaufseinträge und erhält alle Aufnahmedateien. „Alle Aufnahmen löschen“
-   entfernt separat nach Bestätigung nur abgeschlossene Aufnahmen; Verlauf und
-   laufende Aufnahme bleiben erhalten.
-3. Seit v1.8.6 vorhanden: Harnesses für PlaylistResolver, ICYMetadataReader,
-   Recorder, SongExporter und Store-Persistenz. Kritische neue Pfade weiterhin
-   gezielt ergänzen; das Codecgate steht unter `Tests/export-codecs.py`.
-4. Theme-Layoutgate vorhanden: `MUCKE_SHOTS` und `MUCKE_SHOT_W` erzeugen die
-   Screenshots aller sieben Themes reproduzierbar. Normale und schmale Breite
-   (940/660 Punkte), Standard Hell/Dunkel sind seit v1.8.6 geprüft. Bei relevanten
-   UI-Änderungen die betroffenen Zustände erneut prüfen.
-5. Öffentliche Präsentation nur separat: Demo-GIF, README-Einstieg und passende
-   macOS-/Swift-Verzeichnisse prüfen. Keine Listen für Coding-Agent-Tools nutzen.
-6. Seit v1.8.7 geprüft: echte Genre-/Namenssuche, Vorschau Start/Stopp/Neustart,
-   Schließen während Vorschau, Übernahme und URL-Dubletten-Haken. Prozesslokale
-   Netzwerkfehler belegen die Stream-, Katalog- und Suchfehlermeldungen in der GUI
-   auf macOS 26.6.2; verzögerte Fehler-/Stopp-Ereignisse deckt der Player-Harness ab.
-7. Am 2026-09-30 geprüft: eine frisch gebaute, notarisierte Testkopie von
-   v1.8.1 findet v1.8.4 über den bestehenden signierten Appcast, installiert
-   und startet neu. Zielbinary mit dem signierten DMG abgeglichen;
-   Nutzerdaten unverändert (Ablauf: docs/sparkle-release.md).
-8. Am 2026-09-30 erledigt: privaten Sparkle-Schlüssel verschlüsselt gesichert.
-   Wiederherstellung ohne Klartextdatei und Testsignatur gegen den öffentlichen
-   App-Schlüssel geprüft; zusätzliche verschlüsselte Sicherung vorhanden.
-9. Seit v1.8.5 erledigt: die aktuelle notarisierte App ist nach `/Applications`
-   installiert. Für den Sparkle-End-to-End-Test ist eine separate ältere
-   notarisierte Testkopie nötig.
-10. Seit v1.8.4 erledigt: Vorschauereignisse sind durch getrennte VLC-Instanzen
-    an ihre Wiedergabe gebunden; verspätete Ereignisse deckt der Player-Harness ab.
-11. Seit v1.8.5 erledigt: `add`, `update` und Erstbefüllung prüfen die zentrale
-    URL-Policy; der Sendereditor zeigt Validierungsfehler auf Deutsch und Englisch.
-    Store-Harness und notarisierter Editor belegen die Schreibgrenzen und den
-    Erhalt bestehender Sender.
-12. Seit v1.8.7 vorbereitet: `.github/workflows/tests.yml` führt
-    `Tests/run-tests.sh` auf einem macOS-Runner aus. Workflow lokal mit actionlint
-    geprüft, derselbe Testschritt lokal bestanden. Ausführung auf GitHub bleibt
-    bis zur separaten Veröffentlichung ungeprüft.
-
-13. Seit v1.9.27 ist ein bewusst aktivierbarer, begrenzter temporärer MP3-Puffer
-    in den Einstellungen erreichbar. Er verwendet den vorhandenen ICY-Empfang,
-    schützt aktive Leser und räumt verwaiste Sitzungen auf. Seit v1.9.28 teilen Hauptfenster und Miniplayer Pause/Fortsetzen,
-    framebezogene Sprünge, Live und eine gehörte Titelzeitleiste.
-    Der native Seek-PCM-Test bindet die Ausgabezeitkorrektur an das gepinnte VLCKit.
-    Der durchgehende lokale VLC-Leser benötigt Startreserve und Decoder-Vorlauf;
-    reale Hör-/Mindest-macOS-Abnahme der Produktionsfunktion bleibt erforderlich.
-    Seit v1.9.29 nutzt AAC-ADTS denselben Puffer mit geprüfter Decoderrate.
-    Ogg/Vorbis, Ogg/Opus und FLAC benötigen eine eigene Containerstrategie und
-    bleiben für den Puffer gesperrt. HLS spielt live; Aufnahme und Zeitversatz
-    sind dafür nicht verfügbar. Frischer echter Systemschlaf mit pausiertem
-    Produktionspuffer bleibt zusätzlich zur geprüften Handlerintegration offen.
-
-14. Seit v1.9.30 bindet die bewusste Musikerkennung ihre Ergebnisse an die
-    tatsächliche Ausgabe, einschließlich Pufferposition und Empfangszeit.
-    Neue Herkunft verwendet Merklisten-/Austauschformat V3. Die verlustfreie
-    Mac/iPhone-V3-Übertragung bleibt separat zu prüfen; ältere Empfänger
-    müssen die neue Version schützen. Reale Hör- und Mindest-macOS-Abnahmen
-    werden durch kontrollierte Audiofixtures nicht ersetzt.
-
-15. Linux-Mediatasten und Lautstärkeregler: Bedienung mit v1.10.12 unter
-    CachyOS/KDE am 2026-11-12 manuell bestätigt. Physische Keychron-Q1-HE-Zustellung
-    unter Linux Mint/Cinnamon noch mit fokussierter und minimierter App abnehmen.
-    Die [separate Anleitung](docs/linux-media-keys.md) enthält Ablauf und Grenzen;
-    isolierte D-Bus-/Audiofixtures ersetzen diese Desktop-Abnahme nicht.
-
-Historische Senderausfälle, bereits implementierte Recorderfunktionen und alte
-Theme-Entwürfe sind kein Backlog.
+- Codecabhängige Aufnahme, M4A-Export, Zeitversatz und Musikerkennung auf
+  macOS 14.2 prüfen. Die vorhandenen kontrollierten Codec- und GUI-Fixtures
+  liefen auf neueren macOS-Versionen.
+- Zeitversatz beim echten Systemschlaf mit pausiertem Produktionspuffer
+  prüfen. Die Handler sind über den Player-Harness abgedeckt. Ogg/Vorbis,
+  Ogg/Opus und FLAC benötigen für Zeitversatz eine eigene Containerstrategie.
+  [Formatgrenzen und Tests](docs/timeshift-buffer.md)
+- Austausch von Merklisteneinträgen mit Erkennungs- und Ausgabeherkunft
+  zwischen macOS und iPhone mit dem Format V3 prüfen. Die älteren Empfänger
+  müssen die Integrität neuer Bibliotheken schützen.
+  [Austauschformate](docs/library-exchange.md)
+- Physische Medientasten unter Linux Mint mit Cinnamon bei fokussierter und
+  minimierter App abnehmen. CachyOS/KDE wurde am 2026-11-12 manuell geprüft.
+  [Linux-Medientasten](docs/linux-media-keys.md)
+- Die macOS-CI-Konfiguration auf dem gehosteten Runner ausführen.
+  Der lokale Test deckt Headless-Harnesses, vollständigen Build und Bundle-Gate ab.
+- Demo-GIF und Projektvorstellung auf den Stand beider Plattformen bringen.

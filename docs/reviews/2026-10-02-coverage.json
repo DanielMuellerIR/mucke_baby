@@ -1,6 +1,5 @@
 {
   "format": "time-limited-review-v1",
-  "format_note": "Eigenständiger dateibasierter Nachweis für einen zeitbegrenzten Review; kein Tokenbudget-Kampagnenformat von codeqa_state.py.",
   "started_at": "2026-10-02T14:55:14Z",
   "recorded_at": "2026-10-02T15:54:26+00:00",
   "time_limit_seconds": 3600,

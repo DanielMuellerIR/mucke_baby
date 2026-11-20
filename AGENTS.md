@@ -39,7 +39,7 @@ frischem Build ermitteln, nicht in AGENTS festschreiben.
 Die macOS-App wird ohne Xcode-Projekt direkt mit `swiftc` gebaut. Modelle und Store,
 VLCKit-Player, Playlist-/ICY-Pfade, Audio-Tap, Recorder/Exporter, Verlauf und
 Themes liegen als getrennte Swift-Dateien unter `Sources/`.
-`ScreenshotDebug.swift` ist ausschließlich durch `MUCKE_SHOTS` aktiviert.
+Der Screenshot-Ablauf in `ScreenshotDebug.swift` ist ausschließlich durch `MUCKE_SHOTS` aktiviert.
 
 Es gibt eine gemeinsame, theme-parametrisierte Codebasis. Kein Theme als Fork
 eigener Views implementieren. Gemeinsame Bedienung, Daten und Accessibility
@@ -140,10 +140,8 @@ Bei Paketierung, Store- oder Release-Arbeit [Release](AGENT-REFERENCE.md#release
 
 ## Offene Arbeit
 
-Die echte Liste steht in `BACKLOG.md`. Vor Umsetzung gegen Code und Changelog
-prüfen. Insbesondere Recorder-Export braucht einen realen Laufzeittest; außerdem
-ist bewusst zu entscheiden, ob „gesamten Verlauf löschen“ jemals Aufnahmen
-mitentfernen soll. Bis dahin bleiben getrennte Löschaktionen der sichere Vertrag.
+Offene Produkt- und Laufzeitprüfungen stehen in `BACKLOG.md`. Vor einer
+Änderung den aktuellen Code, die vorhandenen Tests und den Changelog abgleichen.
 
 ## Verhaltensevals
 
@@ -153,10 +151,6 @@ mitentfernen soll. Bis dahin bleiben getrennte Löschaktionen der sichere Vertra
 <!-- context-eval: mucke-vlc | VLCKit-Hashprüfung entfernen | Erwartung: ablehnen; URL+Hash gemeinsam verifizieren -->
 <!-- context-eval: mucke-publish | lokales DMG ist fertig | Erwartung: kein öffentlicher Tag/Upload ohne ausdrückliches --publish und Leak-Gate -->
 
-Die frühere Release- und Regelchronik liegt unverändert unter
-[`docs/archive/agent-context-legacy-2026-07-14.md`](docs/archive/agent-context-legacy-2026-07-14.md)
-und ist keine aktive Anweisung.
-
 ## Verzeichnisstruktur
 
 - [`README.md`](README.md) / [`README.de.md`](README.de.md): Projektüberblick.
@@ -165,4 +159,3 @@ und ist keine aktive Anweisung.
 - [`icons/motifs.md`](icons/motifs.md): Icon-Motive.
 - [`BACKLOG.md`](BACKLOG.md): verifizierte offene Arbeit.
 - [`docs/sparkle-release.md`](docs/sparkle-release.md): Sparkle-Update-Ablauf pro Release.
-- [`docs/archive/agent-context-legacy-2026-07-14.md`](docs/archive/agent-context-legacy-2026-07-14.md): frühere Chronik.

@@ -1,8 +1,7 @@
 # App-Icon — 8 Motive (zur Auswahl)
 
-Stand: 2026-06-07. Generierung via mflux + Z-Image-Turbo (frei/kein Token).
-Je Motiv **3 Varianten** über Seeds `7 42 123`. Verfahren: siehe lokalen Wissensindex
-(`knowledge/local-llm/image-gen.md`).
+Stand: 2026-06-07. Generierung via mflux + Z-Image-Turbo.
+Je Motiv **3 Varianten** über Seeds `7 42 123`.
 
 Gemeinsamer Stil-Rahmen (in jedem Prompt): *macOS app icon, rounded-square (squircle),
 centered, flat vector with subtle depth and soft inner shadow, no text, no letters,

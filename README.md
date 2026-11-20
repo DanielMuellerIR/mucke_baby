@@ -37,7 +37,7 @@ The following screenshots show the macOS application. The Linux screenshot above
 
 ## Run it on macOS (CLI / headless‑friendly)
 
-No Xcode project — the app is compiled with `swiftc` into a `.app` bundle. Xcode with its App Intents metadata tools is required. The whole toolchain is scriptable (handy for automation and AI agents):
+No Xcode project — the app is compiled with `swiftc` into a `.app` bundle. Xcode with its App Intents metadata tools is required. The build runs through shell scripts.
 
 ```bash
 ./build.sh                                       # build -> "build/Mucke, Baby!.app" (downloads VLCKit once, ~84 MB)
@@ -48,7 +48,7 @@ open "build/Mucke, Baby!.app"                    # launch
 
 ### Headless / automation
 
-- **Headless regression tests:** `bash Tests/run-tests.sh` runs the existing harnesses on Apple Silicon macOS, without launching the app or downloading VLCKit. HTTP fixtures use loopback only. The macOS CI workflow runs the same command.
+- **Headless regression tests:** `bash Tests/run-tests.sh` runs the existing harnesses on Apple Silicon macOS, without launching the app or downloading VLCKit. HTTP fixtures use loopback only. The macOS CI job runs the same command and builds and verifies the app with the pinned frameworks.
 - **Export codec and position checks:** `python3 Tests/export-codecs.py` and `python3 Tests/export-positions.py` generate temporary audio fixtures and independently decode exports with FFmpeg. The position check compares marked cuts with and without fades and verifies that preview and saved files have identical bytes. Both commands require FFmpeg; source codec support depends on the macOS version.
 - **Equalizer signal check:** `python3 Tests/audio-effects.py` measures the pinned VLCKit equalizer through its PCM file output, independently decoded with FFmpeg. It checks neutral gain, a selective band cut and headroom. The file output does not implement volume control, so it does not replace CoreAudio volume, mute or listening checks.
 - **Automatic theme screenshots:** set `MUCKE_SHOTS=<dir>` — the app cycles through all themes, writes one PNG per theme and quits. `MUCKE_SHOT_W=<points>` overrides the window width; the layout baseline uses 940 and 660 macOS points.
@@ -72,50 +72,33 @@ open "build/Mucke, Baby!.app"                    # launch
 
 ## macOS features
 
-- **Temporary MP3/AAC-ADTS buffer** — opt in under Settings after confirming automatic cleanup. The buffer uses the existing metadata connection, retains at most five minutes and 32 MiB of compressed audio plus a bounded index, and stops below 10 GiB free. Disabling it, changing stations and quitting discard temporary audio. Permanent recordings and history are kept. Main and mini player share pause/resume, a buffer slider, title timeline and Live. Live starts with at least three seconds of reserve. Seeking follows complete audio-frame boundaries; decoder preroll is processed before output.
+### Playback and appearance
 
-- **Stream format limits** — AAC-ADTS, including HE-AAC, uses the format reported by the VLC decoder. Ogg/Vorbis, Ogg/Opus and FLAC continue playing directly. HLS plays live; recording and timeshift are unavailable for HLS. See [format limits](docs/timeshift-buffer.md).
+- **Internet radio** plays MP3, AAC, Ogg/Vorbis, Opus, FLAC and other formats through VLCKit. It resolves PLS, M3U, ASX, XSPF and Tune.ashx playlists. Start manually, resume the last station or choose a startup station. The app retries playback and metadata independently after interruptions.
+- **Timeshift** uses the existing stream connection for an optional MP3 or AAC-ADTS buffer. The main window and miniplayer share pause, seek, the title timeline and the return to live. The buffer holds up to five minutes and 32 MiB of compressed audio, stops below 10 GiB free and clears on station change or quit. HLS is live only. See [buffer and format limits](docs/timeshift-buffer.md).
+- **Seven themes** offer a main window, an optionally floating miniplayer and a fullscreen visualizer. The ten-band EQ, station gain correction and sleep timer affect playback. Recordings keep the original audio.
 
-- **Identify music** — open the waveform search button in the player footer, then choose Identify. Shazam receives an audio fingerprint of up to 12 seconds from the music currently playing; the audio file is not sent. Audio capture permission and an internet connection are required. Cancel at any time. The main player and miniplayer share identification. Explicitly use a catalog suggestion for the current display or bookmark it separately; retain the original station text and Shazam source. ⌘↵ uses the suggestion for display, ⌘S bookmarks it and Escape closes the dialog. Pause/resume, seeking, Live, track/station changes and metadata reconnection clear old results and display choices. Identification follows the heard audio, including buffered playback; listening time and buffered reception time remain distinct. Catalog matches may name a different mix version. History and recordings remain unchanged. Bookmarks with recognition and listening provenance use exchange version 3, which older apps cannot yet import. Source builds require ShazamKit enabled under App Services for their signed App ID.
+### Stations, history and bookmarks
 
-- Native macOS Shortcuts actions can play saved stations, stop radio, set volume, return the current title and save a bookmark. See [Shortcuts](docs/shortcuts.md) for parameters and recording behavior.
+- **Your stations** can be reordered, grouped, searched and marked as favorites. Open quick selection with ⌘K or assign five shortcuts. Import curated genre lists or browse, filter and preview stations from [Radio Browser](https://www.radio-browser.info). For stations from the catalog, compare and confirm URL repairs before saving.
+- **Listening history** shows ICY titles and broadcasts by station and time. Filter by date or title, look up tracks on Apple Music or Spotify, and save bookmarks independently. The bookmark list exports the visible results as UTF-8 text or CSV.
+- **Library exchange** previews imports and lets you resolve conflicts before writing stations, groups and bookmarks. Recordings, history and device settings stay local. See [exchange formats](docs/library-exchange.md).
 
-- Plays MP3, AAC, Ogg, Opus, FLAC and other codecs supported by VLCKit/libVLC.
-- **Seven themes**, each with its own layout, textures and visualizer: Standard, Acid Rave, Retro, Fanzine, GuitarAmp, Danish, Black MIDI.
-- **Fullscreen visualizer:** Open **View → Fullscreen visualizer** (⌘⇧V) for a larger view of the current theme. ⌃⌘F toggles fullscreen. ⌘B shows or hides the controls; Space starts or stops playback. Escape leaves fullscreen, and Escape in the window returns to the main player. The window shares the current title, playback and volume. Hidden or covered visualizers pause their animation; macOS Reduced Motion uses a still view.
-- **Audio‑reactive visualizers** — analog VU needles, oscilloscope, spectrum bars and a piano‑roll — driven by a **CoreAudio process tap** on the app's own output. The tapped signal is normalized before analysis, so lowering the app volume does not shrink the visuals; the visuals follow the audio output (up to 30 frames per second).
-- **Now‑playing** artist/title via a built‑in ICY metadata reader (selectable & copyable), with correct decoding of non‑UTF‑8 stations (UTF‑8 → Shift‑JIS/CP932 → Latin‑1, e.g. Japanese senders).
-- **History panel** ("Verlauf") — every track with its date, start/end times and station, kept across station switches. Search titles or artists and combine station and date filters. Date ranges cover whole calendar days, including tracks still playing during them.
-- **Bookmarks** — keep tracks from history or current playback with the heart action. The searchable list stores metadata independently of history and recordings, offers music links, and exports visible matches as UTF-8 text or CSV. Different mixes stay separate.
-- **Separate deletion actions** — clearing history preserves all recordings. “Delete all recordings” requires confirmation and removes only completed recordings, preserving history and any recording in progress.
-- **Recording library** — browse completed and active recordings independently of history, with date, duration, size, Finder access and local preview. Preview asks before stopping live radio. Removing a selected completed recording requires confirmation; history stays intact. History distinguishes fully and partially available audio from missing files.
-- **Preview and trim exports** — Recorded-track exports open an editor with start/end adjustments and optional fades. Preview uses the exact prepared M4A file that will be saved. ⌘⇧P starts or stops preview; Escape closes the editor. Preview asks before stopping live radio, and radio resumes only when you start it manually. Changes affect the exported selection, leaving the original recording and history intact.
-- **Export tags and multiple tracks** — M4A files retain artist, track title and mix version. The station is stored in the album field; the original ICY text and recording time are included in the comment. The export menu in history selects up to 100 tracks for a serial batch. Cancel individual or remaining exports and review each result. Existing batch files receive a numbered suffix rather than being replaced.
+### Recording and export
 
-- **Mini player** — a compact window shares the live player, station selection, volume, bookmarks and recording controls. Keep it on top optionally and return to the main window without restarting playback.
-- **Audio settings** — save a manual gain correction from −12 to +12 dB per local station. Adjusted playback volume is capped at 100%. An optional ten-band equalizer offers four presets, custom bands and headroom. Main and mini player open the same settings window; recordings and exports stay unprocessed. There is no automatic loudness matching.
-- **Optional stream recording** (off by default) — records the playing stream to `~/Music/MuckeBaby/Aufnahmen/`, with per‑song extraction; auto‑stops when less than 10 GiB is free.
-- **Live recording controls** — turn recording on or off while listening and see the effective status in the main window and menu bar. Recording begins only when audio data is successfully written; waiting, storage and write errors remain visible. It uses the existing metadata connection, which stays open for stations without song titles, and stops below 10 GiB of free storage. Ogg, Opus and FLAC renew that metadata connection for complete file headers while the audio player continues.
-- **One‑click links** from the history to look a track up on Apple Music or Spotify.
-- **Station groups and quick selection** — search your stations by name or URL and combine this with favorites or a group. Stations can belong to several named groups; deleting a group keeps all stations. ⌘K opens keyboard selection, and five configurable slots use ⌥⌘1–5. Quick slots remain local.
-- **Library exchange** — export stations, favorites, catalog identity, groups and bookmarks as [versioned JSON](docs/library-exchange.md). Import a current or legacy station file through a preview with explicit conflict choices. Keep local data, use an imported record or retain both. Recordings, history and device settings stay local.
-- **Metadata recovery** — reconnect the metadata stream independently with a bounded retry budget. System sleep closes received intervals; wake resumes only playback that was explicitly requested and has not been stopped.
-- **macOS media controls** — station and track appear in Control Center. Media pause pauses buffered playback and stops direct live streams; previous/next uses the saved order of visible stations, independent of view filters. Stop and Quit release system controls.
-- **Connection recovery** — up to three automatic retries after a stream failure, with 2, 5 and 15 seconds between attempts. Playback progress is monitored, network return resumes only a pending request, and Stop cancels every retry. The budget resets after a minute of stable playback.
-- **Station URL repair** — catalog imports retain an optional Radio-Browser ID. In the station editor, check the catalog address, compare the old and proposed URLs, then explicitly save the URL. Your station identity, name, favorites, groups and quick slots are kept. Current playback continues with its original connection; the new address applies on the next manual start. Stations without saved catalog identity remain manually editable. JSON export/import retains the optional source ID.
-- **Catalog filters and saved results** — combine country, language, genre, name, codec and minimum catalog bitrate. Browse 50 results per page, sort by votes or name, and reopen up to 20 locally saved pages within a 2 MiB cache. Saved results display their age and do not establish current stream availability.
-- Station list with play/stop, per‑station show/hide and reordering; multiple **favorites** independent of startup playback. Settings offer no automatic playback, the last station, or a specific station. Missing or hidden startup targets leave playback off. Existing startup preferences are migrated once.
-- Add / edit / delete stations; **curated genre lists** to import in one click.
-- Playlist resolution for `.pls` / `.m3u` / `.asx` / `.xspf` / radiotime `Tune.ashx`.
-- **Station catalog** from the open [radio‑browser.info](https://www.radio-browser.info) API — browse by genre, search by name, **preview** a station and add it to your list in one click.
-- Light & dark mode; optional menu‑bar icon (off by default).
-- **Self‑updates via Sparkle** — the app checks a signed appcast (GitHub Pages) and installs only after you confirm; no telemetry, no system profiling.
+- **Stream recording** starts only when enabled and writes audio to `~/Music/MuckeBaby/Aufnahmen/`. The recorder uses the existing metadata connection, stops below 10 GiB free and shows waiting, active and error states. The recording library lists files independently of history and previews completed recordings.
+- **M4A export** opens a track editor with start/end adjustments and optional fades. Preview plays the exact prepared file. Export retains song and station metadata. Batch export processes up to 100 tracks with individual results and cancellation.
+- **Deletion** requires confirmation before clearing the entire history, which keeps recordings. The separate action for all recordings removes completed files and keeps history and any active recording.
 
-- **Sleep timer** — presets and a custom duration, with extension, cancellation and fade-out. The saved volume is retained for the next start.
+### macOS integration
 
-### Audio‑reactivity permission
+- **Media controls and Shortcuts** expose the current station and title in Control Center. The app supports saved station playback, Stop, volume, title lookup and bookmarks through [Apple Shortcuts](docs/shortcuts.md).
+- **Identify music** opens from the waveform search button in the player. Shazam receives a fingerprint of up to 12 seconds of heard audio. You can cancel, use the match for the current display or save it separately with its source. Identification requires audio permission and internet access. Custom builds need ShazamKit enabled for their signed App ID.
+- **Updates** use a signed Sparkle feed and require confirmation before installation. The app has no telemetry or accounts.
 
-The visualizers read the app's own audio output through a CoreAudio process tap. On first launch macOS asks once for audio‑recording permission; granting it is required for the reactive visuals (with a Developer‑ID signature the grant is remembered permanently). The app volume is compensated before analysis; at full mute there is no signal to recover. Without permission the app still plays — the visualizers just idle.
+### Audio permission
+
+The visualizers and music identification analyze the app's own output with a CoreAudio process tap. macOS may ask for permission when the tap first starts. A consistent Developer ID and bundle identifier let macOS recognize the app across builds. Radio playback works without this permission. At zero volume there is no output for the visualizers to analyze.
 
 ## Data
 

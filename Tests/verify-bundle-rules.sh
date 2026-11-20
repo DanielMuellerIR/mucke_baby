@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests/fleet-rules.sh — prueft die beiden fleetweiten Regeln vom 2026-08-03 an der QUELLE.
+# Tests/verify-bundle-rules.sh — prüft die Anforderungen an Installation und Bundle.
 #
 #   Regel 1  In /Applications gehoeren nur Bundles mit angeheftetem Notary-Ticket.
 #            install.sh muss das Ticket verlangen, BEVOR es das erste Mal nach
@@ -11,7 +11,7 @@
 # Beleg den echten Installationsweg starten muesste, wuerde dabei die installierte
 # App loeschen und ersetzen. Er waere selbst die Gefahr, vor der die Regel schuetzt.
 #
-# Aufruf:  bash Tests/fleet-rules.sh
+# Aufruf:  bash Tests/verify-bundle-rules.sh
 # Exit 0 = alle Pruefungen gruen.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -137,8 +137,8 @@ if [ -f "$BIN" ]; then
 else
     # Ein fehlender Pruefgegenstand ist kein Erfolg. Ohne Binary laeuft der Test
     # weiter (er baut bewusst nichts), meldet den Verzicht aber im Ergebnis —
-    # und mit FLEET_RULES_REQUIRE_ARTIFACT=1 (Release/CI) ist er ein Fehlschlag.
-    if [ "${FLEET_RULES_REQUIRE_ARTIFACT:-0}" = "1" ]; then
+    # und mit REQUIRE_BUNDLE_ARTIFACT=1 (Release/CI) ist er ein Fehlschlag.
+    if [ "${REQUIRE_BUNDLE_ARTIFACT:-0}" = "1" ]; then
         bad "Binary fehlt, Artefaktprobe unmoeglich (erst 'bash build.sh')"
     else
         artifact_skipped=1
@@ -148,10 +148,10 @@ fi
 
 echo
 if [ "$fail" != "0" ]; then
-    echo "fleet-rules: FEHLGESCHLAGEN" >&2
+    echo "verify-bundle-rules: FEHLGESCHLAGEN" >&2
     exit 1
 elif [ "$artifact_skipped" = "1" ]; then
-    echo "fleet-rules: Quellregeln OK — Artefaktprobe uebersprungen (kein Binary)"
+    echo "verify-bundle-rules: Quellregeln OK — Artefaktprobe uebersprungen (kein Binary)"
 else
-    echo "fleet-rules: OK"
+    echo "verify-bundle-rules: OK"
 fi

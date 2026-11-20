@@ -67,7 +67,7 @@ Log-Redaktion, Playlist-Resolver gegen lokale HTTP-Fixtures, Recorder-Index- und
 Löschgrenzen, Preview-Koordinator. Er ist das Pflicht-Gate für Änderungen an
 diesen Pfaden.
 
-`Tests/fleet-rules.sh` hält die beiden Fleet-Regeln vom 2026-08-03 fest: Nach
+`Tests/verify-bundle-rules.sh` prüft die Installationsreihenfolge und das gebaute Bundle. Nach
 `/Applications` gelangt nur ein Bundle mit angeheftetem Notary-Ticket (Ad-hoc
 bleibt in `build/`), und kein absoluter Pfad des Build-Rechners darf im
 ausgelieferten Bundle landen. Der Test liest nur Quellen und baut, signiert und
