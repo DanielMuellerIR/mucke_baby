@@ -93,6 +93,7 @@ swiftc -O -whole-module-optimization -parse-as-library \
   -file-prefix-map "$PWD"=. \
   -target "$TARGET" -sdk "$SDK" \
   -module-cache-path "$MODULE_CACHE" \
+  -I Sources/AudioTapPCM \
   -F "$FWDIR" -framework VLCKit \
   -F "$SPARKLE_DIR" -framework Sparkle \
   -framework SwiftUI -framework AppKit -framework CoreAudio \

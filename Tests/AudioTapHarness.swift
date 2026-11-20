@@ -1,7 +1,9 @@
 import CoreAudio
 import Foundation
+import MuckeAudioTapPCM
 
-private func sendStereoFixture(_ samples: [Float], to tap: AudioTap) {
+@discardableResult
+private func sendStereoFixture(_ samples: [Float], to tap: AudioTap, drain: Bool = true) -> Bool {
     samples.withUnsafeBufferPointer { source in
         var buffers = AudioBufferList(
             mNumberBuffers: 1,
@@ -11,7 +13,26 @@ private func sendStereoFixture(_ samples: [Float], to tap: AudioTap) {
                 mData: UnsafeMutableRawPointer(mutating: source.baseAddress)
             )
         )
-        withUnsafePointer(to: &buffers) { tap.receivePCMFixture($0) }
+        let accepted = withUnsafePointer(to: &buffers) { tap.enqueuePCMFixture($0) }
+        if drain { tap.drainPCMFixture() }
+        return accepted
+    }
+}
+
+private func sendPlanarFixture(_ left: [Float], _ right: [Float], to tap: AudioTap) {
+    let buffers = AudioBufferList.allocate(maximumBuffers: 2)
+    defer { free(buffers.unsafeMutablePointer) }
+    left.withUnsafeBufferPointer { left in
+        right.withUnsafeBufferPointer { right in
+            for (index, source) in [left, right].enumerated() {
+                buffers[index] = AudioBuffer(
+                    mNumberChannels: 1,
+                    mDataByteSize: UInt32(source.count * MemoryLayout<Float>.size),
+                    mData: UnsafeMutableRawPointer(mutating: source.baseAddress)
+                )
+            }
+            tap.receivePCMFixture(UnsafePointer(buffers.unsafeMutablePointer))
+        }
     }
 }
 
@@ -48,17 +69,56 @@ enum AudioTapHarness {
         tap.stop()
         tap.simulateRunningTap(sampleRate: sampleRate); tap.setOutputVolume(0.1)
         let token = try tap.recognitionCapture.begin(sampleRate: sampleRate)
-        let stereo = (0..<48_000).flatMap { _ in [Float(0.025), Float(0.075)] }
-        sendStereoFixture(stereo, to: tap)
+        let stereo = (0..<512).flatMap { _ in [Float(0.025), Float(0.075)] }
+        for _ in 0..<94 {
+            check(sendStereoFixture(stereo, to: tap), "Interleaved-PCM wurde abgewiesen")
+        }
         let captured = try tap.recognitionCapture.finish(token)
-        check(captured.samples.count == 48_000 && captured.samples.allSatisfy { abs($0 - 0.05) < 0.000001 },
+        check(captured.samples.count == 94 * 512 && captured.samples.allSatisfy { abs($0 - 0.05) < 0.000001 },
               "Erkennung bekommt normalisierte Visualizerwerte statt tatsächlich ausgegebener PCM-Samples")
         check(tap.waveform.contains { $0 > 0.4 }, "Fixture belegt nicht den Unterschied zur Visualizer-Normalisierung")
         let interrupted = try tap.recognitionCapture.begin(sampleRate: sampleRate)
+        check(sendStereoFixture(stereo, to: tap, drain: false), "Testpuffer blieb leer")
         tap.stop()
-        do { _ = try tap.recognitionCapture.finish(interrupted); fatalError("Stop lässt PCM-Sammlung weiterlaufen") }
-        catch { check(error as? RecognitionFailure == .audioChanged, "Falscher Unterbrechungsgrund") }
+        checkInterrupted(interrupted, on: tap)
         check(tap.captureSampleRate == nil, "Stop meldet weiterhin Audiozugriff")
+
+        let newRate = 48_000.0
+        tap.simulateRunningTap(sampleRate: newRate, interleaved: false)
+        tap.drainPCMFixture()
+        check(tap.captureSampleRate == newRate && !tap.reactive && tap.level == 0,
+              "Formatwechsel analysiert noch ausstehende Blöcke des alten Taps")
+        tap.setOutputVolume(0.1)
+        let planarToken = try tap.recognitionCapture.begin(sampleRate: newRate)
+        sendPlanarFixture([Float](repeating: 0.025, count: 2048), [Float](repeating: 0.075, count: 2048), to: tap)
+        let planar = try tap.recognitionCapture.finish(planarToken)
+        check(planar.sampleRate == newRate && planar.samples.count == 2048
+              && planar.samples.allSatisfy { abs($0 - 0.05) < 0.000001 }, "Planar-Downmix oder Sample-Rate falsch")
+        tap.stop()
+
+        tap.simulateRunningTap(sampleRate: sampleRate)
+        tap.setOutputVolume(0.1)
+        let dropped = try tap.recognitionCapture.begin(sampleRate: sampleRate)
+        for _ in 0..<Int(MuckeAudioPCMSlots) {
+            check(sendStereoFixture(stereo, to: tap, drain: false), "PCM-Speicher wurde vorzeitig voll")
+        }
+        check(!sendStereoFixture(stereo, to: tap, drain: false), "Überlauf überschreibt wartende PCM-Blöcke")
+        checkInterrupted(dropped, on: tap)
+
+        let afterDrop = try tap.recognitionCapture.begin(sampleRate: sampleRate)
+        tap.setOutputVolume(1)
+        tap.drainPCMFixture()
+        check(tap.waveform.contains { $0 > 0.4 }, "Analyse verwendet den Reglerstand nach statt bei der Aufnahme")
+        check(sendStereoFixture([Float](repeating: 0, count: 1024), to: tap), "Transport nimmt nach Überlauf kein PCM mehr an")
+        let resumed = try tap.recognitionCapture.finish(afterDrop)
+        check(resumed.samples.count == 512 && resumed.samples.allSatisfy { $0 == 0 },
+              "Neue Erkennung erbt PCM oder Überlauf vor ihrem Beginn")
+        check(!tap.reactive && tap.waveform.allSatisfy { $0 == 0 }, "Visualizer mischt Signal über eine PCM-Lücke")
         print("AudioTapHarness: OK")
+    }
+
+    private static func checkInterrupted(_ token: UUID, on tap: AudioTap) {
+        do { _ = try tap.recognitionCapture.finish(token); fatalError("PCM-Sammlung wurde trotz Unterbrechung geliefert") }
+        catch { check(error as? RecognitionFailure == .audioChanged, "Falscher Unterbrechungsgrund") }
     }
 }

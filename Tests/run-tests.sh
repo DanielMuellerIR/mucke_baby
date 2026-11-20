@@ -80,8 +80,8 @@ run_harness audio-settings-harness Sources/AudioSettings.swift Tests/AudioSettin
 
 bash Tests/run-player-tests.sh
 
-run_harness audio-tap-harness "${recognition_sources[@]}" -D AUDIO_TAP_HARNESS Sources/AudioTap.swift \
-  Tests/AudioTapHarness.swift
+run_harness audio-tap-harness "${recognition_sources[@]}" -D AUDIO_TAP_HARNESS -I Sources/AudioTapPCM \
+  Sources/AudioTap.swift Tests/AudioTapHarness.swift
 python3 Tests/release-mount.py
 python3 Tests/release-publish.py
 

@@ -18,33 +18,36 @@
 import Foundation
 import Accelerate
 import CoreAudio
+import MuckeAudioTapPCM
 import os
 
 private let tapLog = Logger(subsystem: "de.danielmuller.macradio", category: "audiotap")
 
-/// Liefert Live-Audiodaten (Pegel + Bänder) des laufenden Senders an die Visualizer.
-/// `level`/`bands` werden vom Audio-Callback geschrieben und von der UI pro Frame gelesen —
-/// bewusst KEIN `@Published` (Audiorate würde SwiftUI überfluten); die Visualizer zeichnen
-/// ohnehin jeden Frame via `TimelineView` und lesen den jeweils aktuellen Stand.
+/// Liefert unveröffentlichte Audio-Messwerte an die Visualizer. Sie lesen
+/// den aktuellen Stand pro Timeline-Frame, ohne SwiftUI mit Updates zu wecken.
 final class AudioTap: ObservableObject {
-
-    /// Anzahl der Frequenzbänder, die wir nach außen geben (z.B. für Equalizer/Bars).
     static let bandCount = 12
+    static let waveCount = 220
 
-    // Geteilter Zustand zwischen Audio-Callback (Schreiber) und Main/UI (Leser).
-    private var lock = os_unfair_lock_s()
-    static let waveCount = 220             // Punkte des Oszilloskop-Schnappschusses
-    private let waveCount = AudioTap.waveCount
-    private var _level: Float = 0          // geglätteter RMS-Pegel 0…1
-    private var _bands = [Float](repeating: 0, count: AudioTap.bandCount)
-    private var _wave = [Float](repeating: 0, count: AudioTap.waveCount)   // Oszilloskop-Kurve −1…1
-    private var _silentRuns = 120          // vor dem ersten Signal als still behandeln
-    private var _outputVolume: Float = 1   // App-Lautstaerke 0…1; wird aus dem Tap herausgerechnet
-    private var loggedSignal = false       // einmaliges Log, sobald echtes Audio ankommt
+    private let analysis = AudioTapAnalysis()
+    private let analysisQueue = DispatchQueue(label: "de.danielmuller.macradio.audiotap.analysis",
+                                              qos: .userInitiated)
+    private let lifecycleKey = DispatchSpecificKey<Void>()
+    private var analysisTimer: DispatchSourceTimer?
+    private var input: AudioTapInput?
 
-    private(set) var isActive = false      // läuft der Tap gerade?
-    let recognitionCapture = RecognitionCapture()
-    private var _captureRate: Double?
+    init() { lifecycleQueue.setSpecific(key: lifecycleKey, value: ()) }
+    deinit { stop() }
+
+    var level: Float { analysis.level }
+    var bands: [Float] { analysis.bands }
+    var waveform: [Float] { analysis.waveform }
+    var reactive: Bool { analysis.reactive }
+    var isActive: Bool { analysis.isActive }
+    var captureSampleRate: Double? { analysis.captureSampleRate }
+    var recognitionCapture: RecognitionCapture { analysis.recognitionCapture }
+
+    func setOutputVolume(_ volume: Float) { analysis.setOutputVolume(volume) }
 
     // CoreAudio-Process-Tap-Zustand (alle nur auf der Lifecycle-Queue angefasst).
     private var tapID = AudioObjectID(kAudioObjectUnknown)        // der Process-Tap
@@ -56,65 +59,6 @@ final class AudioTap: ObservableObject {
     private var formatListener: AudioObjectPropertyListenerBlock?
     // Serielle Queue für Start/Stop, damit Auf-/Abbau nie überlappen.
     private let lifecycleQueue = DispatchQueue(label: "de.danielmuller.macradio.audiotap.lifecycle")
-
-    // FFT-Zustand (Accelerate). Fixe Fenstergröße; Samples werden hineingeschoben.
-    private let fftSize = 1024
-    private var fftSetup: FFTSetup?
-    private var window = [Float]()
-    private var sampleRing = [Float]()     // gleitendes Mono-Fenster
-    private var ringFill = 0
-    // Bei extrem kleiner Lautstaerke wuerde 1/volume Rauschen und Rundungsreste massiv
-    // aufblasen. Bis 1 % wird exakt kompensiert; darunter bleibt der Visualizer sichtbar,
-    // aber nicht mehr mathematisch vollstaendig rekonstruierbar. Bei 0 % gibt es im Tap
-    // tatsaechlich nur Stille.
-    private let minimumRecoverableOutputVolume: Float = 0.01
-
-    init() { setupFFT() }
-    deinit { stop(); if let s = fftSetup { vDSP_destroy_fftsetup(s) } }
-
-    // MARK: Öffentlicher Lesezugriff (Main/UI, pro Frame)
-
-    var level: Float {
-        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
-        return _level
-    }
-    var bands: [Float] {
-        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
-        return _bands
-    }
-    /// Aktuelle Oszilloskop-Kurve (−1…1, `waveCount` Punkte) — echte Wellenform fürs Scope.
-    var waveform: [Float] {
-        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
-        return _wave
-    }
-
-    var captureSampleRate: Double? {
-        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
-        return isActive ? _captureRate : nil
-    }
-
-    /// Erhält der Process-Tap gerade echtes Audio? Ohne Signal ruhen die Visualizer.
-    var reactive: Bool {
-        // isActive MIT unter den Lock: es wird auf der lifecycleQueue geschrieben
-        // (startTap/teardownTap), hier aber vom Main-Thread (Visualizer, jeder Frame)
-        // gelesen — der Lock liefert die noetige Speicher-Ordnung.
-        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
-        guard isActive else { return false }
-        return _silentRuns < 120        // ~1–2 s Stille → als „kein Signal" werten
-    }
-
-    // MARK: Steuerung — Tap läuft, solange ein Sender spielt
-
-    /// Tatsächliche lineare Ausgabeamplitude nach der kubischen AUHAL-Reglerskala.
-    /// Der Process-Tap sieht das Signal NACH diesem Regler;
-    /// fuer die Visualizer-Analyse rechnen wir ihn wieder heraus, damit die optische Dynamik
-    /// nicht kleiner wird, nur weil leise gehoert wird.
-    func setOutputVolume(_ volume: Float) {
-        let clamped = max(0, min(1, volume))
-        os_unfair_lock_lock(&lock)
-        _outputVolume = clamped
-        os_unfair_lock_unlock(&lock)
-    }
 
     /// Wird bei jedem Senderwechsel mit der aktuellen Stream-URL gerufen. Der Tap ist
     /// URL-AGNOSTISCH (er greift die Ausgabe ab, egal welcher Sender) → wir starten ihn einmal,
@@ -128,7 +72,13 @@ final class AudioTap: ObservableObject {
     }
 
     /// Öffentliches Stoppen (z.B. aus `deinit`).
-    func stop() { lifecycleQueue.sync { self.teardownTap() } }
+    func stop() {
+        if DispatchQueue.getSpecific(key: lifecycleKey) != nil {
+            teardownTap()
+        } else {
+            lifecycleQueue.sync { teardownTap() }
+        }
+    }
 
     // MARK: CoreAudio Process-Tap
 
@@ -189,12 +139,17 @@ final class AudioTap: ObservableObject {
         }
         aggregateID = newAgg
 
-        // 5) IO-Proc installieren — liefert das getappte Float-PCM.
-        var procID: AudioDeviceIOProcID?
-        status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) {
-            [weak self] _, inInputData, _, _, _ in
-            self?.handleTapInput(inInputData)
+        // Die Echtzeit-Funktion erhält nur den vorbereiteten PCM-Speicher.
+        guard let input = AudioTapInput(channels: tapChannels, interleaved: tapInterleaved,
+                                        sampleRate: tapSampleRate) else {
+            tapLog.error("AudioTap: PCM-Speicher konnte nicht angelegt werden")
+            teardownTap(); return
         }
+        self.input = input
+        analysis.setInput(input)
+
+        var procID: AudioDeviceIOProcID?
+        status = MuckeAudioPCMInstall(input.storage, aggregateID, &procID)
         guard status == noErr, let procID else {
             tapLog.error("AudioTap: CreateIOProc status \(status)")
             teardownTap(); return
@@ -206,42 +161,44 @@ final class AudioTap: ObservableObject {
             teardownTap(); return
         }
 
-        // Der IO-Proc kann bereits Samples geliefert haben. Seine Analysewerte
-        // hier nicht zurücksetzen; ohne Samples bleibt der Tap zunächst still.
-        os_unfair_lock_lock(&lock); isActive = true; _captureRate = tapSampleRate; os_unfair_lock_unlock(&lock)
-        observeTapFormat()
+        let canRecognize = observeTapFormat()
+        startAnalysis(input, canRecognize: canRecognize)
         notifyAvailability()
         tapLog.notice("AudioTap: CoreAudio-Process-Tap gestartet (\(self.tapChannels) Kanäle). Wartet auf Signal …")
     }
 
     private func teardownTap() {
-        recognitionCapture.interrupt()
+        recognitionCapture.setLiveSource(nil)
+        analysis.setAvailability(active: false, captureRate: nil)
+        analysis.setInput(nil)
         if let listener = formatListener {
             var address = tapFormatAddress
             AudioObjectRemovePropertyListenerBlock(tapID, &address, lifecycleQueue, listener)
             formatListener = nil
         }
-        os_unfair_lock_lock(&lock); isActive = false; _captureRate = nil; os_unfair_lock_unlock(&lock)
+
+        var ioProcRemoved = true
         if let p = ioProcID, aggregateID != AudioObjectID(kAudioObjectUnknown) {
             AudioDeviceStop(aggregateID, p)
-            AudioDeviceDestroyIOProcID(aggregateID, p)
+            ioProcRemoved = AudioDeviceDestroyIOProcID(aggregateID, p) == noErr
         }
         ioProcID = nil
-        // Erst nach dem letzten IO-Callback zurücksetzen: keine alten Samples
-        // oder geglätteten Pegel in den nächsten Sender übernehmen.
-        sampleRing = [Float](repeating: 0, count: fftSize)
-        ringFill = 0
-        os_unfair_lock_lock(&lock)
-        _level = 0
-        _bands = [Float](repeating: 0, count: Self.bandCount)
-        _wave = [Float](repeating: 0, count: Self.waveCount)
-        _silentRuns = 120
-        loggedSignal = false
-        os_unfair_lock_unlock(&lock)
+        analysisTimer?.cancel()
+        analysisTimer = nil
+        // Eine bereits laufende Analyse abschließen, dann alte Blöcke verwerfen.
+        analysisQueue.sync { analysis.reset() }
+
         if aggregateID != AudioObjectID(kAudioObjectUnknown) {
             AudioHardwareDestroyAggregateDevice(aggregateID)
             aggregateID = AudioObjectID(kAudioObjectUnknown)
         }
+        if !ioProcRemoved, let input {
+            // Der Geräteabbau ist asynchron. Bei fehlgeschlagener Abmeldung kann
+            // CoreAudio noch auf den rohen Callback-Kontext zugreifen.
+            _ = Unmanaged.passRetained(input)
+            tapLog.error("AudioTap: PCM-Kontext bleibt nach fehlgeschlagenem IOProc-Abbau erhalten")
+        }
+        input = nil
         if tapID != AudioObjectID(kAudioObjectUnknown) {
             AudioHardwareDestroyProcessTap(tapID)
             tapID = AudioObjectID(kAudioObjectUnknown)
@@ -259,20 +216,32 @@ final class AudioTap: ObservableObject {
                                   mElement: kAudioObjectPropertyElementMain)
     }
 
-    private func observeTapFormat() {
+    private func observeTapFormat() -> Bool {
         let watchedTap = tapID
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self, self.tapID == watchedTap, self.isActive else { return }
-            // Format erst nach dem letzten IO-Callback tauschen. Eine laufende
-            // Erkennung darf keine Samples unterschiedlicher Formate mischen.
+            // Der neue Tap erhält seinen eigenen PCM-Puffer und sein eigenes Format.
             self.teardownTap(); self.startTap()
         }
         var address = tapFormatAddress
-        if AudioObjectAddPropertyListenerBlock(tapID, &address, lifecycleQueue, listener) == noErr {
-            formatListener = listener
-        } else {
-            os_unfair_lock_lock(&lock); _captureRate = nil; os_unfair_lock_unlock(&lock)
+        guard AudioObjectAddPropertyListenerBlock(tapID, &address, lifecycleQueue, listener) == noErr else {
+            return false
         }
+        formatListener = listener
+        return true
+    }
+
+    private func startAnalysis(_ input: AudioTapInput, canRecognize: Bool) {
+        if canRecognize {
+            recognitionCapture.setLiveSource(input.recognitionSource)
+        }
+        analysis.setAvailability(active: true, captureRate: canRecognize ? input.sampleRate : nil)
+
+        let timer = DispatchSource.makeTimerSource(queue: analysisQueue)
+        timer.setEventHandler { [analysis] in analysis.drain(input) }
+        timer.schedule(deadline: .now(), repeating: .milliseconds(8), leeway: .milliseconds(2))
+        analysisTimer = timer
+        timer.activate()
     }
 
     /// pid → AudioObjectID des Prozesses (für die Tap-Beschreibung).
@@ -331,78 +300,189 @@ final class AudioTap: ObservableObject {
         tapSampleRate = asbd.mSampleRate
         return asbd.mBytesPerFrame == UInt32(MemoryLayout<Float>.size * (tapInterleaved ? tapChannels : 1))
     }
+}
 
-    /// IO-Proc-Callback (Realtime-Audio-Thread — schlank halten!): Float-PCM → Mono → Analyse.
-    private func handleTapInput(_ inInputData: UnsafePointer<AudioBufferList>) {
-        let abl = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inInputData))
-        guard let first = abl.first, let raw = first.mData else { return }
-        let ch = tapChannels
+private final class AudioTapInput {
+    let storage: UnsafeMutableRawPointer
+    let sampleRate: Double
 
-        var mono: [Float]
-        if tapInterleaved || abl.count == 1 {
-            // Interleaved: ein Buffer mit ch verschränkten Kanälen → Mittelwert je Frame.
-            let total = Int(first.mDataByteSize) / MemoryLayout<Float>.size
-            let frames = total / max(1, ch)
-            guard frames > 0 else { return }
-            let ptr = raw.assumingMemoryBound(to: Float.self)
-            mono = [Float](repeating: 0, count: frames)
-            if ch == 1 {
-                for i in 0..<frames { mono[i] = ptr[i] }
-            } else {
-                let inv = Float(1) / Float(ch)
-                for i in 0..<frames {
-                    var acc: Float = 0
-                    for c in 0..<ch { acc += ptr[i * ch + c] }
-                    mono[i] = acc * inv
-                }
-            }
-        } else {
-            // Planar: ein Buffer je Kanal → kanalweise mitteln.
-            let frames = Int(first.mDataByteSize) / MemoryLayout<Float>.size
-            guard frames > 0 else { return }
-            mono = [Float](repeating: 0, count: frames)
-            var used = 0
-            for b in abl {
-                guard let bd = b.mData else { continue }
-                let p = bd.assumingMemoryBound(to: Float.self)
-                let n = min(frames, Int(b.mDataByteSize) / MemoryLayout<Float>.size)
-                for i in 0..<n { mono[i] += p[i] }
-                used += 1
-            }
-            if used > 1 { let inv = Float(1) / Float(used); for i in 0..<frames { mono[i] *= inv } }
-        }
-        recognitionCapture.append(mono, sampleRate: tapSampleRate)
-        feedMono(mono)
+    init?(channels: Int, interleaved: Bool, sampleRate: Double) {
+        guard let storage = MuckeAudioPCMCreate(UInt32(channels), interleaved) else { return nil }
+        self.storage = storage
+        self.sampleRate = sampleRate
     }
 
-    // MARK: Audio-Analyse (läuft auf dem CoreAudio-IO-Thread — schlank halten!)
+    deinit { MuckeAudioPCMFree(storage) }
+
+    var recognitionSource: RecognitionCapture.LiveSource {
+        .init(nextSequence: { MuckeAudioPCMNextSequence(self.storage) },
+              lastDrop: { MuckeAudioPCMLastDrop(self.storage) })
+    }
+}
+
+// Der Timer hält nur den Analysestand. AudioTap kann dadurch unabhängig von
+// der Analyse freigegeben werden und beim Stop synchron auf die Queue warten.
+private final class AudioTapAnalysis {
+    private var lock = os_unfair_lock_s()
+    private let waveCount = AudioTap.waveCount
+    private var _level: Float = 0
+    private var _bands = [Float](repeating: 0, count: AudioTap.bandCount)
+    private var _wave = [Float](repeating: 0, count: AudioTap.waveCount)
+    private var _silentRuns = 120
+    private var _outputVolume: Float = 1
+    private var input: AudioTapInput?
+    private var _isActive = false
+    private var _captureRate: Double?
+    let recognitionCapture = RecognitionCapture()
+
+    private var loggedSignal = false
+    private var nextSequence: UInt64 = 1
+
+    // FFT-Zustand (Accelerate). Fixe Fenstergröße; Samples werden hineingeschoben.
+    private let fftSize = 1024
+    private var fftSetup: FFTSetup?
+    private var window = [Float]()
+    private var sampleRing = [Float]()     // gleitendes Mono-Fenster
+    private var ringFill = 0
+    // Bei extrem kleiner Lautstaerke wuerde 1/volume Rauschen und Rundungsreste massiv
+    // aufblasen. Bis 1 % wird exakt kompensiert; darunter bleibt der Visualizer sichtbar,
+    // aber nicht mehr mathematisch vollstaendig rekonstruierbar. Bei 0 % gibt es im Tap
+    // tatsaechlich nur Stille.
+    private let minimumRecoverableOutputVolume: Float = 0.01
+
+    init() { setupFFT() }
+
+    deinit {
+        if let fftSetup { vDSP_destroy_fftsetup(fftSetup) }
+    }
+
+    // MARK: Öffentlicher Lesezugriff (Main/UI, pro Frame)
+
+    var level: Float {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        return _level
+    }
+    var bands: [Float] {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        return _bands
+    }
+    /// Aktuelle Oszilloskop-Kurve (−1…1, `waveCount` Punkte) — echte Wellenform fürs Scope.
+    var waveform: [Float] {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        return _wave
+    }
+
+    var isActive: Bool {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        return _isActive
+    }
+
+    var captureSampleRate: Double? {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        return _captureRate
+    }
+
+    func setAvailability(active: Bool, captureRate: Double?) {
+        os_unfair_lock_lock(&lock)
+        _isActive = active
+        _captureRate = captureRate
+        os_unfair_lock_unlock(&lock)
+    }
+
+    /// Erhält der Process-Tap gerade echtes Audio? Ohne Signal ruhen die Visualizer.
+    var reactive: Bool {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        guard _isActive else { return false }
+        return _silentRuns < 120        // ~1–2 s Stille → als „kein Signal" werten
+    }
+
+    // MARK: Steuerung — Tap läuft, solange ein Sender spielt
+
+    /// Tatsächliche lineare Ausgabeamplitude nach der kubischen AUHAL-Reglerskala.
+    /// Der Process-Tap sieht das Signal NACH diesem Regler;
+    /// fuer die Visualizer-Analyse rechnen wir ihn wieder heraus, damit die optische Dynamik
+    /// nicht kleiner wird, nur weil leise gehoert wird.
+    func setOutputVolume(_ volume: Float) {
+        let clamped = max(0, min(1, volume))
+        os_unfair_lock_lock(&lock)
+        _outputVolume = clamped
+        if let input { MuckeAudioPCMSetVolume(input.storage, clamped) }
+        os_unfair_lock_unlock(&lock)
+    }
+
+    func setInput(_ input: AudioTapInput?) {
+        os_unfair_lock_lock(&lock)
+        self.input = input
+        if let input { MuckeAudioPCMSetVolume(input.storage, _outputVolume) }
+        os_unfair_lock_unlock(&lock)
+    }
+
+    // MARK: Analyse-Queue
+
+    func drain(_ input: AudioTapInput) {
+        for _ in 0..<Int(MuckeAudioPCMSlots) {
+            let block = MuckeAudioPCMPeek(input.storage)
+            guard let samples = block.samples else { return }
+
+            if block.sequence != nextSequence {
+                resetSignal()
+            }
+            nextSequence = block.sequence &+ 1
+
+            let mono = UnsafeMutableBufferPointer(start: samples, count: block.frames)
+            recognitionCapture.append(UnsafeBufferPointer(mono), sampleRate: input.sampleRate, sequence: block.sequence)
+            feedMono(mono, outputVolume: block.volume)
+            MuckeAudioPCMConsume(input.storage)
+        }
+    }
+
+    func reset() {
+        nextSequence = 1
+        loggedSignal = false
+        resetSignal()
+    }
+
+    private func resetSignal() {
+        sampleRing = [Float](repeating: 0, count: fftSize)
+        ringFill = 0
+        os_unfair_lock_lock(&lock)
+        _level = 0
+        _bands = [Float](repeating: 0, count: AudioTap.bandCount)
+        _wave = [Float](repeating: 0, count: AudioTap.waveCount)
+        _silentRuns = 120
+        os_unfair_lock_unlock(&lock)
+    }
 
     /// Mono-Float-PCM (−1…1) → Lautstaerke-normalisieren → RMS + FFT + Oszilloskop-Kurve
     /// → publizieren. Die Normalisierung betrifft NUR den Visualizer, nicht die Wiedergabe.
-    private func feedMono(_ mono: [Float]) {
-        let analysisMono = volumeNormalized(mono)
-        let frames = analysisMono.count
-        guard frames > 0 else { return }
+    private func feedMono(_ mono: UnsafeMutableBufferPointer<Float>, outputVolume: Float) {
+        guard let samples = mono.baseAddress, !mono.isEmpty else { return }
+        normalizeVolume(samples, frames: mono.count, outputVolume: outputVolume)
 
         var meanSq: Float = 0
-        vDSP_measqv(analysisMono, 1, &meanSq, vDSP_Length(frames))
+        vDSP_measqv(samples, 1, &meanSq, vDSP_Length(mono.count))
         let rms = sqrtf(meanSq)
         // Pegel-Kurve: moderater Gain (Headroom gegen Dauer-Anschlag) PLUS sanfte Kompression
         // (^0.7) — hebt leise Passagen (z.B. leise Klassik) sichtbar an, ohne laute Stellen
         // ständig ins Clipping zu treiben. Die Ballistik (Attack/Release) macht die Nadel selbst.
         let lvl = min(1, powf(rms * 3.5, 0.7))
 
-        pushSamples(analysisMono)
+        pushSamples(UnsafeBufferPointer(mono))
         let newBands = computeBands()
         // Oszilloskop-Schnappschuss: gleitendes Fenster auf `waveCount` Punkte herunterrechnen.
         var wave = [Float](repeating: 0, count: waveCount)
         let stride = max(1, fftSize / waveCount)
         for i in 0..<waveCount { wave[i] = sampleRing[i * stride] }
 
+        let hasSignal = rms > 0.00005   // Auch leise, hörbare Musik zählt als Signal.
+        if hasSignal, !loggedSignal {
+            loggedSignal = true
+            tapLog.notice("AudioTap: echtes Signal — Visualizer reagieren.")
+        }
+
         os_unfair_lock_lock(&lock)
-        if rms > 0.00005 {   // sehr niedrig: leise (aber hörbare) Musik gilt als Signal, keine Nulllinie
+        if hasSignal {
             _silentRuns = 0
-            if !loggedSignal { loggedSignal = true; tapLog.notice("AudioTap: echtes Signal — Visualizer reagieren.") }
         } else {
             _silentRuns = min(_silentRuns + 1, 100_000)
         }
@@ -417,24 +497,18 @@ final class AudioTap: ObservableObject {
 
     /// Rechnet die tatsächliche Ausgabeamplitude aus den getappten Samples heraus.
     /// Beispiel: 0.25x-Amplitude im Tap → die Analyse erhält wieder 1.0x.
-    private func volumeNormalized(_ mono: [Float]) -> [Float] {
-        os_unfair_lock_lock(&lock)
-        let outputVolume = _outputVolume
-        os_unfair_lock_unlock(&lock)
-
-        guard outputVolume > 0.0001 else { return mono }
+    private func normalizeVolume(_ samples: UnsafeMutablePointer<Float>, frames: Int, outputVolume: Float) {
+        guard outputVolume > 0.0001 else { return }
         var gain = 1 / max(outputVolume, minimumRecoverableOutputVolume)
-        guard abs(gain - 1) > 0.001 else { return mono }
+        guard abs(gain - 1) > 0.001 else { return }
 
-        var normalized = mono
-        vDSP_vsmul(normalized, 1, &gain, &normalized, 1, vDSP_Length(normalized.count))
+        vDSP_vsmul(samples, 1, &gain, samples, 1, vDSP_Length(frames))
 
         // Nach der Rueckrechnung auf den normalen Float-PCM-Bereich begrenzen. Das schuetzt
         // vor kurzzeitigen Spitzen, ohne reale Musikdynamik fuer den Visualizer zu verlieren.
         var lo: Float = -1
         var hi: Float = 1
-        vDSP_vclip(normalized, 1, &lo, &hi, &normalized, 1, vDSP_Length(normalized.count))
-        return normalized
+        vDSP_vclip(samples, 1, &lo, &hi, samples, 1, vDSP_Length(frames))
     }
 
     // MARK: FFT
@@ -448,7 +522,7 @@ final class AudioTap: ObservableObject {
         ringFill = 0
     }
 
-    private func pushSamples(_ new: [Float]) {
+    private func pushSamples(_ new: UnsafeBufferPointer<Float>) {
         let n = new.count
         if n >= fftSize {
             for i in 0..<fftSize { sampleRing[i] = new[n - fftSize + i] }
@@ -522,26 +596,49 @@ final class AudioTap: ObservableObject {
 }
 
 #if AUDIO_TAP_HARNESS
+extension AudioTapAnalysis {
+    func receiveMonoFixture(_ samples: [Float]) {
+        os_unfair_lock_lock(&lock)
+        let volume = _outputVolume
+        os_unfair_lock_unlock(&lock)
+        var copy = samples
+        copy.withUnsafeMutableBufferPointer { feedMono($0, outputVolume: volume) }
+    }
+}
+
 // Synthetische Eingabe für den Harness ohne CoreAudio-Gerät oder Berechtigungsdialog.
 extension AudioTap {
-    func simulateRunningTap(sampleRate: Double) {
+    func simulateRunningTap(sampleRate: Double, channels: Int = 2, interleaved: Bool = true) {
         lifecycleQueue.sync {
-            tapChannels = 2
-            tapInterleaved = true
-            tapSampleRate = sampleRate
-            os_unfair_lock_lock(&lock)
-            isActive = true
-            _captureRate = sampleRate
-            os_unfair_lock_unlock(&lock)
+            precondition(input == nil)
+            guard let fixture = AudioTapInput(channels: channels, interleaved: interleaved, sampleRate: sampleRate) else {
+                preconditionFailure("PCM-Speicher für den Harness fehlt")
+            }
+            input = fixture
+            analysis.setInput(fixture)
+            recognitionCapture.setLiveSource(fixture.recognitionSource)
+            analysis.setAvailability(active: true, captureRate: sampleRate)
         }
     }
 
     func receiveMonoFixture(_ samples: [Float]) {
-        feedMono(samples)
+        analysisQueue.sync { analysis.receiveMonoFixture(samples) }
     }
 
     func receivePCMFixture(_ buffers: UnsafePointer<AudioBufferList>) {
-        handleTapInput(buffers)
+        enqueuePCMFixture(buffers)
+        drainPCMFixture()
+    }
+
+    @discardableResult
+    func enqueuePCMFixture(_ buffers: UnsafePointer<AudioBufferList>) -> Bool {
+        guard let input else { return false }
+        return MuckeAudioPCMSubmit(input.storage, buffers)
+    }
+
+    func drainPCMFixture() {
+        guard let input else { return }
+        analysisQueue.sync { analysis.drain(input) }
     }
 }
 #endif

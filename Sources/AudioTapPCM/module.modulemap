@@ -1,0 +1,4 @@
+module MuckeAudioTapPCM {
+    header "AudioTapPCM.h"
+    export *
+}

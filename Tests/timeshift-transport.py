@@ -30,6 +30,7 @@ def prepare(root, probe='TimeshiftTransportProbe.swift'):
     subprocess.run([
         'swiftc', '-whole-module-optimization', '-parse-as-library', '-D', 'MUCKE_TRANSPORT_PROBE',
         '-target', 'arm64-apple-macos14.2', '-module-cache-path', str(repo / 'build/module-cache'),
+        '-I', str(repo / 'Sources/AudioTapPCM'),
         '-F', str(vlc), '-framework', 'VLCKit', '-F', str(sparkle), '-framework', 'Sparkle',
         '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../Frameworks',
         *map(str, sources),
