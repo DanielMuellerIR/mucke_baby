@@ -81,6 +81,8 @@
 "Älter als 1 Woche löschen" = "Delete older than 1 week";
 "Älter als 1 Monat löschen" = "Delete older than 1 month";
 "Gesamten Verlauf löschen" = "Clear all history";
+"Gesamten Verlauf endgültig löschen?" = "Permanently clear all history?";
+"Alle Einträge im Verlauf werden endgültig gelöscht. Aufnahmen bleiben erhalten." = "All listening history entries will be permanently deleted. Recordings will be kept.";
 "Verlauf-Optionen" = "History Options";
 "Verlauf ausblenden" = "Hide history";
 "Noch nichts gehört." = "Nothing played yet.";

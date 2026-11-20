@@ -27,6 +27,7 @@ struct HistoryPanel: View {
     @State private var selectingMultiple = false
     @State private var batchSelection = Set<UUID>()
     @State private var showDeleteAllRecordingsConfirmation = false
+    @State private var showClearHistoryConfirmation = false
     @State private var filter = HistoryFilter()
     @State private var filterNow = Date()
     @State private var scrollAnchor: UUID?
@@ -131,7 +132,9 @@ struct HistoryPanel: View {
                         }
                     }
                     Divider()
-                    Button("Gesamten Verlauf löschen", role: .destructive) { history.clear() }
+                    Button("Gesamten Verlauf löschen", role: .destructive) {
+                        showClearHistoryConfirmation = true
+                    }
                 } label: { Image(systemName: "ellipsis.circle").foregroundStyle(historyActionInk) }
                     .menuStyle(.borderlessButton).fixedSize().help("Verlauf-Optionen")
                 Button { onClose() } label: { Image(systemName: "sidebar.trailing").foregroundStyle(historyActionInk) }
@@ -232,6 +235,18 @@ struct HistoryPanel: View {
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("Alle abgeschlossenen Aufnahme-Dateien werden endgültig gelöscht. Der Verlauf bleibt erhalten. Eine laufende Aufnahme wird nicht gelöscht.")
+        }
+        .confirmationDialog(
+            "Gesamten Verlauf endgültig löschen?",
+            isPresented: $showClearHistoryConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Endgültig löschen", role: .destructive) {
+                history.clear()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Alle Einträge im Verlauf werden endgültig gelöscht. Aufnahmen bleiben erhalten.")
         }
         .sheet(item: $lyricsFor) { e in
             LyricsView(artist: e.artist ?? "", title: e.title ?? e.raw)
