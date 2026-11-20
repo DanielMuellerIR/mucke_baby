@@ -1,10 +1,10 @@
 #include "recorder.h"
+#include "../i18n.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QLocale>
 #include <QSet>
 #include <QMap>
 #include <cmath>
@@ -19,7 +19,6 @@
 #include <cerrno>
 namespace Mucke::MediaPrivate {
 static QString identifier() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
-static QString statusText(const char *en, const char *de) { return QString::fromUtf8(QLocale().language() == QLocale::German ? de : en); }
 static QDateTime date(const QJsonValue &value) { return QDateTime::fromString(value.toString(), Qt::ISODateWithMs); }
 static bool plainName(const QString &file) { return !file.isEmpty() && !file.startsWith('.') && !file.contains('/') && !file.contains('\\') && !file.contains(QChar(0)); }
 // 0 bedeutet unvollständig, -1 ungültig, 1 vollständige initiale Codec-Header.
@@ -68,15 +67,15 @@ Recorder::Recorder(QString directory, std::function<QDateTime()> clock) : root(Q
 QDateTime Recorder::now() const { return clock ? clock() : QDateTime::currentDateTimeUtc(); }
 void Recorder::initialize() {
     if (rootFD >= 0) return;
-    if (!QDir().mkpath(root) || QFileInfo(root).isSymLink()) { message = statusText("Recording directory unavailable", "Aufnahmeordner nicht verfügbar"); return; }
+    if (!QDir().mkpath(root) || QFileInfo(root).isSymLink()) { message = germanOrEnglish("Aufnahmeordner nicht verfügbar", "Recording directory unavailable"); return; }
     rootFD = ::open(QFile::encodeName(root).constData(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (rootFD >= 0 && ::flock(rootFD, LOCK_EX | LOCK_NB) != 0) {
         ::close(rootFD); rootFD = -1;
-        message = statusText("Recording directory is in use by another instance", "Aufnahmeordner wird bereits von einer anderen Instanz verwendet");
+        message = germanOrEnglish("Aufnahmeordner wird bereits von einer anderen Instanz verwendet", "Recording directory is in use by another instance");
         return;
     }
     indexReady = rootFD >= 0 && load();
-    if (!indexReady) message = statusText("Recording index unavailable; existing audio was preserved", "Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten");
+    if (!indexReady) message = germanOrEnglish("Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten", "Recording index unavailable; existing audio was preserved");
 }
 Recorder::~Recorder() { finish(); if (rootFD >= 0) ::close(rootFD); }
 bool Recorder::load() {
@@ -151,8 +150,8 @@ bool Recorder::persist() {
 }
 void Recorder::beginSession(QString name, QString id) {
     finish(); station = name; session = id; initialAudio = true; headerRequired = false; rolloverHeaderPending = false; prefix.clear(); extension.clear(); currentTrack = {}; firstTitle = true;
-    message = !indexReady ? statusText("Recording index unavailable; existing audio was preserved", "Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten")
-        : requested ? statusText("Waiting for stream audio", "Warte auf Stream-Audio") : statusText("Recording off", "Aufnahme aus");
+    message = !indexReady ? germanOrEnglish("Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten", "Recording index unavailable; existing audio was preserved")
+        : requested ? germanOrEnglish("Warte auf Stream-Audio", "Waiting for stream audio") : germanOrEnglish("Aufnahme aus", "Recording off");
 }
 void Recorder::setEnabled(bool value) {
     requested = value;
@@ -161,19 +160,19 @@ void Recorder::setEnabled(bool value) {
             headerRequired = true;
             prefix.clear();
         }
-        finish(); message = statusText("Recording off", "Aufnahme aus");
+        finish(); message = germanOrEnglish("Aufnahme aus", "Recording off");
     }
-    else if (!indexReady) message = statusText("Recording index unavailable; existing audio was preserved", "Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten");
-    else message = headerRequired ? statusText("Recording needs a fresh stream header; restart playback", "Aufnahme benötigt einen neuen Stream-Header; Wiedergabe neu starten") : statusText("Waiting for stream audio", "Warte auf Stream-Audio");
+    else if (!indexReady) message = germanOrEnglish("Aufnahmeindex nicht verfügbar; vorhandene Audiodateien bleiben erhalten", "Recording index unavailable; existing audio was preserved");
+    else message = headerRequired ? germanOrEnglish("Aufnahme benötigt einen neuen Stream-Header; Wiedergabe neu starten", "Recording needs a fresh stream header; restart playback") : germanOrEnglish("Warte auf Stream-Audio", "Waiting for stream audio");
 }
 void Recorder::fail(QString reason) { finish(); message = reason; requested = false; if (changed) changed(); }
 void Recorder::checkDisk() {
     if (!requested && !active()) return;
     struct statvfs info{};
-    if (rootFD < 0 || ::fstatvfs(rootFD, &info) != 0) { fail(statusText("Cannot check free recording space", "Freier Aufnahmespeicher kann nicht geprüft werden")); return; }
-    if (static_cast<long double>(info.f_bavail) * info.f_frsize < 10.0L * 1024 * 1024 * 1024) fail(statusText("Recording stopped: less than 10 GiB free", "Aufnahme gestoppt: weniger als 10 GiB frei"));
+    if (rootFD < 0 || ::fstatvfs(rootFD, &info) != 0) { fail(germanOrEnglish("Freier Aufnahmespeicher kann nicht geprüft werden", "Cannot check free recording space")); return; }
+    if (static_cast<long double>(info.f_bavail) * info.f_frsize < 10.0L * 1024 * 1024 * 1024) fail(germanOrEnglish("Aufnahme gestoppt: weniger als 10 GiB frei", "Recording stopped: less than 10 GiB free"));
     if (active()) {
-        if (!persist()) fail(statusText("Cannot update recording index", "Aufnahmeindex kann nicht aktualisiert werden"));
+        if (!persist()) fail(germanOrEnglish("Aufnahmeindex kann nicht aktualisiert werden", "Cannot update recording index"));
         else if (changed) changed();
     }
     sinceDiskCheck = 0;
@@ -184,40 +183,40 @@ bool Recorder::startFile(bool partialStart) {
     Recording r; r.id = identifier(); r.station = station; r.sessionID = session; r.ext = extension; r.start = now(); r.active = true;
     r.file = r.start.toString("yyyyMMdd'T'HHmmss'Z'") + "-" + r.id + "." + extension;
     fileFD = ::openat(rootFD, QFile::encodeName(r.file).constData(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
-    if (fileFD < 0) { fail(statusText("Cannot create recording file", "Aufnahmedatei kann nicht angelegt werden")); return false; }
+    if (fileFD < 0) { fail(germanOrEnglish("Aufnahmedatei kann nicht angelegt werden", "Cannot create recording file")); return false; }
     entries.append(r); activeIndex = int(entries.size() - 1);
-    if (!persist()) { fail(statusText("Cannot save recording index; recording stopped", "Aufnahmeindex kann nicht gespeichert werden; Aufnahme gestoppt")); return false; }
+    if (!persist()) { fail(germanOrEnglish("Aufnahmeindex kann nicht gespeichert werden; Aufnahme gestoppt", "Cannot save recording index; recording stopped")); return false; }
     pendingCapture = boundary(currentTrack, 0, true, partialStart);
-    message = statusText("Recording", "Aufnahme läuft"); if (changed) changed(); return true;
+    message = germanOrEnglish("Aufnahme läuft", "Recording"); if (changed) changed(); return true;
 }
 void Recorder::audio(const QByteArray &bytes) {
     if (bytes.isEmpty()) return;
     const bool first = initialAudio;
     if (initialAudio) {
-        if (prefix.size() + bytes.size() > 256 * 1024) { initialAudio = false; headerRequired = true; message = statusText("Stream codec headers exceed the capture limit", "Stream-Header überschreiten das Aufnahmelimit"); prefix.clear(); if (changed) changed(); return; }
+        if (prefix.size() + bytes.size() > 256 * 1024) { initialAudio = false; headerRequired = true; message = germanOrEnglish("Stream-Header überschreiten das Aufnahmelimit", "Stream codec headers exceed the capture limit"); prefix.clear(); if (changed) changed(); return; }
         prefix.append(bytes);
         if (prefix.size() < 16) return;
         if (prefix.startsWith("OggS")) extension = "ogg";
         else if (prefix.startsWith("fLaC")) extension = "flac";
         else if (prefix.startsWith("ID3") || (static_cast<unsigned char>(prefix[0]) == 0xff && (static_cast<unsigned char>(prefix[1]) & 0xe0) == 0xe0))
             extension = static_cast<unsigned char>(prefix[0]) == 0xff && (static_cast<unsigned char>(prefix[1]) & 0xf6) == 0xf0 ? "aac" : "mp3";
-        if (extension.isEmpty()) { initialAudio = false; message = statusText("Recording unavailable for this stream format", "Aufnahme für dieses Stream-Format nicht verfügbar"); headerRequired = true; prefix.clear(); if (changed) changed(); return; }
+        if (extension.isEmpty()) { initialAudio = false; message = germanOrEnglish("Aufnahme für dieses Stream-Format nicht verfügbar", "Recording unavailable for this stream format"); headerRequired = true; prefix.clear(); if (changed) changed(); return; }
         if (!requested) { initialAudio = false; headerRequired = extension == "ogg" || extension == "flac"; prefix.clear(); return; }
         const int complete = completeHeader(prefix, extension);
         if (complete == 0) return;
         initialAudio = false;
-        if (complete < 0) { headerRequired = true; message = statusText("Invalid stream codec headers", "Ungültige Stream-Header"); prefix.clear(); if (changed) changed(); return; }
+        if (complete < 0) { headerRequired = true; message = germanOrEnglish("Ungültige Stream-Header", "Invalid stream codec headers"); prefix.clear(); if (changed) changed(); return; }
     }
     if (!requested || headerRequired || extension.isEmpty()) return;
     if (fileFD < 0 && !startFile()) return;
     const QByteArray output = first && !prefix.isEmpty() ? prefix : bytes;
     prefix.clear();
     qint64 offset = 0;
-    while (offset < output.size()) { const ssize_t count = ::write(fileFD, output.constData() + offset, size_t(output.size() - offset)); if (count <= 0) { fail(statusText("Recording write failed", "Aufnahmedatei kann nicht geschrieben werden")); return; } offset += count; }
+    while (offset < output.size()) { const ssize_t count = ::write(fileFD, output.constData() + offset, size_t(output.size() - offset)); if (count <= 0) { fail(germanOrEnglish("Aufnahmedatei kann nicht geschrieben werden", "Recording write failed")); return; } offset += count; }
     Recording &r = entries[activeIndex]; const bool firstWrite = r.bytes == 0; r.bytes += output.size(); r.receivedEnd = now(); sinceDiskCheck += output.size();
     if (firstWrite) {
         if (pendingCapture) { appendBoundary(*pendingCapture); pendingCapture.reset(); }
-        if (!persist()) { fail(statusText("Cannot save recording metadata", "Aufnahmemetadaten können nicht gespeichert werden")); return; }
+        if (!persist()) { fail(germanOrEnglish("Aufnahmemetadaten können nicht gespeichert werden", "Cannot save recording metadata")); return; }
         if (changed) changed();
     }
     if (sinceDiskCheck >= 8 * 1024 * 1024) checkDisk();
@@ -245,14 +244,14 @@ void Recorder::title(const Track &track) {
     if (entries[activeIndex].start.secsTo(now()) >= 24 * 60 * 60) {
         finish();
         if (extension == "mp3" || extension == "aac") startFile(false);
-        else { headerRequired = true; rolloverHeaderPending = true; message = statusText("Recording rollover needs a fresh stream header", "Neuer Aufnahmeabschnitt benötigt einen neuen Stream-Header"); }
-    } else if (!persist()) fail(statusText("Cannot save recording metadata", "Aufnahmemetadaten können nicht gespeichert werden"));
+        else { headerRequired = true; rolloverHeaderPending = true; message = germanOrEnglish("Neuer Aufnahmeabschnitt benötigt einen neuen Stream-Header", "Recording rollover needs a fresh stream header"); }
+    } else if (!persist()) fail(germanOrEnglish("Aufnahmemetadaten können nicht gespeichert werden", "Cannot save recording metadata"));
 }
 void Recorder::finish() {
     pendingCapture.reset(); if (fileFD < 0) return;
     ::fsync(fileFD); ::close(fileFD); fileFD = -1;
     Recording &r = entries[activeIndex]; r.active = false; r.end = r.receivedEnd.isValid() ? r.receivedEnd : r.start;
-    activeIndex = -1; message = requested ? statusText("Recording idle", "Aufnahme bereit") : statusText("Recording off", "Aufnahme aus");
+    activeIndex = -1; message = requested ? germanOrEnglish("Aufnahme bereit", "Recording idle") : germanOrEnglish("Aufnahme aus", "Recording off");
     persist(); if (changed) changed();
 }
 QString Recorder::checkedPath(QString id) const {

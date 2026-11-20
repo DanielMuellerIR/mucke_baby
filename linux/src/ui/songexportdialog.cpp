@@ -1,4 +1,5 @@
 #include "songexportdialog.h"
+#include "../i18n.h"
 #include "songexportfile_p.h"
 #include "../media/mediaengine.h"
 #include <QtWidgets>
@@ -8,20 +9,17 @@
 
 namespace Mucke {
 namespace {
-QString text(const char *de, const char *en) {
-    return QString::fromUtf8(QLocale().language() == QLocale::German ? de : en);
-}
 QString timeValue(double value) { return QLocale().toString(value, 'f', 2) + " s"; }
 QString statusText(SongAudioStatus status) {
     switch (status) {
-    case SongAudioStatus::Available: return text("Schnittvorschlag", "Cut proposal");
-    case SongAudioStatus::Partial: return text("Unvollständig", "Partial");
-    case SongAudioStatus::Approximate: return text("Ungefähr", "Approximate");
-    case SongAudioStatus::MissingBoundaries: return text("Schnittgrenzen fehlen", "Missing boundaries");
-    case SongAudioStatus::MissingFile: return text("Aufnahmedatei fehlt", "Recording file missing");
-    case SongAudioStatus::ActiveRecording: return text("Zuerst Aufnahme beenden", "Stop recording first");
-    case SongAudioStatus::Unsupported: return text("Format nicht unterstützt", "Unsupported format");
-    case SongAudioStatus::Failed: return text("Analyse fehlgeschlagen", "Analysis failed");
+    case SongAudioStatus::Available: return germanOrEnglish("Schnittvorschlag", "Cut proposal");
+    case SongAudioStatus::Partial: return germanOrEnglish("Unvollständig", "Partial");
+    case SongAudioStatus::Approximate: return germanOrEnglish("Ungefähr", "Approximate");
+    case SongAudioStatus::MissingBoundaries: return germanOrEnglish("Schnittgrenzen fehlen", "Missing boundaries");
+    case SongAudioStatus::MissingFile: return germanOrEnglish("Aufnahmedatei fehlt", "Recording file missing");
+    case SongAudioStatus::ActiveRecording: return germanOrEnglish("Zuerst Aufnahme beenden", "Stop recording first");
+    case SongAudioStatus::Unsupported: return germanOrEnglish("Format nicht unterstützt", "Unsupported format");
+    case SongAudioStatus::Failed: return germanOrEnglish("Analyse fehlgeschlagen", "Analysis failed");
     }
     return {};
 }
@@ -46,7 +44,7 @@ class ExportModel final : public QAbstractTableModel {
         for (auto &track : tracks) {
             ExportRow row;
             row.track = std::move(track);
-            row.state = text("Wird untersucht …", "Analyzing …");
+            row.state = germanOrEnglish("Wird untersucht …", "Analyzing …");
             rows.append(std::move(row));
         }
     }
@@ -55,8 +53,8 @@ class ExportModel final : public QAbstractTableModel {
     QVariant headerData(int section, Qt::Orientation orientation, int role) const override {
         if (orientation != Qt::Horizontal || role != Qt::DisplayRole)
             return {};
-        const QStringList captions = {text("Titel", "Track"), text("Audio", "Audio"),
-                                      text("Vorgang", "Operation"), text("Ergebnis / Fehler", "Result / error")};
+        const QStringList captions = {germanOrEnglish("Titel", "Track"), germanOrEnglish("Audio", "Audio"),
+                                      germanOrEnglish("Vorgang", "Operation"), germanOrEnglish("Ergebnis / Fehler", "Result / error")};
         return captions.value(section);
     }
     QVariant data(const QModelIndex &index, int role) const override {
@@ -158,14 +156,14 @@ class SongExportDialog final : public QDialog {
             fadeOut->setValue(r.fadeOut);
             QString info = p.explanation;
             if (valid) {
-                info += "\n" + text("Vorschlag: ", "Proposal: ") + timeValue(p.suggestedStart) + " – " + timeValue(p.suggestedEnd);
-                info += "\n" + text("Startintervall: ", "Start interval: ") + timeValue(p.startLower) + " – " + timeValue(p.startUpper);
-                info += text("; Endintervall: ", "; end interval: ") + timeValue(p.endLower) + " – " + timeValue(p.endUpper);
+                info += "\n" + germanOrEnglish("Vorschlag: ", "Proposal: ") + timeValue(p.suggestedStart) + " – " + timeValue(p.suggestedEnd);
+                info += "\n" + germanOrEnglish("Startintervall: ", "Start interval: ") + timeValue(p.startLower) + " – " + timeValue(p.startUpper);
+                info += germanOrEnglish("; Endintervall: ", "; end interval: ") + timeValue(p.endLower) + " – " + timeValue(p.endUpper);
                 if (p.partialStart || p.partialEnd)
-                    info += "\n" + text("Die Aufnahme enthält den Titel nur teilweise.", "The recording contains only part of this track.");
+                    info += "\n" + germanOrEnglish("Die Aufnahme enthält den Titel nur teilweise.", "The recording contains only part of this track.");
             }
             if (p.status == SongAudioStatus::ActiveRecording)
-                info += "\n" + text("Bitte die Aufnahme bewusst beenden und den Dialog neu öffnen. Die Wiedergabe wird hier nicht gestoppt.",
+                info += "\n" + germanOrEnglish("Bitte die Aufnahme bewusst beenden und den Dialog neu öffnen. Die Wiedergabe wird hier nicht gestoppt.",
                                      "Stop the recording yourself, then reopen this dialog. Playback is not stopped here.");
             details->setText(info);
         }
@@ -185,7 +183,7 @@ class SongExportDialog final : public QDialog {
         r.prepared.clear();
         r.saved.clear();
         r.error.clear();
-        r.state = text("Einstellungen geändert", "Settings changed");
+        r.state = germanOrEnglish("Einstellungen geändert", "Settings changed");
         model->changed(i);
         updateActions();
     }
@@ -203,8 +201,8 @@ class SongExportDialog final : public QDialog {
         auto &r = model->rows[currentRow];
         r.error.clear();
         if (!permitted(r) || !SongExportFile::validRange(r.proposal, r.start, r.end, r.fadeIn, r.fadeOut)) {
-            r.error = text("Schnitt oder Blenden liegen außerhalb des verfügbaren Audios.", "Cut or fades exceed the available audio.");
-            r.state = text("Übersprungen", "Skipped");
+            r.error = germanOrEnglish("Schnitt oder Blenden liegen außerhalb des verfügbaren Audios.", "Cut or fades exceed the available audio.");
+            r.state = germanOrEnglish("Übersprungen", "Skipped");
             model->changed(currentRow);
             QTimer::singleShot(0, this, [this] { nextRender(); });
             return;
@@ -215,7 +213,7 @@ class SongExportDialog final : public QDialog {
         r.saved.clear();
         jobID = newID();
         expectedPath = temporary.filePath(jobID + ".m4a");
-        r.state = text("M4A wird vorbereitet …", "Preparing M4A …");
+        r.state = germanOrEnglish("M4A wird vorbereitet …", "Preparing M4A …");
         model->changed(currentRow);
         progress->setRange(0, 0);
         progress->show();
@@ -231,7 +229,7 @@ class SongExportDialog final : public QDialog {
         for (int i = 0; i < model->rows.size(); ++i)
             if ((all || i == selected()) && permitted(model->rows[i])) {
                 queue.append(i);
-                model->rows[i].state = text("Wartet", "Queued");
+                model->rows[i].state = germanOrEnglish("Wartet", "Queued");
                 model->changed(i);
             }
         nextRender();
@@ -249,7 +247,7 @@ class SongExportDialog final : public QDialog {
             QTimer::singleShot(0, this, [this] { nextSave(); });
             return;
         }
-        r.state = text("Wird gespeichert …", "Saving …");
+        r.state = germanOrEnglish("Wird gespeichert …", "Saving …");
         model->changed(i);
         const QString source = r.prepared, directory = saveDirectory, base = SongExportFile::safeBase(r.track);
         auto result = std::make_shared<SongExportFile::PublishResult>();
@@ -261,8 +259,8 @@ class SongExportDialog final : public QDialog {
             auto &row = model->rows[i];
             row.error = result->error;
             row.saved = result->path;
-            row.state = result->cancelled ? text("Abgebrochen", "Cancelled") :
-                        result->path.isEmpty() ? text("Speichern fehlgeschlagen", "Saving failed") : text("Gespeichert", "Saved");
+            row.state = result->cancelled ? germanOrEnglish("Abgebrochen", "Cancelled") :
+                        result->path.isEmpty() ? germanOrEnglish("Speichern fehlgeschlagen", "Saving failed") : germanOrEnglish("Gespeichert", "Saved");
             model->changed(i);
             nextSave();
         });
@@ -272,7 +270,7 @@ class SongExportDialog final : public QDialog {
     void savePrepared(bool all) {
         if (rendering || saving || analyzing || !media)
             return;
-        const QString directory = QFileDialog::getExistingDirectory(this, text("Exportordner wählen", "Choose export folder"));
+        const QString directory = QFileDialog::getExistingDirectory(this, germanOrEnglish("Exportordner wählen", "Choose export folder"));
         if (directory.isEmpty())
             return;
         saveDirectory = directory;
@@ -293,12 +291,12 @@ class SongExportDialog final : public QDialog {
                 media->cancelSongPreparation(requestID);
             analyzing = false;
             for (int i = 0; i < model->rows.size(); ++i) {
-                model->rows[i].state = text("Abgebrochen", "Cancelled");
+                model->rows[i].state = germanOrEnglish("Abgebrochen", "Cancelled");
                 model->changed(i);
             }
         }
         for (int i : queue) {
-            model->rows[i].state = text("Abgebrochen", "Cancelled");
+            model->rows[i].state = germanOrEnglish("Abgebrochen", "Cancelled");
             model->changed(i);
         }
         queue.clear();
@@ -311,7 +309,7 @@ class SongExportDialog final : public QDialog {
         if (saveCancelled)
             saveCancelled->store(true);
         for (int i : saveQueue) {
-            model->rows[i].state = text("Abgebrochen", "Cancelled");
+            model->rows[i].state = germanOrEnglish("Abgebrochen", "Cancelled");
             model->changed(i);
         }
         saveQueue.clear();
@@ -322,10 +320,10 @@ class SongExportDialog final : public QDialog {
     SongExportDialog(QVector<Track> tracks, MediaEngine *engine, QWidget *parent)
         : QDialog(parent), media(engine), model(new ExportModel(tracks, this)) {
         setObjectName("songExportDialog");
-        setWindowTitle(text("Titel aus Aufnahmen exportieren", "Export tracks from recordings"));
+        setWindowTitle(germanOrEnglish("Titel aus Aufnahmen exportieren", "Export tracks from recordings"));
         resize(840, 690);
         auto *layout = new QVBoxLayout(this);
-        auto *hint = new QLabel(text("Metadaten liefern Schnittvorschläge, keinen Nachweis vollständiger Songs. Senderansagen und Übergänge können enthalten sein. Die Quelldateien bleiben unverändert. Vorschau und Speichern verwenden dieselbe vorbereitete M4A-Datei.",
+        auto *hint = new QLabel(germanOrEnglish("Metadaten liefern Schnittvorschläge, keinen Nachweis vollständiger Songs. Senderansagen und Übergänge können enthalten sein. Die Quelldateien bleiben unverändert. Vorschau und Speichern verwenden dieselbe vorbereitete M4A-Datei.",
                                     "Metadata provides cut proposals, not proof of complete songs. Announcements and transitions may be included. Source files stay unchanged. Preview and save use the same prepared M4A file."));
         hint->setWordWrap(true);
         layout->addWidget(hint);
@@ -359,19 +357,19 @@ class SongExportDialog final : public QDialog {
         start = spin("songStartAdjustment", 0); end = spin("songEndAdjustment", 0);
         fadeIn = spin("songFadeIn", 30); fadeOut = spin("songFadeOut", 30);
         int column = 0;
-        for (const auto &pair : {qMakePair(text("Startkorrektur", "Start adjustment"), start),
-                                qMakePair(text("Endkorrektur", "End adjustment"), end),
-                                qMakePair(text("Einblenden", "Fade in"), fadeIn),
-                                qMakePair(text("Ausblenden", "Fade out"), fadeOut)}) {
+        for (const auto &pair : {qMakePair(germanOrEnglish("Startkorrektur", "Start adjustment"), start),
+                                qMakePair(germanOrEnglish("Endkorrektur", "End adjustment"), end),
+                                qMakePair(germanOrEnglish("Einblenden", "Fade in"), fadeIn),
+                                qMakePair(germanOrEnglish("Ausblenden", "Fade out"), fadeOut)}) {
             auto *label = new QLabel(pair.first); label->setBuddy(pair.second);
             form->addWidget(label, 0, column); form->addWidget(pair.second, 1, column++);
         }
         layout->addLayout(form);
-        consent = new QCheckBox(text("Unvollständige und ungefähre Schnitte ausdrücklich zulassen", "Explicitly allow partial and approximate cuts"));
+        consent = new QCheckBox(germanOrEnglish("Unvollständige und ungefähre Schnitte ausdrücklich zulassen", "Explicitly allow partial and approximate cuts"));
         consent->setObjectName("songExportConsent");
         layout->addWidget(consent);
         connect(consent, &QCheckBox::toggled, this, [this] { updateActions(); });
-        message = new QLabel(text("Audio-Schnittgrenzen werden untersucht …", "Analyzing audio boundaries …"));
+        message = new QLabel(germanOrEnglish("Audio-Schnittgrenzen werden untersucht …", "Analyzing audio boundaries …"));
         message->setTextFormat(Qt::PlainText);
         message->setWordWrap(true); layout->addWidget(message);
         progress = new QProgressBar; progress->setRange(0, 0); layout->addWidget(progress);
@@ -381,22 +379,22 @@ class SongExportDialog final : public QDialog {
         };
         auto *renderActions = new QHBoxLayout;
         layout->addLayout(renderActions);
-        prepare = makeButton(text("Auswahl vorbereiten", "Prepare selected"), "songPrepare", renderActions, [this] { render(false); });
-        prepareAll = makeButton(text("Alle vorbereiten", "Prepare all"), "songPrepareAll", renderActions, [this] { render(true); });
-        listen = makeButton(text("Anhören", "Listen"), "songListen", renderActions, [this] {
+        prepare = makeButton(germanOrEnglish("Auswahl vorbereiten", "Prepare selected"), "songPrepare", renderActions, [this] { render(false); });
+        prepareAll = makeButton(germanOrEnglish("Alle vorbereiten", "Prepare all"), "songPrepareAll", renderActions, [this] { render(true); });
+        listen = makeButton(germanOrEnglish("Anhören", "Listen"), "songListen", renderActions, [this] {
             const int i = selected();
             if (i < 0 || !media || model->rows[i].prepared.isEmpty()) return;
             const auto snapshot = media->snapshot();
             if (snapshot.recordActive || (snapshot.state != PlaybackState::Stopped && !snapshot.previewActive)) {
                 const QString explanation = snapshot.recordActive
-                    ? text("Titelvorhören beendet Live-Wiedergabe und laufende Aufnahme. Fortfahren?",
+                    ? germanOrEnglish("Titelvorhören beendet Live-Wiedergabe und laufende Aufnahme. Fortfahren?",
                            "Previewing this track ends live playback and the active recording. Continue?")
-                    : text("Die Vorschau beendet die aktuelle Live-Wiedergabe. Fortfahren?",
+                    : germanOrEnglish("Die Vorschau beendet die aktuelle Live-Wiedergabe. Fortfahren?",
                            "Preview ends current live playback. Continue?");
-                QMessageBox question(QMessageBox::Question, text("Vorschau", "Preview"), explanation,
+                QMessageBox question(QMessageBox::Question, germanOrEnglish("Vorschau", "Preview"), explanation,
                                      QMessageBox::NoButton, this);
-                auto *proceed = question.addButton(text("Vorschau starten", "Start preview"), QMessageBox::AcceptRole);
-                auto *abort = question.addButton(text("Abbrechen", "Cancel"), QMessageBox::RejectRole);
+                auto *proceed = question.addButton(germanOrEnglish("Vorschau starten", "Start preview"), QMessageBox::AcceptRole);
+                auto *abort = question.addButton(germanOrEnglish("Abbrechen", "Cancel"), QMessageBox::RejectRole);
                 question.setDefaultButton(abort);
                 question.exec();
                 if (question.clickedButton() != proceed || !media)
@@ -407,13 +405,13 @@ class SongExportDialog final : public QDialog {
             stopOwnPreview(); ownsPreview = true; previewStarting = true; previewRow = i;
             media->previewFile(model->rows[i].prepared); updateActions();
         });
-        stopListen = makeButton(text("Vorschau stoppen", "Stop preview"), "songStopPreview", renderActions, [this] { stopOwnPreview(); updateActions(); });
+        stopListen = makeButton(germanOrEnglish("Vorschau stoppen", "Stop preview"), "songStopPreview", renderActions, [this] { stopOwnPreview(); updateActions(); });
         auto *saveActions = new QHBoxLayout;
         layout->addLayout(saveActions);
-        save = makeButton(text("Auswahl speichern …", "Save selected …"), "songSave", saveActions, [this] { savePrepared(false); });
-        saveAll = makeButton(text("Vorbereitete speichern …", "Save all prepared …"), "songSaveAll", saveActions, [this] { savePrepared(true); });
-        cancel = makeButton(text("Rest abbrechen", "Cancel remaining"), "songCancel", saveActions, [this] { cancelWork(); });
-        makeButton(text("Schließen", "Close"), "songClose", saveActions, [this] { reject(); });
+        save = makeButton(germanOrEnglish("Auswahl speichern …", "Save selected …"), "songSave", saveActions, [this] { savePrepared(false); });
+        saveAll = makeButton(germanOrEnglish("Vorbereitete speichern …", "Save all prepared …"), "songSaveAll", saveActions, [this] { savePrepared(true); });
+        cancel = makeButton(germanOrEnglish("Rest abbrechen", "Cancel remaining"), "songCancel", saveActions, [this] { cancelWork(); });
+        makeButton(germanOrEnglish("Schließen", "Close"), "songClose", saveActions, [this] { reject(); });
         connect(view->selectionModel(), &QItemSelectionModel::currentRowChanged, this, [this] { loadSelection(); });
         connect(this, &QDialog::finished, this, [this] { cleanup(); });
         connect(engine, &MediaEngine::snapshotChanged, this, [this](PlaybackSnapshot snapshot) {
@@ -426,7 +424,7 @@ class SongExportDialog final : public QDialog {
         connect(engine, &MediaEngine::songPreparationProgress, this, [this](QString request, int done, int total) {
             if (request != requestID || !analyzing) return;
             progress->setRange(0, std::max(0, total)); progress->setValue(std::clamp(done, 0, std::max(0, total)));
-            message->setText(text("Aufnahmen untersucht: %1 / %2", "Recordings analyzed: %1 / %2").arg(done).arg(total));
+            message->setText(germanOrEnglish("Aufnahmen untersucht: %1 / %2", "Recordings analyzed: %1 / %2").arg(done).arg(total));
         });
         connect(engine, &MediaEngine::songExportsPrepared, this, [this](QString request, QVector<SongExportProposal> proposals) {
             if (request != requestID || !analyzing || closing) return;
@@ -434,18 +432,18 @@ class SongExportDialog final : public QDialog {
             for (int i = 0; i < model->rows.size(); ++i) {
                 auto &r = model->rows[i];
                 r.analyzed = true; r.proposal.status = SongAudioStatus::Failed;
-                r.proposal.explanation = text("Kein Schnittvorschlag erhalten.", "No cut proposal received.");
+                r.proposal.explanation = germanOrEnglish("Kein Schnittvorschlag erhalten.", "No cut proposal received.");
                 for (const auto &p : proposals)
                     if (p.trackID == r.track.id && p.requestID == requestID) { r.proposal = p; break; }
                 if (canRender(r.proposal) && !SongExportFile::validRange(r.proposal, 0, 0, 0, 0)) {
                     r.proposal.status = SongAudioStatus::Failed;
-                    r.proposal.explanation = text("Ungültige Audio-Schnittgrenzen.", "Invalid audio boundaries.");
+                    r.proposal.explanation = germanOrEnglish("Ungültige Audio-Schnittgrenzen.", "Invalid audio boundaries.");
                 }
-                r.state = canRender(r.proposal) ? text("Bereit zum Vorbereiten", "Ready to prepare") : text("Nicht verfügbar", "Unavailable");
+                r.state = canRender(r.proposal) ? germanOrEnglish("Bereit zum Vorbereiten", "Ready to prepare") : germanOrEnglish("Nicht verfügbar", "Unavailable");
                 model->changed(i);
             }
             progress->hide();
-            message->setText(text("Auswahl korrigieren, vorbereiten, anhören und anschließend speichern. Vorhandene Dateien werden nie überschrieben; gleiche Namen erhalten eine Nummer.",
+            message->setText(germanOrEnglish("Auswahl korrigieren, vorbereiten, anhören und anschließend speichern. Vorhandene Dateien werden nie überschrieben; gleiche Namen erhalten eine Nummer.",
                                   "Adjust a selection, prepare, listen, then save. Existing files are never overwritten; duplicate names receive a number."));
             loadSelection();
         });
@@ -455,16 +453,16 @@ class SongExportDialog final : public QDialog {
             jobID.clear();
             if (cancellingExport) {
                 cancellingExport = false;
-                r.state = text("Abgebrochen", "Cancelled");
+                r.state = germanOrEnglish("Abgebrochen", "Cancelled");
                 model->changed(currentRow);
                 nextRender();
                 return;
             }
             if (error.isEmpty() && path == expectedPath && QFileInfo(path).isFile() && QFileInfo(path).size() > 0) {
-                r.prepared = path; r.state = text("Vorbereitet", "Prepared");
+                r.prepared = path; r.state = germanOrEnglish("Vorbereitet", "Prepared");
             } else {
-                r.error = error.isEmpty() ? text("Die vorbereitete Datei fehlt.", "The prepared file is missing.") : error;
-                r.state = text("Vorbereitung fehlgeschlagen", "Preparation failed");
+                r.error = error.isEmpty() ? germanOrEnglish("Die vorbereitete Datei fehlt.", "The prepared file is missing.") : error;
+                r.state = germanOrEnglish("Vorbereitung fehlgeschlagen", "Preparation failed");
             }
             model->changed(currentRow);
             nextRender();
@@ -473,7 +471,7 @@ class SongExportDialog final : public QDialog {
         updateActions();
         if (!temporary.isValid()) {
             analyzing = false; progress->hide();
-            message->setText(text("Temporärer Exportordner nicht verfügbar.", "Temporary export folder unavailable."));
+            message->setText(germanOrEnglish("Temporärer Exportordner nicht verfügbar.", "Temporary export folder unavailable."));
             updateActions();
         } else {
             QTimer::singleShot(0, this, [this, tracks] {
@@ -487,8 +485,8 @@ class SongExportDialog final : public QDialog {
 void showSongExportDialog(QVector<Track> tracks, MediaEngine *media, QWidget *parent) {
     if (!media || tracks.isEmpty()) return;
     if (tracks.size() > 100) {
-        QMessageBox::information(parent, text("Titelexport", "Track export"),
-                                 text("Bitte höchstens 100 Titel gleichzeitig auswählen.", "Select no more than 100 tracks at once."));
+        QMessageBox::information(parent, germanOrEnglish("Titelexport", "Track export"),
+                                 germanOrEnglish("Bitte höchstens 100 Titel gleichzeitig auswählen.", "Select no more than 100 tracks at once."));
         return;
     }
     SongExportDialog dialog(std::move(tracks), media, parent);

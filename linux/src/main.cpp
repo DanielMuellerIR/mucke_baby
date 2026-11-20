@@ -1,4 +1,5 @@
 #include "data/librarystore.h"
+#include "i18n.h"
 #include "data/catalogservice.h"
 #include "media/mediaengine.h"
 #include "ui/mainwindow.h"
@@ -45,7 +46,6 @@ QString stateName(PlaybackState value) {
     }
     return QStringLiteral("unknown");
 }
-QString localText(const char *de, const char *en) { return QString::fromUtf8(QLocale().language()==QLocale::German?de:en); }
 QJsonObject statusObject(MediaEngine &engine, LibraryStore &store) {
     const auto s=engine.snapshot();
     return {{"version",MUCKE_VERSION},{"pid",double(QCoreApplication::applicationPid())},{"state",stateName(s.state)},
@@ -146,13 +146,13 @@ int main(int argc,char **argv) {
     MprisBridge mpris(&engine,&store,window.get());
     QSystemTrayIcon tray(QIcon(QStringLiteral(":/icon.png")));
     QMenu trayMenu;
-    auto *showAction=trayMenu.addAction(localText("Mucke, Baby! öffnen","Open Mucke, Baby!"));
+    auto *showAction=trayMenu.addAction(germanOrEnglish("Mucke, Baby! öffnen","Open Mucke, Baby!"));
     QObject::connect(showAction,&QAction::triggered,&app,[&]{if(window){window->showNormal();window->raise();window->activateWindow();}});
     trayMenu.addSeparator();
-    QObject::connect(trayMenu.addAction(localText("Wiedergabe / Pause","Play / Pause")),&QAction::triggered,&mpris,&MprisBridge::playPause);
-    QObject::connect(trayMenu.addAction(localText("Stoppen","Stop")),&QAction::triggered,&engine,&MediaEngine::stop);
+    QObject::connect(trayMenu.addAction(germanOrEnglish("Wiedergabe / Pause","Play / Pause")),&QAction::triggered,&mpris,&MprisBridge::playPause);
+    QObject::connect(trayMenu.addAction(germanOrEnglish("Stoppen","Stop")),&QAction::triggered,&engine,&MediaEngine::stop);
     trayMenu.addSeparator();
-    QObject::connect(trayMenu.addAction(localText("Beenden","Quit")),&QAction::triggered,&app,&QApplication::quit);
+    QObject::connect(trayMenu.addAction(germanOrEnglish("Beenden","Quit")),&QAction::triggered,&app,&QApplication::quit);
     tray.setContextMenu(&trayMenu);tray.setToolTip(QStringLiteral("Mucke, Baby!"));
     QObject::connect(&tray,&QSystemTrayIcon::activated,&app,[&](QSystemTrayIcon::ActivationReason why){if(why==QSystemTrayIcon::Trigger&&window){window->showNormal();window->raise();}});
     ClosePolicy closePolicy(&store,&tray,&app);if(window)window->installEventFilter(&closePolicy);
@@ -239,7 +239,7 @@ int main(int argc,char **argv) {
             read();
         }
     });
-    if(window){window->show();if(!store.lastError().isEmpty())QTimer::singleShot(0,window.get(),[&]{QMessageBox::warning(window.get(),localText("Daten geschützt","Protected data"),store.lastError());});}
+    if(window){window->show();if(!store.lastError().isEmpty())QTimer::singleShot(0,window.get(),[&]{QMessageBox::warning(window.get(),germanOrEnglish("Daten geschützt","Protected data"),store.lastError());});}
     if(parser.isSet("screenshots")){
         if(hidden||!window){std::fprintf(stderr,"Screenshots require a window\n");return 2;}
         QTimer::singleShot(100,window.get(),[&]{window->captureScreenshots(parser.value("screenshots"));QApplication::quit();});

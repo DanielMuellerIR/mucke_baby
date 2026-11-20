@@ -1,6 +1,6 @@
 #include "pulsemonitor.h"
+#include "../i18n.h"
 #include <QElapsedTimer>
-#include <QLocale>
 #include <QTimer>
 #include <pulse/pulseaudio.h>
 #include <algorithm>
@@ -11,7 +11,6 @@
 #include <unistd.h>
 namespace Mucke::MediaPrivate {
 namespace {
-QString text(const char *en, const char *de) { return QString::fromUtf8(QLocale().language() == QLocale::German ? de : en); }
 }
 class PulseMonitor::Impl {
 public:
@@ -48,13 +47,13 @@ public:
     void setActive(bool value) {
         if (value == enabled && (!value || context)) return;
         enabled = value;
-        if (!enabled) { close(); message(text("Visualizer inactive", "Visualizer inaktiv")); return; }
+        if (!enabled) { close(); message(germanOrEnglish("Visualizer inaktiv", "Visualizer inactive")); return; }
         if (context) return;
         loop = pa_mainloop_new();
         if (!loop) return;
         pa_proplist *properties = pa_proplist_new(); pa_proplist_sets(properties, PA_PROP_APPLICATION_NAME, "Mucke, Baby! Visualizer");
         context = pa_context_new_with_proplist(pa_mainloop_get_api(loop), "Mucke, Baby! private monitor", properties); pa_proplist_free(properties);
-        if (!context || pa_context_connect(context, nullptr, PA_CONTEXT_NOAUTOSPAWN, nullptr) < 0) { close(); message(text("PulseAudio monitor unavailable", "PulseAudio-Monitor nicht verfügbar")); return; }
+        if (!context || pa_context_connect(context, nullptr, PA_CONTEXT_NOAUTOSPAWN, nullptr) < 0) { close(); message(germanOrEnglish("PulseAudio-Monitor nicht verfügbar", "PulseAudio monitor unavailable")); return; }
         lastScan = -3000; timer.start();
     }
     void tick() {
@@ -62,7 +61,7 @@ public:
         // Nicht blockieren: Pulse und Qt laufen auf demselben seriellen Worker.
         for (int i = 0; i < 8; ++i) { int result = pa_mainloop_iterate(loop, 0, nullptr); if (result <= 0) break; }
         const pa_context_state_t state = pa_context_get_state(context);
-        if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) { close(); message(text("PulseAudio connection lost; visualizer paused", "PulseAudio-Verbindung verloren; Visualizer ruht")); return; }
+        if (state == PA_CONTEXT_FAILED || state == PA_CONTEXT_TERMINATED) { close(); message(germanOrEnglish("PulseAudio-Verbindung verloren; Visualizer ruht", "PulseAudio connection lost; visualizer paused")); return; }
         if (state == PA_CONTEXT_READY && !subscribed) {
             pa_context_set_subscribe_callback(context, [](pa_context *, pa_subscription_event_type_t event, uint32_t, void *data) {
                 auto *self = static_cast<Impl *>(data);
@@ -87,7 +86,7 @@ public:
         if (end) {
             if (end < 0 || self->matches != 1 || self->scanChanges != self->changes) {
                 self->scanning = false; self->disconnectStream();
-                self->message(text("Visualizer paused: application audio output is absent or ambiguous", "Visualizer ruht: Anwendungsausgang fehlt oder ist nicht eindeutig")); return;
+                self->message(germanOrEnglish("Visualizer ruht: Anwendungsausgang fehlt oder ist nicht eindeutig", "Visualizer paused: application audio output is absent or ambiguous")); return;
             }
             if (self->selected == self->candidate && self->stream) { self->scanning = false; return; }
             pa_operation *operation = pa_context_get_sink_info_by_index(context, self->candidateSink, &Impl::sinkInfo, self);
@@ -117,8 +116,8 @@ public:
     static void streamState(pa_stream *stream, void *data) {
         auto *self = static_cast<Impl *>(data);
         const auto state = pa_stream_get_state(stream);
-        if (state == PA_STREAM_READY) self->message(text("Private application audio monitor", "Privater Audio-Monitor der Anwendung"));
-        else if (state == PA_STREAM_FAILED || state == PA_STREAM_TERMINATED) self->message(text("Private monitor unavailable; visualizer paused", "Privater Monitor nicht verfügbar; Visualizer ruht"));
+        if (state == PA_STREAM_READY) self->message(germanOrEnglish("Privater Audio-Monitor der Anwendung", "Private application audio monitor"));
+        else if (state == PA_STREAM_FAILED || state == PA_STREAM_TERMINATED) self->message(germanOrEnglish("Privater Monitor nicht verfügbar; Visualizer ruht", "Private monitor unavailable; visualizer paused"));
     }
     static void read(pa_stream *stream, size_t, void *data) {
         auto *self = static_cast<Impl *>(data);

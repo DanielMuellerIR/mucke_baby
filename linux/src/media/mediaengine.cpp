@@ -1,4 +1,5 @@
 #include "mediaengine.h"
+#include "../i18n.h"
 #include "radioprefetch.h"
 #include "recorder.h"
 #include "streamprotocol.h"
@@ -11,7 +12,6 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QElapsedTimer>
-#include <QLocale>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -45,7 +45,6 @@
 #endif
 namespace Mucke {
 namespace {
-QString trMessage(const char *en, const char *de) { return QString::fromUtf8(QLocale().language() == QLocale::German ? de : en); }
 QString uniqueID() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
 QByteArray userAgent() { return QByteArray("MuckeBaby/") + MUCKE_VERSION; }
 class EngineWorker : public QObject {
@@ -97,8 +96,8 @@ public:
         // Native Diagnosezeilen können vollständige Stream-URLs enthalten; sichtbare Fehler kommen aus den Events.
         if (instance) libvlc_log_set(instance, [](void *, int, const libvlc_log_t *, const char *, va_list) {}, nullptr);
         if (instance) player = libvlc_media_player_new(instance);
-        if (!player) state.error = trMessage("libVLC could not initialize", "libVLC konnte nicht initialisiert werden");
-        state.visualizerStatus = trMessage("Visualizer unavailable: private application monitor is not connected", "Visualizer ruht: privater Anwendungsmonitor ist nicht verbunden");
+        if (!player) state.error = germanOrEnglish("libVLC konnte nicht initialisiert werden", "libVLC could not initialize");
+        state.visualizerStatus = germanOrEnglish("Visualizer ruht: privater Anwendungsmonitor ist nicht verbunden", "Visualizer unavailable: private application monitor is not connected");
         if (onRecordings) onRecordings(recorder.list());
         publish();
     }
@@ -106,22 +105,46 @@ public:
         state.recordActive = recorder.active(); state.recordStatus = recordOverride.isEmpty() ? recorder.status() : recordOverride;
         if (onSnapshot) onSnapshot(state);
     }
-    void abortReply(QNetworkReply *&reply) { if (reply) { reply->disconnect(this); reply->abort(); reply->deleteLater(); reply = nullptr; } }
+    void abortReply(QNetworkReply *&reply) {
+        if (!reply)
+            return;
+        reply->disconnect(this);
+        reply->abort();
+        reply->deleteLater();
+        reply = nullptr;
+    }
     void stopUnneededAudioReader() {
         if (!audioOnlyReader || state.recordRequested || shiftBuffer || pendingShiftStart || aacProbeStage != AACProbeStage::None || !reader) return;
         if (parsingAudio) {
             const quint64 current = receptionGeneration;
             QTimer::singleShot(0, this, [this, current] { if (current == receptionGeneration) stopUnneededAudioReader(); }); return;
         }
-        abortReply(reader); parser.reset();
-        if (receiving) { receiving = false; if (onEnd) onEnd(QDateTime::currentDateTimeUtc()); }
+        abortReply(reader);
+        parser.reset();
+        endHistoryReception();
+    }
+    void endHistoryReception() {
+        if (!receiving)
+            return;
+        receiving = false;
+        if (onEnd)
+            onEnd(QDateTime::currentDateTimeUtc());
+    }
+    void resetAACVerification() {
+        aacProbeStage = AACProbeStage::None;
+        pendingAAC.clear();
+        aacPrefix.clear();
+        aacExpectedRate = 0;
+        bufferFormatPending = false;
     }
     void closeReception() {
-        aacProbeStage = AACProbeStage::None; pendingAAC.clear(); aacPrefix.clear(); aacExpectedRate = 0; bufferFormatPending = false;
+        resetAACVerification();
         if (shiftReader) shiftReader->cancel();
-        abortReply(resolver); abortReply(reader); parser.reset();
+        abortReply(resolver);
+        abortReply(reader);
+        parser.reset();
         if (shiftBuffer) shiftBuffer->endReception();
-        if (receiving) { receiving = false; if (onEnd) onEnd(QDateTime::currentDateTimeUtc()); }
+        endHistoryReception();
         recorder.finish();
     }
     void releasePlayer() {
@@ -129,8 +152,13 @@ public:
         discontinuityPending = false;
         if (shiftReader) shiftReader->cancel();
         if (!player || !hasOutputMedia) {
-            shiftReader.reset(); outputFromBuffer = false; aacProbeDirectory.reset();
-            if (player && systemSleeping) { libvlc_media_player_release(player); player = nullptr; }
+            shiftReader.reset();
+            outputFromBuffer = false;
+            aacProbeDirectory.reset();
+            if (player && systemSleeping) {
+                libvlc_media_player_release(player);
+                player = nullptr;
+            }
             return;
         }
         if (eventContext) {
@@ -141,10 +169,14 @@ public:
         libvlc_media_player_stop(player);
         libvlc_media_player_set_media(player, nullptr);
         aacProbeDirectory.reset();
-        shiftReader.reset(); outputFromBuffer = false;
+        shiftReader.reset();
+        outputFromBuffer = false;
         eventContext.reset();
-        libvlc_media_player_release(player); player = nullptr; hasOutputMedia = false;
-        if (!shutDown && !systemSleeping) player = libvlc_media_player_new(instance);
+        libvlc_media_player_release(player);
+        player = nullptr;
+        hasOutputMedia = false;
+        if (!shutDown && !systemSleeping)
+            player = libvlc_media_player_new(instance);
     }
     bool ensurePlayer() { if (!player && instance && !shutDown && !systemSleeping) player = libvlc_media_player_new(instance); return player != nullptr; }
     void stop(bool preserveWakeIntent = false) {
@@ -180,37 +212,75 @@ public:
         if (systemSleeping) {
             resolvedURL.clear();
             resumeAfterWake = false; stationPreview = preview; station = std::move(value); state.stationID = station.id; state.stationName = station.name;
-            state.error = trMessage("Playback stays stopped while the system sleeps", "Wiedergabe bleibt während des Systemschlafs gestoppt"); publish(); return;
+            state.error = germanOrEnglish("Wiedergabe bleibt während des Systemschlafs gestoppt", "Playback stays stopped while the system sleeps"); publish(); return;
         }
         stop(); resolvedURL.clear(); stationPreview = preview; state.previewActive = preview; station = std::move(value); retryCount = 0;
-        if (preview) recordOverride = trMessage("Station preview: recording and history are off", "Sendervorschau: Aufnahme und Verlauf sind aus");
+        if (preview) recordOverride = germanOrEnglish("Sendervorschau: Aufnahme und Verlauf sind aus", "Station preview: recording and history are off");
         state.stationID = station.id; state.stationName = station.name;
-        if (!ensurePlayer() || !validStreamURL(station.url)) { fail(trMessage("Invalid or unsupported stream URL", "Ungültige oder nicht unterstützte Stream-URL")); return; }
+        if (!ensurePlayer() || !validStreamURL(station.url)) { fail(germanOrEnglish("Ungültige oder nicht unterstützte Stream-URL", "Invalid or unsupported stream URL")); return; }
         station.url = normalizedStreamURL(station.url);
         sessionID = uniqueID(); state.state = PlaybackState::Resolving; state.error.clear(); publish(); resolve(QUrl(station.url), 0);
     }
-    void fail(QString error) { playbackHealth.cancel(); if (healthTimer) healthTimer->stop(); closeReception(); releasePlayer(); shiftBuffer.reset(); pendingShiftStart = false; state.state = PlaybackState::Error; state.error = std::move(error); publish(); }
+    void fail(QString error) {
+        playbackHealth.cancel();
+        if (healthTimer)
+            healthTimer->stop();
+        closeReception();
+        releasePlayer();
+        shiftBuffer.reset();
+        pendingShiftStart = false;
+        state.state = PlaybackState::Error;
+        state.error = std::move(error);
+        publish();
+    }
     void resolve(QUrl url, int depth) {
-        if (depth > 3 || !validStreamURL(url.toString())) { fail(trMessage("Playlist has no safe stream target", "Playlist enthält kein sicheres Stream-Ziel")); return; }
-        if (!MediaPrivate::needsResolution(url)) { beginStream(url); return; }
-        QNetworkRequest request(url); request.setTransferTimeout(8000);
+        if (depth > 3 || !validStreamURL(url.toString())) {
+            fail(germanOrEnglish("Playlist enthält kein sicheres Stream-Ziel",
+                                 "Playlist has no safe stream target"));
+            return;
+        }
+        if (!MediaPrivate::needsResolution(url)) {
+            beginStream(url);
+            return;
+        }
+
+        constexpr qint64 playlistLimit = 65536;
+        QNetworkRequest request(url);
+        request.setTransferTimeout(8000);
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-        request.setMaximumRedirectsAllowed(5); request.setRawHeader("Range", "bytes=0-65535"); request.setRawHeader("User-Agent", userAgent());
-        resolver = network->get(request); resolver->setReadBufferSize(65536);
-        auto bytes = std::make_shared<QByteArray>(); const quint64 current = receptionGeneration; QNetworkReply *reply = resolver;
+        request.setMaximumRedirectsAllowed(5);
+        request.setRawHeader("Range", "bytes=0-65535");
+        request.setRawHeader("User-Agent", userAgent());
+        resolver = network->get(request);
+        resolver->setReadBufferSize(playlistLimit);
+
+        auto bytes = std::make_shared<QByteArray>();
+        const quint64 current = receptionGeneration;
+        QNetworkReply *reply = resolver;
         connect(reply, &QNetworkReply::readyRead, this, [this, reply, bytes, current] {
-            if (current != receptionGeneration || reply != resolver) return;
-            bytes->append(reply->read(65536 - bytes->size()));
-            if (bytes->size() >= 65536) reply->abort();
+            if (current != receptionGeneration || reply != resolver)
+                return;
+            bytes->append(reply->read(playlistLimit - bytes->size()));
+            if (bytes->size() >= playlistLimit)
+                reply->abort();
         });
         connect(reply, &QNetworkReply::finished, this, [this, reply, bytes, current, depth] {
-            if (current != receptionGeneration || reply != resolver) return;
-            bytes->append(reply->read(65536 - bytes->size()));
+            if (current != receptionGeneration || reply != resolver)
+                return;
+            bytes->append(reply->read(playlistLimit - bytes->size()));
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            resolver = nullptr; reply->deleteLater();
-            if (status < 200 || status >= 300) { fail(trMessage("Playlist download failed", "Playlist konnte nicht geladen werden")); return; }
+            resolver = nullptr;
+            reply->deleteLater();
+            if (status < 200 || status >= 300) {
+                fail(germanOrEnglish("Playlist konnte nicht geladen werden", "Playlist download failed"));
+                return;
+            }
             const QUrl next = MediaPrivate::playlistTarget(*bytes);
-            if (next.isEmpty()) { fail(trMessage("Playlist has no safe stream target", "Playlist enthält kein sicheres Stream-Ziel")); return; }
+            if (next.isEmpty()) {
+                fail(germanOrEnglish("Playlist enthält kein sicheres Stream-Ziel",
+                                     "Playlist has no safe stream target"));
+                return;
+            }
             resolve(next, depth + 1);
         });
     }
@@ -225,7 +295,7 @@ public:
         if (type == libvlc_MediaPlayerAudioVolume) qInfo("native VLC volume=%d", libvlc_audio_get_volume(player));
 #endif
         if (aacProbeStage == AACProbeStage::Decoding && (type == libvlc_MediaPlayerTimeChanged || type == libvlc_MediaPlayerEndReached || type == libvlc_MediaPlayerEncounteredError)) {
-            if (type == libvlc_MediaPlayerEncounteredError) failAACProbe(trMessage("AAC decoder verification failed; playing live", "AAC-Decoderprüfung fehlgeschlagen; Live-Wiedergabe wird verwendet"));
+            if (type == libvlc_MediaPlayerEncounteredError) failAACProbe(germanOrEnglish("AAC-Decoderprüfung fehlgeschlagen; Live-Wiedergabe wird verwendet", "AAC decoder verification failed; playing live"));
             else finishAACProbe();
             return;
         }
@@ -233,7 +303,7 @@ public:
             if (outputFromBuffer && aacExpectedRate > 0) {
                 const unsigned actual = decodedRate();
                 if (actual == 0) return;
-                if (actual != unsigned(aacExpectedRate)) { shiftBuffer->close(); expireOutput(trMessage("AAC decoder rate differs from the header; press Live to resume", "AAC-Decoderfrequenz stimmt nicht mit dem Header überein; zum Fortsetzen Live drücken")); return; }
+                if (actual != unsigned(aacExpectedRate)) { shiftBuffer->close(); expireOutput(germanOrEnglish("AAC-Decoderfrequenz stimmt nicht mit dem Header überein; zum Fortsetzen Live drücken", "AAC decoder rate differs from the header; press Live to resume")); return; }
                 if (bufferFormatPending) { bufferFormatPending = false; libvlc_audio_set_mute(player, 0); }
             }
             if (!state.previewActive && !state.timeshiftPaused && libvlc_media_player_get_state(player) != libvlc_Paused) {
@@ -256,12 +326,12 @@ public:
                 stop();
                 if (previewFailed) {
                     state.state = PlaybackState::Error;
-                    state.error = trMessage("Preview audio cannot be decoded", "Vorschauaudio kann nicht dekodiert werden");
+                    state.error = germanOrEnglish("Vorschauaudio kann nicht dekodiert werden", "Preview audio cannot be decoded");
                     publish();
                 }
                 return;
             }
-            if (outputFromBuffer) { expireOutput(trMessage("Timeshift output ended; press Live to resume", "Timeshift-Ausgabe beendet; zum Fortsetzen Live drücken")); return; }
+            if (outputFromBuffer) { expireOutput(germanOrEnglish("Timeshift-Ausgabe beendet; zum Fortsetzen Live drücken", "Timeshift output ended; press Live to resume")); return; }
             scheduleRetry();
         } else if (type == libvlc_MediaPlayerPaused) { state.state = PlaybackState::Paused; publish(); }
     }
@@ -277,17 +347,17 @@ public:
         state.state = PlaybackState::Buffering; state.previewActive = stationPreview; state.heardTrack = {};
         beginHealth();
         if (state.timeshiftEnabled && !stationPreview && !MediaPrivate::isHLS({}, url)) {
-            pendingShiftStart = true; positionTimer->start(); setShiftStatus(trMessage("Building timeshift buffer…", "Timeshift-Puffer wird aufgebaut…")); startReader(url); publish(); return;
+            pendingShiftStart = true; positionTimer->start(); setShiftStatus(germanOrEnglish("Timeshift-Puffer wird aufgebaut…", "Building timeshift buffer…")); startReader(url); publish(); return;
         }
-        if (state.timeshiftEnabled && MediaPrivate::isHLS({}, url)) setShiftStatus(trMessage("HLS supports live playback only", "HLS unterstützt ausschließlich Live-Wiedergabe"));
+        if (state.timeshiftEnabled && MediaPrivate::isHLS({}, url)) setShiftStatus(germanOrEnglish("HLS unterstützt ausschließlich Live-Wiedergabe", "HLS supports live playback only"));
         startDirectOutput();
         if (!stationPreview) startReader(url);
         publish();
     }
     void startDirectOutput() {
-        aacProbeStage = AACProbeStage::None; pendingAAC.clear(); aacPrefix.clear(); aacExpectedRate = 0; bufferFormatPending = false;
+        resetAACVerification();
         pendingShiftStart = false; pendingLiveJump = false; releasePlayer();
-        if (!ensurePlayer()) { fail(trMessage("Native audio output unavailable", "Nativer Audioausgang nicht verfügbar")); return; }
+        if (!ensurePlayer()) { fail(germanOrEnglish("Nativer Audioausgang nicht verfügbar", "Native audio output unavailable")); return; }
         outputExpired = false;
         if (!shiftBuffer && positionTimer) positionTimer->stop();
         state.state = PlaybackState::Buffering; state.timeshiftPaused = false;
@@ -296,30 +366,48 @@ public:
         if (!state.previewActive && !liveTrack.id.isEmpty()) { state.heardTrack = liveTrack; state.heardTrack.heardAt = QDateTime::currentDateTimeUtc(); }
         const QUrl url = resolvedURL;
         const QByteArray encoded = url.toEncoded(); libvlc_media_t *media = libvlc_media_new_location(instance, encoded.constData());
-        if (!media) { fail(trMessage("Cannot open stream", "Stream kann nicht geöffnet werden")); return; }
+        if (!media) { fail(germanOrEnglish("Stream kann nicht geöffnet werden", "Cannot open stream")); return; }
         libvlc_media_add_option(media, ":no-video"); const QByteArray agent = ":http-user-agent=" + userAgent(); libvlc_media_add_option(media, agent.constData());
         libvlc_media_player_set_media(player, media); hasOutputMedia = true; libvlc_media_release(media); attachEvents(); libvlc_audio_set_mute(player, 0); applyVolume(); applyEqualizer();
         if (libvlc_media_player_play(player) != 0) { scheduleRetry(); return; }
         if (visualizationRequested) monitor->setActive(true);
     }
     void scheduleRetry() {
-        if (retryScheduled) return;
-        playbackHealth.cancel(); healthTimer->stop();
+        if (retryScheduled)
+            return;
+        playbackHealth.cancel();
+        healthTimer->stop();
         ++receptionGeneration;
-        closeReception(); releasePlayer(); shiftBuffer.reset(); pendingShiftStart = false;
-        if (retryCount >= 3) { state.state = PlaybackState::Error; state.error = trMessage("Stream unavailable after three reconnect attempts", "Stream nach drei Wiederverbindungsversuchen nicht verfügbar"); publish(); return; }
-        static const int delays[] = {2000, 5000, 15000}; const int delay = delays[retryCount++];
-        retryScheduled = true; state.state = PlaybackState::Buffering;
-        state.error = trMessage("Reconnecting…", "Verbindung wird wiederhergestellt…"); publish();
+        closeReception();
+        releasePlayer();
+        shiftBuffer.reset();
+        pendingShiftStart = false;
+        if (retryCount >= 3) {
+            state.state = PlaybackState::Error;
+            state.error = germanOrEnglish("Stream nach drei Wiederverbindungsversuchen nicht verfügbar",
+                                          "Stream unavailable after three reconnect attempts");
+            publish();
+            return;
+        }
+        static const int delays[] = {2000, 5000, 15000};
+        const int delay = delays[retryCount++];
+        retryScheduled = true;
+        state.state = PlaybackState::Buffering;
+        state.error = germanOrEnglish("Verbindung wird wiederhergestellt…", "Reconnecting…");
+        publish();
         const quint64 current = receptionGeneration;
         QTimer::singleShot(delay, this, [this, current] {
-            if (current != receptionGeneration || !retryScheduled) return;
-            retryScheduled = false; ++receptionGeneration; sessionID = uniqueID(); resolve(QUrl(station.url), 0);
+            if (current != receptionGeneration || !retryScheduled)
+                return;
+            retryScheduled = false;
+            ++receptionGeneration;
+            sessionID = uniqueID();
+            resolve(QUrl(station.url), 0);
         });
     }
     void startReader(QUrl url) {
         audioOnlyReader = false;
-        if (MediaPrivate::isHLS({}, url)) { recordOverride = trMessage("HLS recording unavailable", "HLS-Aufnahme nicht verfügbar"); if (pendingShiftStart) { setShiftStatus(recordOverride); startDirectOutput(); } return; }
+        if (MediaPrivate::isHLS({}, url)) { recordOverride = germanOrEnglish("HLS-Aufnahme nicht verfügbar", "HLS recording unavailable"); if (pendingShiftStart) { setShiftStatus(recordOverride); startDirectOutput(); } return; }
         QNetworkRequest request(url); request.setTransferTimeout(20000); request.setMaximumRedirectsAllowed(5);
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         request.setRawHeader("Icy-MetaData", "1"); request.setRawHeader("User-Agent", userAgent());
@@ -329,11 +417,11 @@ public:
             if (current != receptionGeneration || reply != reader || parser) return;
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(); if (status < 200 || status >= 300) return;
             if (MediaPrivate::isHLS(reply->header(QNetworkRequest::ContentTypeHeader).toString(), reply->url())) {
-                abortReply(reader); recordOverride = trMessage("HLS playback supports no recording or timeshift", "HLS-Wiedergabe unterstützt keine Aufnahme und kein Timeshift");
+                abortReply(reader); recordOverride = germanOrEnglish("HLS-Wiedergabe unterstützt keine Aufnahme und kein Timeshift", "HLS playback supports no recording or timeshift");
                 if (pendingShiftStart) { setShiftStatus(recordOverride); startDirectOutput(); } publish(); return;
             }
             bool ok = false; const qlonglong interval = reply->rawHeader("icy-metaint").toLongLong(&ok);
-            if (ok && (interval <= 0 || interval > 16 * 1024 * 1024)) { abortReply(reader); state.error = trMessage("Invalid ICY metadata interval", "Ungültiges ICY-Metadatenintervall"); if (pendingShiftStart) startDirectOutput(); publish(); return; }
+            if (ok && (interval <= 0 || interval > 16 * 1024 * 1024)) { abortReply(reader); state.error = germanOrEnglish("Ungültiges ICY-Metadatenintervall", "Invalid ICY metadata interval"); if (pendingShiftStart) startDirectOutput(); publish(); return; }
             audioOnlyReader = !ok;
             if (state.timeshiftEnabled && !state.previewActive && !shiftBuffer) beginTimeshift(reply->header(QNetworkRequest::ContentTypeHeader).toString());
             if (audioOnlyReader && !state.recordRequested && !shiftBuffer && aacProbeStage == AACProbeStage::None) { abortReply(reader); return; }
@@ -344,9 +432,9 @@ public:
             if (current != receptionGeneration || reply != reader) return;
             drainReader(reply, current); reader = nullptr; reply->deleteLater(); parser.reset(); recorder.finish();
             if (shiftBuffer) shiftBuffer->endReception();
-            if (receiving) { receiving = false; if (onEnd) onEnd(QDateTime::currentDateTimeUtc()); }
+            endHistoryReception();
             if (outputFromBuffer || outputExpired) { expireOutput(phaseMessage(MediaPrivate::BufferPhase::Closed)); return; }
-            if (pendingShiftStart) { setShiftStatus(trMessage("Timeshift reception failed; using live playback", "Timeshift-Empfang fehlgeschlagen; Live-Wiedergabe wird verwendet")); shiftBuffer.reset(); startDirectOutput(); }
+            if (pendingShiftStart) { setShiftStatus(germanOrEnglish("Timeshift-Empfang fehlgeschlagen; Live-Wiedergabe wird verwendet", "Timeshift reception failed; using live playback")); shiftBuffer.reset(); startDirectOutput(); }
             publish();
             if (readerRetryCount < 3) {
                 static const int delays[] = {2000, 5000, 15000}; const int delay = delays[readerRetryCount++];
@@ -385,7 +473,7 @@ public:
             QTimer::singleShot(0, this, [this, current] {
                 if (current != receptionGeneration || !state.recordRequested || !recorder.rolloverNeedsHeader()) return;
                 ++receptionGeneration; abortReply(reader); parser.reset();
-                if (receiving) { receiving = false; if (onEnd) onEnd(QDateTime::currentDateTimeUtc()); }
+                endHistoryReception();
                 sessionID = uniqueID(); recorder.beginSession(station.name, sessionID); startReader(resolvedURL);
             });
         }
@@ -397,9 +485,9 @@ public:
         if (outputFromBuffer && shiftBuffer && !outputExpired) {
             const auto view = shiftBuffer->view();
             if (state.timeshiftPaused) {
-                if (pausedPosition < view.oldest) { expireOutput(trMessage("Pause exceeded the buffer; press Live to resume", "Pause hat den Puffer überschritten; zum Fortsetzen Live drücken")); return; }
+                if (pausedPosition < view.oldest) { expireOutput(germanOrEnglish("Pause hat den Puffer überschritten; zum Fortsetzen Live drücken", "Pause exceeded the buffer; press Live to resume")); return; }
                 if (!playBuffer(shiftBuffer->readerAt(pausedPosition))) {
-                    expireOutput(trMessage("Cannot resume timeshift output; press Live to resume", "Timeshift-Ausgabe kann nicht fortgesetzt werden; zum Fortsetzen Live drücken"));
+                    expireOutput(germanOrEnglish("Timeshift-Ausgabe kann nicht fortgesetzt werden; zum Fortsetzen Live drücken", "Cannot resume timeshift output; press Live to resume"));
                     return;
                 }
             } else {
@@ -417,7 +505,7 @@ public:
             updateTimeshift(); return;
         }
         if (!player) return;
-        state.error = trMessage("Pause requires a measured timeshift buffer; live playback continues", "Pause benötigt einen vermessenen Timeshift-Puffer; Live-Wiedergabe läuft weiter"); publish();
+        state.error = germanOrEnglish("Pause benötigt einen vermessenen Timeshift-Puffer; Live-Wiedergabe läuft weiter", "Pause requires a measured timeshift buffer; live playback continues"); publish();
     }
     void pauseOrStop() {
         if (state.state == PlaybackState::Paused || state.state == PlaybackState::Stopped || state.state == PlaybackState::Error) return;
@@ -440,12 +528,12 @@ public:
         state.recordRequested = value; recorder.setEnabled(value);
         if (value && recorder.needsFreshHeader() && !state.previewActive && (state.state == PlaybackState::Playing || state.state == PlaybackState::Buffering)) {
             ++receptionGeneration; abortReply(reader); parser.reset();
-            if (receiving) { receiving = false; if (onEnd) onEnd(QDateTime::currentDateTimeUtc()); }
+            endHistoryReception();
             sessionID = uniqueID(); recorder.beginSession(station.name, sessionID); startReader(resolvedURL);
         }
         if (!value && audioOnlyReader && reader && !shiftBuffer && aacProbeStage == AACProbeStage::None) {
             abortReply(reader); parser.reset();
-            if (receiving) { receiving = false; if (onEnd) onEnd(QDateTime::currentDateTimeUtc()); }
+            endHistoryReception();
         } else if (value && !reader && !resolvedURL.isEmpty() && !state.previewActive && (state.state == PlaybackState::Playing || state.state == PlaybackState::Buffering)) startReader(resolvedURL);
         publish();
     }
@@ -453,7 +541,7 @@ public:
         if (state.timeshiftEnabled == enabled) return;
         state.timeshiftEnabled = enabled; state.timeshiftAvailable = false; state.timeshiftPaused = false;
         if (!enabled) {
-            aacProbeStage = AACProbeStage::None; pendingAAC.clear(); aacPrefix.clear(); aacExpectedRate = 0; bufferFormatPending = false;
+            resetAACVerification();
             const bool needsLive = outputFromBuffer || pendingShiftStart || outputExpired;
             if (shiftReader) shiftReader->cancel();
             if (shiftBuffer) shiftBuffer->close();
@@ -466,7 +554,7 @@ public:
         }
         publish();
     }
-    void unavailableSeek() { state.error = trMessage("No verified timeshift buffer is available", "Kein geprüfter Timeshift-Puffer verfügbar"); publish(); }
+    void unavailableSeek() { state.error = germanOrEnglish("Kein geprüfter Timeshift-Puffer verfügbar", "No verified timeshift buffer is available"); publish(); }
     void setShiftStatus(QString value) {
         const bool replace = state.error.isEmpty() || state.error == shiftStatus;
         shiftStatus = std::move(value); if (replace) state.error = shiftStatus;
@@ -474,30 +562,30 @@ public:
     QString phaseMessage(MediaPrivate::BufferPhase phase) const {
         using Phase = MediaPrivate::BufferPhase;
         switch (phase) {
-        case Phase::Warming: return trMessage("Building timeshift buffer…", "Timeshift-Puffer wird aufgebaut…");
-        case Phase::Unsupported: return trMessage("Timeshift is unavailable for this codec or decoder profile", "Timeshift ist für diesen Codec oder dieses Decoderprofil nicht verfügbar");
-        case Phase::LowDisk: return trMessage("Timeshift stopped: less than 10 GiB free", "Timeshift gestoppt: weniger als 10 GiB frei");
-        case Phase::ReaderOverrun: return trMessage("Pause exceeded the buffer; press Live to resume", "Pause hat den Puffer überschritten; zum Fortsetzen Live drücken");
-        case Phase::FormatChanged: return trMessage("Stream format changed; press Live to resume", "Stream-Format geändert; zum Fortsetzen Live drücken");
-        case Phase::InvalidAudio: return trMessage("Invalid audio frames; press Live to resume", "Ungültige Audioframes; zum Fortsetzen Live drücken");
-        case Phase::IOError: return trMessage("Timeshift storage unavailable; press Live to resume", "Timeshift-Speicher nicht verfügbar; zum Fortsetzen Live drücken");
-        case Phase::Closed: return trMessage("Timeshift reception ended; press Live to resume", "Timeshift-Empfang beendet; zum Fortsetzen Live drücken");
+        case Phase::Warming: return germanOrEnglish("Timeshift-Puffer wird aufgebaut…", "Building timeshift buffer…");
+        case Phase::Unsupported: return germanOrEnglish("Timeshift ist für diesen Codec oder dieses Decoderprofil nicht verfügbar", "Timeshift is unavailable for this codec or decoder profile");
+        case Phase::LowDisk: return germanOrEnglish("Timeshift gestoppt: weniger als 10 GiB frei", "Timeshift stopped: less than 10 GiB free");
+        case Phase::ReaderOverrun: return germanOrEnglish("Pause hat den Puffer überschritten; zum Fortsetzen Live drücken", "Pause exceeded the buffer; press Live to resume");
+        case Phase::FormatChanged: return germanOrEnglish("Stream-Format geändert; zum Fortsetzen Live drücken", "Stream format changed; press Live to resume");
+        case Phase::InvalidAudio: return germanOrEnglish("Ungültige Audioframes; zum Fortsetzen Live drücken", "Invalid audio frames; press Live to resume");
+        case Phase::IOError: return germanOrEnglish("Timeshift-Speicher nicht verfügbar; zum Fortsetzen Live drücken", "Timeshift storage unavailable; press Live to resume");
+        case Phase::Closed: return germanOrEnglish("Timeshift-Empfang beendet; zum Fortsetzen Live drücken", "Timeshift reception ended; press Live to resume");
         default: return {};
         }
     }
     QString bufferMessage(const MediaPrivate::TimeshiftView &view) const {
         if (view.phase == MediaPrivate::BufferPhase::Unsupported && view.reason.contains("Gapless"))
-            return trMessage("MP3 file headers with gapless padding do not support timeshift; live playback remains available", "MP3-Dateiheader mit Gapless-Padding unterstützen keinen Zeitversatz; Live-Wiedergabe bleibt verfügbar");
+            return germanOrEnglish("MP3-Dateiheader mit Gapless-Padding unterstützen keinen Zeitversatz; Live-Wiedergabe bleibt verfügbar", "MP3 file headers with gapless padding do not support timeshift; live playback remains available");
         return phaseMessage(view.phase);
     }
     void beginTimeshift(QString contentType) {
         const QString type = contentType.section(';', 0, 0).trimmed().toLower();
         if (type == "audio/aac" || type == "audio/adts" || type == "audio/aacp") {
             aacProbeStage = AACProbeStage::Collecting; aacPrefix.clear(); pendingAAC.clear(); aacProbeClock.start();
-            setShiftStatus(trMessage("Checking AAC decoder format…", "AAC-Decoderformat wird geprüft…")); positionTimer->start(); return;
+            setShiftStatus(germanOrEnglish("AAC-Decoderformat wird geprüft…", "Checking AAC decoder format…")); positionTimer->start(); return;
         }
         if (type != "audio/mpeg" && type != "audio/mp3") {
-            setShiftStatus(trMessage("Timeshift is unavailable for this stream format; playing live", "Zeitversatz ist für dieses Streamformat nicht verfügbar; Live-Wiedergabe wird verwendet"));
+            setShiftStatus(germanOrEnglish("Zeitversatz ist für dieses Streamformat nicht verfügbar; Live-Wiedergabe wird verwendet", "Timeshift is unavailable for this stream format; playing live"));
             if (pendingShiftStart) startDirectOutput();
             return;
         }
@@ -521,14 +609,14 @@ public:
         return audioTracks == 1 ? rate : 0;
     }
     void failAACProbe(QString reason) {
-        aacProbeStage = AACProbeStage::None; pendingAAC.clear(); aacPrefix.clear(); aacExpectedRate = 0; bufferFormatPending = false;
+        resetAACVerification();
         setShiftStatus(std::move(reason)); startDirectOutput();
         stopUnneededAudioReader();
         publish();
     }
     void collectAACProbe(const QByteArray &bytes, QDateTime date) {
         if (aacPrefix.size() + bytes.size() > 256 * 1024 || pendingAAC.size() >= 512 || aacProbeClock.elapsed() > 2000) {
-            failAACProbe(trMessage("AAC verification exceeded its bounded prefix; playing live", "AAC-Prüfung überschreitet den begrenzten Vorlauf; Live-Wiedergabe wird verwendet")); return;
+            failAACProbe(germanOrEnglish("AAC-Prüfung überschreitet den begrenzten Vorlauf; Live-Wiedergabe wird verwendet", "AAC verification exceeded its bounded prefix; playing live")); return;
         }
         aacPrefix.append(bytes); pendingAAC.append({bytes, date, liveTrack});
         if (aacProbeStage == AACProbeStage::Collecting && (aacPrefix.size() >= 8192 || (aacProbeClock.elapsed() >= 750 && aacPrefix.size() >= 2048))) startAACProbe();
@@ -536,34 +624,34 @@ public:
     void startAACProbe() {
         aacExpectedRate = MediaPrivate::encodedAACSampleRate(aacPrefix);
         if (aacExpectedRate == 0) return;
-        if (!QDir().mkpath(cacheDirectory)) { failAACProbe(trMessage("AAC verification storage unavailable; playing live", "Speicher für AAC-Prüfung nicht verfügbar; Live-Wiedergabe wird verwendet")); return; }
+        if (!QDir().mkpath(cacheDirectory)) { failAACProbe(germanOrEnglish("Speicher für AAC-Prüfung nicht verfügbar; Live-Wiedergabe wird verwendet", "AAC verification storage unavailable; playing live")); return; }
         aacProbeDirectory = std::make_unique<QTemporaryDir>(QDir(cacheDirectory).filePath("aac-probe-XXXXXX"));
-        if (!aacProbeDirectory->isValid()) { failAACProbe(trMessage("Cannot prepare AAC decoder verification; playing live", "AAC-Decoderprüfung kann nicht vorbereitet werden; Live-Wiedergabe wird verwendet")); return; }
+        if (!aacProbeDirectory->isValid()) { failAACProbe(germanOrEnglish("AAC-Decoderprüfung kann nicht vorbereitet werden; Live-Wiedergabe wird verwendet", "Cannot prepare AAC decoder verification; playing live")); return; }
         const QString path = QDir(aacProbeDirectory->path()).filePath("probe.aac"); QFile file(path);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly) || file.write(aacPrefix) != aacPrefix.size()) { failAACProbe(trMessage("Cannot write AAC verification prefix; playing live", "AAC-Prüfvorlauf kann nicht geschrieben werden; Live-Wiedergabe wird verwendet")); return; }
+        if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly) || file.write(aacPrefix) != aacPrefix.size()) { failAACProbe(germanOrEnglish("AAC-Prüfvorlauf kann nicht geschrieben werden; Live-Wiedergabe wird verwendet", "Cannot write AAC verification prefix; playing live")); return; }
         file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner); file.close();
         libvlc_media_t *media = libvlc_media_new_path(instance, QFile::encodeName(path).constData());
-        if (!media) { failAACProbe(trMessage("Cannot inspect AAC decoder format; playing live", "AAC-Decoderformat kann nicht geprüft werden; Live-Wiedergabe wird verwendet")); return; }
+        if (!media) { failAACProbe(germanOrEnglish("AAC-Decoderformat kann nicht geprüft werden; Live-Wiedergabe wird verwendet", "Cannot inspect AAC decoder format; playing live")); return; }
         libvlc_media_add_option(media, ":demux=aac"); libvlc_media_add_option(media, ":file-caching=0"); libvlc_media_add_option(media, ":no-video");
         aacProbeStage = AACProbeStage::Decoding;
         libvlc_media_player_set_media(player, media); hasOutputMedia = true; libvlc_media_release(media); attachEvents(); libvlc_audio_set_mute(player, 1);
         if (libvlc_audio_set_volume(player, 0) != 0 || libvlc_audio_get_volume(player) != 0 || libvlc_audio_get_mute(player) != 1) {
-            failAACProbe(trMessage("AAC decoder verification cannot be muted safely; playing live", "AAC-Decoderprüfung kann nicht sicher stummgeschaltet werden; Live-Wiedergabe wird verwendet")); return;
+            failAACProbe(germanOrEnglish("AAC-Decoderprüfung kann nicht sicher stummgeschaltet werden; Live-Wiedergabe wird verwendet", "AAC decoder verification cannot be muted safely; playing live")); return;
         }
-        if (libvlc_media_player_play(player) != 0) failAACProbe(trMessage("AAC decoder verification cannot start; playing live", "AAC-Decoderprüfung kann nicht starten; Live-Wiedergabe wird verwendet"));
+        if (libvlc_media_player_play(player) != 0) failAACProbe(germanOrEnglish("AAC-Decoderprüfung kann nicht starten; Live-Wiedergabe wird verwendet", "AAC decoder verification cannot start; playing live"));
     }
     void finishAACProbe() {
         const unsigned actualRate = decodedRate();
         const auto profile = MediaPrivate::verifiedTimeshiftProfile("aac", aacExpectedRate);
         if (actualRate == 0) return;
         if (actualRate != unsigned(aacExpectedRate) || !profile.verified) {
-            failAACProbe(trMessage("AAC decoder rate is unsupported for timeshift; playing live", "AAC-Decoderfrequenz unterstützt keinen Zeitversatz; Live-Wiedergabe wird verwendet")); return;
+            failAACProbe(germanOrEnglish("AAC-Decoderfrequenz unterstützt keinen Zeitversatz; Live-Wiedergabe wird verwendet", "AAC decoder rate is unsupported for timeshift; playing live")); return;
         }
         releasePlayer(); aacProbeStage = AACProbeStage::None;
         shiftBuffer = std::make_unique<MediaPrivate::TimeshiftBuffer>(QDir(cacheDirectory).filePath("timeshift"));
-        if (!shiftBuffer->begin("audio/aac", sessionID, profile)) { shiftBuffer.reset(); failAACProbe(trMessage("AAC timeshift buffer unavailable; playing live", "AAC-Timeshift-Puffer nicht verfügbar; Live-Wiedergabe wird verwendet")); return; }
+        if (!shiftBuffer->begin("audio/aac", sessionID, profile)) { shiftBuffer.reset(); failAACProbe(germanOrEnglish("AAC-Timeshift-Puffer nicht verfügbar; Live-Wiedergabe wird verwendet", "AAC timeshift buffer unavailable; playing live")); return; }
         for (const auto &chunk : pendingAAC) { shiftBuffer->noteTitle(chunk.track); if (!shiftBuffer->append(chunk.bytes, chunk.date)) break; }
-        pendingAAC.clear(); aacPrefix.clear(); setShiftStatus(trMessage("Building timeshift buffer…", "Timeshift-Puffer wird aufgebaut…")); updateTimeshift();
+        pendingAAC.clear(); aacPrefix.clear(); setShiftStatus(germanOrEnglish("Timeshift-Puffer wird aufgebaut…", "Building timeshift buffer…")); updateTimeshift();
     }
     double heardPosition() const {
         if (state.timeshiftPaused || outputExpired) return pausedPosition;
@@ -587,24 +675,24 @@ public:
         shiftReader = std::move(next); outputFromBuffer = true; outputExpired = false; pendingShiftStart = false;
         discontinuityPending = signalJump || pendingLiveJump; pendingLiveJump = false;
         libvlc_media_t *media = shiftReader->createMedia(instance);
-        if (!media) { expireOutput(trMessage("Cannot open timeshift output; press Live to resume", "Timeshift-Ausgabe kann nicht geöffnet werden; zum Fortsetzen Live drücken")); return false; }
+        if (!media) { expireOutput(germanOrEnglish("Timeshift-Ausgabe kann nicht geöffnet werden; zum Fortsetzen Live drücken", "Cannot open timeshift output; press Live to resume")); return false; }
         MediaPrivate::configureRadioPrefetch(media);
         libvlc_media_player_set_media(player, media); hasOutputMedia = true; libvlc_media_release(media); attachEvents();
         state.state = PlaybackState::Buffering; state.timeshiftPaused = false; setShiftStatus({}); bufferFormatPending = aacExpectedRate > 0; bufferFormatClock.start(); libvlc_audio_set_mute(player, bufferFormatPending ? 1 : 0); applyVolume(); applyEqualizer();
         beginHealth();
-        if (libvlc_media_player_play(player) != 0) { expireOutput(trMessage("Cannot start timeshift output; press Live to resume", "Timeshift-Ausgabe kann nicht starten; zum Fortsetzen Live drücken")); return false; }
+        if (libvlc_media_player_play(player) != 0) { expireOutput(germanOrEnglish("Timeshift-Ausgabe kann nicht starten; zum Fortsetzen Live drücken", "Cannot start timeshift output; press Live to resume")); return false; }
         if (visualizationRequested) monitor->setActive(true);
         return true;
     }
     void updateTimeshift() {
         if (aacProbeStage != AACProbeStage::None) {
-            if (aacProbeClock.elapsed() > 2000) failAACProbe(trMessage("AAC decoder verification timed out; playing live", "AAC-Decoderprüfung hat das Zeitlimit überschritten; Live-Wiedergabe wird verwendet"));
+            if (aacProbeClock.elapsed() > 2000) failAACProbe(germanOrEnglish("AAC-Decoderprüfung hat das Zeitlimit überschritten; Live-Wiedergabe wird verwendet", "AAC decoder verification timed out; playing live"));
             return;
         }
         if (!shiftBuffer || !state.timeshiftEnabled || state.previewActive) return;
         if (outputFromBuffer && bufferFormatPending && bufferFormatClock.elapsed() > 2000) {
             shiftBuffer->close();
-            expireOutput(trMessage("AAC output format could not be verified; press Live to resume", "AAC-Ausgabeformat konnte nicht geprüft werden; zum Fortsetzen Live drücken")); return;
+            expireOutput(germanOrEnglish("AAC-Ausgabeformat konnte nicht geprüft werden; zum Fortsetzen Live drücken", "AAC output format could not be verified; press Live to resume")); return;
         }
         const auto view = shiftBuffer->view();
         state.bufferSeconds = std::max(0.0, view.live - view.oldest);
@@ -633,16 +721,16 @@ public:
     }
     void restartCaptureForTimeshift(bool signalLiveJump = false) {
         ++receptionGeneration;
-        aacProbeStage = AACProbeStage::None; pendingAAC.clear(); aacPrefix.clear(); aacExpectedRate = 0; bufferFormatPending = false;
+        resetAACVerification();
         if (shiftReader) shiftReader->cancel();
         abortReply(reader); parser.reset();
         if (shiftBuffer) shiftBuffer->close();
         shiftBuffer.reset();
-        if (receiving) { receiving = false; if (onEnd) onEnd(QDateTime::currentDateTimeUtc()); }
+        endHistoryReception();
         sessionID = uniqueID(); recorder.beginSession(station.name, sessionID); liveTrack = {}; state.heardTrack = {};
         pendingShiftStart = true; outputExpired = false; state.state = PlaybackState::Buffering; state.timeshiftPaused = false;
         pendingLiveJump = signalLiveJump; beginHealth();
-        setShiftStatus(trMessage("Building timeshift buffer…", "Timeshift-Puffer wird aufgebaut…")); positionTimer->start(); startReader(resolvedURL);
+        setShiftStatus(germanOrEnglish("Timeshift-Puffer wird aufgebaut…", "Building timeshift buffer…")); positionTimer->start(); startReader(resolvedURL);
     }
     void goLive() {
         if (systemSleeping) { resumeAfterWake = false; return; }
@@ -716,20 +804,20 @@ public:
         if (resume) startStation(saved, false); else publish();
     }
     void preview(QString path) {
-        if (systemSleeping) { resumeAfterWake = false; state.error = trMessage("Preview is unavailable during system sleep", "Vorschau ist während des Systemruhezustands nicht verfügbar"); publish(); return; }
+        if (systemSleeping) { resumeAfterWake = false; state.error = germanOrEnglish("Vorschau ist während des Systemruhezustands nicht verfügbar", "Preview is unavailable during system sleep"); publish(); return; }
         const QFileInfo info(path);
-        if (!info.isFile() || info.isSymLink() || !info.isReadable()) { state.error = trMessage("Preview file unavailable", "Vorschaudatei nicht verfügbar"); publish(); return; }
-        stop(); stationPreview = false; if (!ensurePlayer()) { state.state = PlaybackState::Error; state.error = trMessage("Preview audio output unavailable", "Audioausgang für Vorschau nicht verfügbar"); publish(); return; }
+        if (!info.isFile() || info.isSymLink() || !info.isReadable()) { state.error = germanOrEnglish("Vorschaudatei nicht verfügbar", "Preview file unavailable"); publish(); return; }
+        stop(); stationPreview = false; if (!ensurePlayer()) { state.state = PlaybackState::Error; state.error = germanOrEnglish("Audioausgang für Vorschau nicht verfügbar", "Preview audio output unavailable"); publish(); return; }
         libvlc_media_t *media = libvlc_media_new_path(instance, QFile::encodeName(info.absoluteFilePath()).constData());
-        if (!media) { state.state = PlaybackState::Error; state.error = trMessage("Preview media cannot be opened", "Vorschaumedium kann nicht geöffnet werden"); publish(); return; }
+        if (!media) { state.state = PlaybackState::Error; state.error = germanOrEnglish("Vorschaumedium kann nicht geöffnet werden", "Preview media cannot be opened"); publish(); return; }
         libvlc_media_player_set_media(player, media); hasOutputMedia = true; libvlc_media_release(media); attachEvents(); libvlc_audio_set_mute(player, 0); applyVolume();
         state.previewActive = true; state.state = PlaybackState::Buffering; applyEqualizer();
-        if (libvlc_media_player_play(player) != 0) { fail(trMessage("Preview cannot start", "Vorschau kann nicht gestartet werden")); return; }
+        if (libvlc_media_player_play(player) != 0) { fail(germanOrEnglish("Vorschau kann nicht gestartet werden", "Preview cannot start")); return; }
         if (visualizationRequested) monitor->setActive(true);
         publish();
     }
     void previewRecording(QString id) { preview(recorder.checkedPath(id)); }
-    void removeRecording(QString id) { if (!recorder.remove(id)) { state.error = trMessage("Recording cannot be deleted while active or unavailable", "Aktive oder nicht verfügbare Aufnahme kann nicht gelöscht werden"); publish(); } }
+    void removeRecording(QString id) { if (!recorder.remove(id)) { state.error = germanOrEnglish("Aktive oder nicht verfügbare Aufnahme kann nicht gelöscht werden", "Recording cannot be deleted while active or unavailable"); publish(); } }
     void removeCompleted() { for (const Recording &item : recorder.list()) if (!item.active) recorder.remove(item.id); }
     struct ExportJob { QString id, input, output; double start = 0, duration = 0, fadeIn = 0, fadeOut = 0; QJsonObject metadata; std::optional<SongExportProposal> proposal{}; QString recordingID{}; };
     struct ExportSource {
@@ -755,11 +843,11 @@ public:
         QString error;
         if (exportIDs.contains(id)) return;
         if (!songResolver->validate(proposal, &error) || !std::isfinite(startAdjustment) || !std::isfinite(endAdjustment)) {
-            exportIDs.insert(id); reportExport(id, {}, error.isEmpty() ? trMessage("Invalid song adjustments", "Ungültige Titelkorrekturen") : error); return;
+            exportIDs.insert(id); reportExport(id, {}, error.isEmpty() ? germanOrEnglish("Ungültige Titelkorrekturen", "Invalid song adjustments") : error); return;
         }
         const double start = std::clamp(proposal.suggestedStart + startAdjustment, proposal.audioStart, proposal.audioEnd);
         const double end = std::clamp(proposal.suggestedEnd + endAdjustment, proposal.audioStart, proposal.audioEnd);
-        if (!std::isfinite(start) || !std::isfinite(end) || end <= start) { exportIDs.insert(id); reportExport(id, {}, trMessage("The adjusted song range is empty", "Der korrigierte Titelbereich ist leer")); return; }
+        if (!std::isfinite(start) || !std::isfinite(end) || end <= start) { exportIDs.insert(id); reportExport(id, {}, germanOrEnglish("Der korrigierte Titelbereich ist leer", "The adjusted song range is empty")); return; }
         exportClip({id, proposal.recordingID, std::move(destination), start, end - start, fadeIn, fadeOut, proposal.metadata, proposal});
     }
     void reportExport(QString id, QString path, QString error) {
@@ -776,7 +864,7 @@ public:
             || !std::isfinite(job.fadeIn) || !std::isfinite(job.fadeOut) || job.fadeIn < 0 || job.fadeOut < 0 || job.fadeIn + job.fadeOut > job.duration
             || output.fileName() != MediaPrivate::safeExportName(output.fileName()) || output.exists() || output.isSymLink()
             || !QStringList{"mp3", "m4a", "wav", "flac", "ogg", "opus"}.contains(suffix) || !QFileInfo(output.absolutePath()).isDir() || jobs.size() >= 64) {
-            reportExport(job.id, {}, trMessage("Invalid export range or destination; existing files are never overwritten", "Ungültiger Exportbereich oder Zielpfad; bestehende Dateien werden niemals überschrieben"));
+            reportExport(job.id, {}, germanOrEnglish("Ungültiger Exportbereich oder Zielpfad; bestehende Dateien werden niemals überschrieben", "Invalid export range or destination; existing files are never overwritten"));
             return;
         }
         job.output = output.absoluteFilePath(); jobs.enqueue(std::move(job)); startExport();
@@ -789,11 +877,11 @@ public:
         QString sourceError;
         if (exportSource->fd < 0 || ::fstat(exportSource->fd, &exportSource->initial) != 0 || !exportSourceUnchanged()
             || (exportJob.proposal && !songResolver->validate(*exportJob.proposal, &sourceError))) {
-            exportSource.reset(); reportExport(exportJob.id, {}, sourceError.isEmpty() ? trMessage("Export requires a completed, unchanged recording", "Export benötigt eine abgeschlossene, unveränderte Aufnahme") : sourceError); startExport(); return;
+            exportSource.reset(); reportExport(exportJob.id, {}, sourceError.isEmpty() ? germanOrEnglish("Export benötigt eine abgeschlossene, unveränderte Aufnahme", "Export requires a completed, unchanged recording") : sourceError); startExport(); return;
         }
         exportDirectory = std::make_unique<QTemporaryDir>(QDir(QFileInfo(exportJob.output).absolutePath()).filePath(".mucke-export-XXXXXX"));
         if (!exportDirectory->isValid()) {
-            reportExport(exportJob.id, {}, trMessage("Cannot prepare export destination", "Exportziel kann nicht vorbereitet werden"));
+            reportExport(exportJob.id, {}, germanOrEnglish("Exportziel kann nicht vorbereitet werden", "Cannot prepare export destination"));
             exportDirectory.reset(); exportSource.reset(); startExport(); return;
         }
         exportTemporaryPath = QDir(exportDirectory->path()).filePath("audio." + QFileInfo(exportJob.output).suffix());
@@ -811,25 +899,25 @@ public:
         if (QFileInfo(exportJob.output).suffix().compare("m4a", Qt::CaseInsensitive) == 0) args << "-c:a" << "aac" << "-b:a" << "192k" << "-movflags" << "+faststart";
         args << exportTemporaryPath;
         connect(exporter, &QProcess::readyReadStandardError, this, [this] { const QByteArray chunk = exporter->readAllStandardError(); if (exportError.size() < 8192) exportError.append(chunk.left(8192 - exportError.size())); });
-        connect(exporter, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) { if (error == QProcess::FailedToStart) finishExport(false, trMessage("FFmpeg is unavailable", "FFmpeg ist nicht verfügbar")); });
+        connect(exporter, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) { if (error == QProcess::FailedToStart) finishExport(false, germanOrEnglish("FFmpeg ist nicht verfügbar", "FFmpeg is unavailable")); });
         connect(exporter, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this](int code, QProcess::ExitStatus status) { finishExport(code == 0 && status == QProcess::NormalExit, {}); });
         connect(exporter, &QProcess::started, this, [this] { if (exportCanceled) exporter->kill(); });
         exporter->setChildProcessModifier([descriptor] { if (::fcntl(descriptor, F_SETFD, 0) < 0) ::_exit(126); });
         exporter->setProgram("ffmpeg"); exporter->setArguments(args);
         sourceError.clear();
         if (!exportSourceUnchanged() || (exportJob.proposal && !songResolver->validate(*exportJob.proposal, &sourceError))) {
-            finishExport(false, sourceError.isEmpty() ? trMessage("Recording changed before export", "Aufnahme vor Export verändert") : sourceError); return;
+            finishExport(false, sourceError.isEmpty() ? germanOrEnglish("Aufnahme vor Export verändert", "Recording changed before export") : sourceError); return;
         }
         exporter->start();
     }
     void finishExport(bool ok, QString error) {
         if (!exporter) return;
         exporter->disconnect(this); exporter->deleteLater(); exporter = nullptr;
-        if (exportCanceled) { ok = false; error = trMessage("Export canceled", "Export abgebrochen"); }
+        if (exportCanceled) { ok = false; error = germanOrEnglish("Export abgebrochen", "Export canceled"); }
         if (ok) {
             QString validationError;
             if (!exportSourceUnchanged() || (exportJob.proposal && !songResolver->validate(*exportJob.proposal, &validationError))) {
-                ok = false; error = validationError.isEmpty() ? trMessage("Recording changed during export; no output was saved", "Aufnahme während Export verändert; keine Ausgabe gespeichert") : validationError;
+                ok = false; error = validationError.isEmpty() ? germanOrEnglish("Aufnahme während Export verändert; keine Ausgabe gespeichert", "Recording changed during export; no output was saved") : validationError;
             }
         }
         if (ok) {
@@ -840,31 +928,55 @@ public:
                 result = ::link(source.constData(), target.constData());
                 if (result == 0) ::unlink(source.constData());
             }
-            if (result != 0) { ok = false; error = trMessage("Export destination already exists or cannot be written; no file was overwritten", "Exportziel existiert bereits oder kann nicht geschrieben werden; keine Datei wurde überschrieben"); }
+            if (result != 0) { ok = false; error = germanOrEnglish("Exportziel existiert bereits oder kann nicht geschrieben werden; keine Datei wurde überschrieben", "Export destination already exists or cannot be written; no file was overwritten"); }
         }
         exportDirectory.reset(); exportSource.reset(); exportTemporaryPath.clear();
-        if (!ok && error.isEmpty()) error = trMessage("FFmpeg export failed", "FFmpeg-Export fehlgeschlagen") + ": " + QString::fromUtf8(exportError).left(2048);
+        if (!ok && error.isEmpty()) error = germanOrEnglish("FFmpeg-Export fehlgeschlagen", "FFmpeg export failed") + ": " + QString::fromUtf8(exportError).left(2048);
         reportExport(exportJob.id, ok ? exportJob.output : QString(), error);
         exportCanceled = false;
         startExport();
     }
     void cancelExport(QString id) {
-        for (qsizetype i = jobs.size() - 1; i >= 0; --i) if (jobs[i].id == id) { jobs.removeAt(i); reportExport(id, {}, trMessage("Export canceled", "Export abgebrochen")); }
+        for (qsizetype i = jobs.size() - 1; i >= 0; --i) if (jobs[i].id == id) { jobs.removeAt(i); reportExport(id, {}, germanOrEnglish("Export abgebrochen", "Export canceled")); }
         if (exporter && exportJob.id == id) { exportCanceled = true; exporter->kill(); }
     }
     void teardown() {
-        if (shutDown) return;
-        shutDown = true; ++receptionGeneration;
+        if (shutDown)
+            return;
+        shutDown = true;
+        ++receptionGeneration;
         if (diskTimer) diskTimer->stop();
         if (sleepTimer) sleepTimer->stop();
         if (positionTimer) positionTimer->stop();
         if (healthTimer) healthTimer->stop();
         if (monitor) monitor->setActive(false);
         if (songResolver) songResolver->shutdown();
-        for (const auto &job : std::as_const(jobs)) reportExport(job.id, {}, trMessage("Export canceled", "Export abgebrochen"));
-        jobs.clear(); if (exporter) { exporter->disconnect(this); exporter->kill(); exporter->waitForFinished(2000); delete exporter; exporter = nullptr; reportExport(exportJob.id, {}, trMessage("Export canceled", "Export abgebrochen")); }
-        exportDirectory.reset(); exportSource.reset();
-        closeReception(); releasePlayer(); shiftBuffer.reset(); if (player) { libvlc_media_player_release(player); player = nullptr; } if (instance) { libvlc_release(instance); instance = nullptr; }
+
+        for (const auto &job : std::as_const(jobs))
+            reportExport(job.id, {}, germanOrEnglish("Export abgebrochen", "Export canceled"));
+        jobs.clear();
+        if (exporter) {
+            exporter->disconnect(this);
+            exporter->kill();
+            exporter->waitForFinished(2000);
+            delete exporter;
+            exporter = nullptr;
+            reportExport(exportJob.id, {}, germanOrEnglish("Export abgebrochen", "Export canceled"));
+        }
+        exportDirectory.reset();
+        exportSource.reset();
+
+        closeReception();
+        releasePlayer();
+        shiftBuffer.reset();
+        if (player) {
+            libvlc_media_player_release(player);
+            player = nullptr;
+        }
+        if (instance) {
+            libvlc_release(instance);
+            instance = nullptr;
+        }
     }
 private:
     MediaPrivate::Recorder recorder;

@@ -1,12 +1,12 @@
 #include "librarystore.h"
 #include "codec_p.h"
+#include "librarymerge_p.h"
+#include "librarysettings_p.h"
 #include "messages_p.h"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
 #include <QLockFile>
 #include <QSaveFile>
 #include <QSet>
@@ -152,110 +152,6 @@ Track parseHistory(const Json &j) {
     validateHistoryTrack(t);
     return t;
 }
-QJsonObject validateSettings(QJsonObject patch) {
-    if (patch.contains("windowGeometry"))
-        require(patch["windowGeometry"].isString() && patch["windowGeometry"].toString().size() <= 4096,
-                "Invalid window geometry setting.");
-    for (const auto *key : {"recordingEnabled", "timeshiftEnabled", "equalizerEnabled", "closeToTray", "updateChecks"})
-        if (patch.contains(key))
-            require(patch[key].isBool(), "A setting has an invalid type.");
-    if (patch.contains("quickSlots")) {
-        require(patch["quickSlots"].isArray() && patch["quickSlots"].toArray().size() == 5,
-                "Exactly five quick slots are required.");
-        for (const auto &value : patch["quickSlots"].toArray())
-            if (!value.isNull()) {
-                require(value.isString(), "Invalid quick slot.");
-                uuid(value.toString());
-            }
-    }
-    if (patch.contains("language"))
-        require(QStringList{"de", "en", "system"}.contains(patch["language"].toString()),
-                "Invalid language setting.");
-    if (patch.contains("autostart"))
-        require(QStringList{"none", "last", "selected"}.contains(patch["autostart"].toString()),
-                "Invalid startup setting.");
-    if (patch.contains("equalizerBands")) {
-        require(patch["equalizerBands"].isArray() && patch["equalizerBands"].toArray().size() == 10,
-                "Exactly ten equalizer bands are required.");
-        for (const auto &value : patch["equalizerBands"].toArray())
-            require(value.isDouble() && std::isfinite(value.toDouble()), "Invalid equalizer value.");
-    }
-    if (patch.contains("equalizerPreamp"))
-        require(patch["equalizerPreamp"].isDouble() && std::isfinite(patch["equalizerPreamp"].toDouble()),
-                "Invalid equalizer value.");
-    if (patch.contains("quickSlots")) {
-        QJsonArray normalized;
-        for (const auto &value : patch["quickSlots"].toArray())
-            normalized.append(value.isNull() ? QJsonValue(QJsonValue::Null)
-                                             : QJsonValue(uuid(value.toString())));
-        patch["quickSlots"] = normalized;
-    }
-    return patch;
-}
-QString description(const Station &s) {
-    return s.name + "\n" + s.url + "\n" +
-           (s.enabled ? localizedDataMessage(QObject::tr("Visible"))
-                      : localizedDataMessage(QObject::tr("Hidden"))) +
-           " · " +
-           (s.favorite ? localizedDataMessage(QObject::tr("Favorite"))
-                       : localizedDataMessage(QObject::tr("Not a favorite")));
-}
-QString description(const Group &g) { return g.name + "\n" + g.stationIDs.join(", "); }
-QString description(const Track &t) {
-    QString s = t.raw + "\n" + t.artist + " · " + t.title + "\n" + t.station + "\n" +
-                t.heardAt.toString(Qt::ISODateWithMs) + "\n" + t.savedAt.toString(Qt::ISODateWithMs);
-    if (!t.recognition.is_null())
-        s += "\n" + QString::fromStdString(t.recognition.dump());
-    return s;
-}
-struct IdentityMatch {
-    int firstIndex = -1;
-    int count = 0;
-};
-struct RecordIndex {
-    QHash<QString, int> ids;
-    QHash<QString, IdentityMatch> identities;
-    QVector<QString> keys;
-};
-template <class T, class Identity> RecordIndex indexRecords(const QVector<T> &records, Identity identity) {
-    RecordIndex result;
-    result.ids.reserve(records.size());
-    result.identities.reserve(records.size());
-    result.keys.reserve(records.size());
-    for (int i = 0; i < records.size(); ++i) {
-        result.ids.insert(records[i].id, i);
-        const auto key = identity(records[i]);
-        result.keys.append(key);
-        auto &match = result.identities[key];
-        if (match.count == 0)
-            match.firstIndex = i;
-        ++match.count;
-    }
-    return result;
-}
-template <class T>
-int matchedIndex(const QVector<T> &local, const RecordIndex &localIndex, const RecordIndex &incomingIndex,
-                 int incomingPosition, const QString &id) {
-    const auto exact = localIndex.ids.constFind(id);
-    if (exact != localIndex.ids.cend())
-        return exact.value();
-    const auto &key = incomingIndex.keys[incomingPosition];
-    const auto localMatch = localIndex.identities.constFind(key);
-    const auto incomingMatch = incomingIndex.identities.constFind(key);
-    if (localMatch == localIndex.identities.cend() || incomingMatch == incomingIndex.identities.cend() ||
-        localMatch->count != 1 || incomingMatch->count != 1)
-        return -1;
-    const int candidate = localMatch->firstIndex;
-    // Eine andere importierte UUID darf ihren direkten Treffer nicht verlieren.
-    return incomingIndex.ids.contains(local[candidate].id) ? -1 : candidate;
-}
-template <class T> QHash<QString, int> idIndex(const QVector<T> &records) {
-    QHash<QString, int> result;
-    result.reserve(records.size());
-    for (int i = 0; i < records.size(); ++i)
-        result.insert(records[i].id, i);
-    return result;
-}
 template <class T> int byID(const QVector<T> &list, const QString &id) {
     for (int i = 0; i < list.size(); ++i)
         if (list[i].id == id)
@@ -273,13 +169,8 @@ class LibraryStore::Impl {
     std::unique_ptr<QLockFile> lock;
     bool writable = false, historyWritable = false, settingsWritable = false;
     QByteArray libraryBytes, historyBytes, settingsBytes;
-    struct Row {
-        QString key, kind, status, localID, duplicateID;
-        int incomingIndex;
-    };
     struct Preview {
-        Library incoming;
-        QVector<Row> rows;
+        LibraryMerge::Plan plan;
         QByteArray fingerprint;
     };
     QMap<QString, Preview> previews;
@@ -446,18 +337,9 @@ bool LibraryStore::load() {
         ok = d->fail(tr("Listening history could not be loaded: %1").arg(QString::fromUtf8(e.what())));
     }
     try {
-        d->settings = {{"recordingEnabled", false},
-                       {"timeshiftEnabled", false},
-                       {"language", "system"},
-                       {"quickSlots", QJsonArray{QJsonValue::Null, QJsonValue::Null, QJsonValue::Null,
-                                                 QJsonValue::Null, QJsonValue::Null}}};
+        d->settings = LibrarySettings::defaults();
         d->settingsBytes = d->recover("settings.json", d->settingsWritable, [&](const QByteArray &b) {
-            QJsonParseError e;
-            const auto doc = QJsonDocument::fromJson(b, &e);
-            require(e.error == QJsonParseError::NoError && doc.isObject());
-            const auto saved = validateSettings(doc.object());
-            for (auto it = saved.begin(); it != saved.end(); ++it)
-                d->settings.insert(it.key(), it.value());
+            d->settings = LibrarySettings::decode(b);
         });
     } catch (const std::exception &e) {
         d->settingsWritable = false;
@@ -575,11 +457,8 @@ bool LibraryStore::saveSettings(QJsonObject patch) {
         return d->fail(tr("Settings are read-only."));
     try {
         require(readFile(d->path("settings.json")) == d->settingsBytes, "Settings changed on disk.");
-        auto next = d->settings;
-        patch = validateSettings(patch);
-        for (auto it = patch.begin(); it != patch.end(); ++it)
-            next.insert(it.key(), it.value());
-        auto b = QJsonDocument(next).toJson(QJsonDocument::Indented);
+        const auto next = LibrarySettings::applyPatch(d->settings, std::move(patch));
+        const auto b = LibrarySettings::encode(next);
         require(saveFile(d->path("settings.json"), b), "Settings could not be saved.");
         d->settings = next;
         d->settingsBytes = b;
@@ -672,81 +551,12 @@ QJsonObject LibraryStore::previewImport(QString path) {
         require(readFile(d->path("library.json")) == d->libraryBytes,
                 "The library changed on disk. Reload it before importing.");
         d->previews.clear();
-        Impl::Preview plan;
-        plan.incoming = decodeExchange(readFile(path, 8 * 1024 * 1024));
-        plan.rows.reserve(plan.incoming.stations.size() + plan.incoming.groups.size() +
-                          plan.incoming.bookmarks.size());
-        plan.fingerprint = d->fingerprint();
-        QJsonArray items;
-        QJsonObject counts{{"new", 0}, {"unchanged", 0}, {"conflict", 0}};
-        QHash<QString, QString> stationMap;
-        stationMap.reserve(d->library.stations.size());
-        auto append = [&](QString kind, int index, QString id, int localIndex, const Json &incoming,
-                          const Json &local, QString incomingText, QString localText) {
-            Impl::Row r;
-            r.key = kind + ":" + id;
-            r.kind = kind;
-            r.incomingIndex = index;
-            if (localIndex < 0)
-                r.status = "new";
-            else {
-                r.localID = requiredString(local, "id");
-                auto comparable = incoming;
-                comparable["id"] = str(r.localID);
-                r.status = comparable == local ? "unchanged" : "conflict";
-            }
-            if (r.status == "conflict")
-                r.duplicateID = newID();
-            plan.rows.append(r);
-            counts[r.status] = counts[r.status].toInt() + 1;
-            items.append(QJsonObject{{"key", r.key},
-                                     {"kind", kind},
-                                     {"status", r.status},
-                                     {"local", QJsonObject{{"text", localText}}},
-                                     {"incoming", QJsonObject{{"text", incomingText}}},
-                                     {"defaultChoice", r.status == "new" ? "incoming" : "local"}});
-        };
-        const auto &inc = plan.incoming;
-        const auto stationIdentity = [](const Station &station) { return normalizedStreamURL(station.url); };
-        const auto localStations = indexRecords(d->library.stations, stationIdentity);
-        const auto incomingStations = indexRecords(inc.stations, stationIdentity);
-        for (int i = 0; i < inc.stations.size(); ++i) {
-            const auto &station = inc.stations[i];
-            const int match =
-                matchedIndex(d->library.stations, localStations, incomingStations, i, station.id);
-            stationMap.insert(station.id, match < 0 ? station.id : d->library.stations[match].id);
-            append("station", i, station.id, match, stationJson(station),
-                   match < 0 ? Json() : stationJson(d->library.stations[match]), description(station),
-                   match < 0 ? QString() : description(d->library.stations[match]));
-        }
-        const auto groupKey = [](const Group &group) { return groupIdentity(group.name); };
-        const auto localGroups = indexRecords(d->library.groups, groupKey);
-        const auto incomingGroups = indexRecords(inc.groups, groupKey);
-        for (int i = 0; i < inc.groups.size(); ++i) {
-            const auto &group = inc.groups[i];
-            const int match = matchedIndex(d->library.groups, localGroups, incomingGroups, i, group.id);
-            auto mapped = group;
-            for (auto &id : mapped.stationIDs)
-                id = stationMap.value(id);
-            append("group", i, group.id, match, groupJson(mapped),
-                   match < 0 ? Json() : groupJson(d->library.groups[match]), description(group),
-                   match < 0 ? QString() : description(d->library.groups[match]));
-        }
-        const auto bookmarkKey = [](const Track &track) { return bookmarkIdentity(track); };
-        const auto localBookmarks = indexRecords(d->library.bookmarks, bookmarkKey);
-        const auto incomingBookmarks = indexRecords(inc.bookmarks, bookmarkKey);
-        for (int i = 0; i < inc.bookmarks.size(); ++i) {
-            const auto &track = inc.bookmarks[i];
-            const int match =
-                matchedIndex(d->library.bookmarks, localBookmarks, incomingBookmarks, i, track.id);
-            append("bookmark", i, track.id, match, comparableBookmarkJson(track),
-                   match < 0 ? Json() : comparableBookmarkJson(d->library.bookmarks[match]),
-                   description(track), match < 0 ? QString() : description(d->library.bookmarks[match]));
-        }
+        auto draft = LibraryMerge::prepare(d->library, decodeExchange(readFile(path, 8 * 1024 * 1024)));
         const auto token = newID();
         d->previews.clear();
-        d->previews.insert(token, std::move(plan));
-        return {{"token", token}, {"items", items}, {"counts", counts}};
+        d->previews.insert(token, Impl::Preview{std::move(draft.plan), d->fingerprint()});
+        draft.presentation["token"] = token;
+        return draft.presentation;
     } catch (const std::exception &e) {
         d->fail(tr("The import could not be previewed: %1").arg(QString::fromUtf8(e.what())));
         return {};
@@ -761,91 +571,10 @@ bool LibraryStore::applyImport(QJsonObject preview, QJsonObject choices) {
         return d->fail(tr("The import preview has expired. Open a new preview."));
     try {
         const auto planIterator = d->previews.constFind(token);
-        const auto &plan = planIterator.value();
-        require(plan.fingerprint == d->fingerprint() && readFile(d->path("library.json")) == d->libraryBytes,
+        const auto &draft = planIterator.value();
+        require(draft.fingerprint == d->fingerprint() && readFile(d->path("library.json")) == d->libraryBytes,
                 "The library changed after preview. Open a new preview.");
-        QSet<QString> knownKeys;
-        for (const auto &row : plan.rows)
-            knownKeys.insert(row.key);
-        for (auto it = choices.begin(); it != choices.end(); ++it) {
-            require(it.value().isString() && knownKeys.contains(it.key()), "Invalid import choice.");
-        }
-        auto next = d->library;
-        QHash<QString, QString> stationMap;
-        stationMap.reserve(plan.incoming.stations.size());
-        const auto stationPositions = idIndex(next.stations);
-        const auto groupPositions = idIndex(next.groups);
-        const auto bookmarkPositions = idIndex(next.bookmarks);
-        QHash<QString, int> groupNames;
-        for (const auto &group : next.groups)
-            ++groupNames[groupIdentity(group.name)];
-        for (const auto &r : plan.rows) {
-            QString choice = choices.value(r.key).toString(r.status == "new" ? "incoming" : "local");
-            require(choice == "skip" || choice == "local" || choice == "incoming" || choice == "both",
-                    "Invalid import choice.");
-            if (r.status == "unchanged")
-                choice = "local";
-            if (r.kind == "station") {
-                auto s = plan.incoming.stations[r.incomingIndex];
-                if (!r.localID.isEmpty()) {
-                    s.id = choice == "both" ? r.duplicateID : r.localID;
-                    stationMap[plan.incoming.stations[r.incomingIndex].id] = s.id;
-                    if (choice == "incoming")
-                        next.stations[stationPositions.value(r.localID)] = s;
-                    else if (choice == "both")
-                        next.stations.append(s);
-                } else if (choice == "incoming" || choice == "both") {
-                    stationMap[s.id] = s.id;
-                    next.stations.append(s);
-                }
-            } else if (r.kind == "group") {
-                if (choice == "skip" || choice == "local")
-                    continue;
-                auto g = plan.incoming.groups[r.incomingIndex];
-                QStringList ids;
-                for (const auto &id : g.stationIDs)
-                    if (stationMap.contains(id))
-                        ids.append(stationMap[id]);
-                g.stationIDs = ids;
-                g.id = choice == "both" && !r.localID.isEmpty() ? r.duplicateID
-                       : r.localID.isEmpty()                    ? g.id
-                                                                : r.localID;
-                if (!r.localID.isEmpty() && choice == "incoming") {
-                    const int position = groupPositions.value(r.localID);
-                    --groupNames[groupIdentity(next.groups[position].name)];
-                    next.groups[position] = g;
-                    ++groupNames[groupIdentity(g.name)];
-                } else {
-                    const auto used = [&](const QString &name) {
-                        return groupNames.value(groupIdentity(name)) > 0;
-                    };
-                    if (used(g.name)) {
-                        const auto original = g.name;
-                        int n = 1;
-                        do {
-                            QString base = original, suffix = QString(" (Import %1)").arg(n++);
-                            while ((base + suffix).toUtf8().size() > 256 && !base.isEmpty())
-                                base.chop(1);
-                            g.name = base + suffix;
-                        } while (used(g.name));
-                    }
-                    next.groups.append(g);
-                    ++groupNames[groupIdentity(g.name)];
-                }
-            } else {
-                if (choice == "skip" || choice == "local")
-                    continue;
-                auto t = plan.incoming.bookmarks[r.incomingIndex];
-                t.id = choice == "both" && !r.localID.isEmpty() ? r.duplicateID
-                       : r.localID.isEmpty()                    ? t.id
-                                                                : r.localID;
-                if (!r.localID.isEmpty() && choice == "incoming")
-                    next.bookmarks[bookmarkPositions.value(r.localID)] = t;
-                else
-                    next.bookmarks.append(t);
-            }
-        }
-        if (!d->commit(next))
+        if (!d->commit(LibraryMerge::apply(d->library, draft.plan, choices)))
             return false;
         d->previews.clear();
         emit libraryChanged();

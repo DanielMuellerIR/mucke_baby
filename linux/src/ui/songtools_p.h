@@ -4,6 +4,9 @@
 #include <QUrl>
 #include <QLocale>
 namespace Mucke::SongTools {
+inline QString trackName(const Track &t) {
+    return t.artist.isEmpty() ? (t.title.isEmpty() ? t.raw : t.title) : t.artist + " — " + t.title;
+}
 inline QString cleanedTitle(QString title) {
     title.remove(QRegularExpression(
         R"(\s*[\(\[][^\(\)\[\]]*\b(extended|original|radio|club|edit|remix|mix|version|bootleg|vip|instrumental|acoustic|live|remaster[a-z]*)\b[^\(\)\[\]]*[\)\]])",

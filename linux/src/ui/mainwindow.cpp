@@ -1,5 +1,9 @@
 #include "mainwindow.h"
+#include "../i18n.h"
 #include "consolewidgets.h"
+#include "dialogwidgets_p.h"
+#include "libraryimportdialog.h"
+#include "lyricsdialog.h"
 #include "../buildinfo.h"
 #include "../data/catalogservice.h"
 #include "../data/librarystore.h"
@@ -9,9 +13,6 @@
 #include "updatedialog.h"
 #include "songexportdialog.h"
 #include "songexportfile_p.h"
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QThread>
 #include <QtWidgets>
 #include <algorithm>
@@ -20,12 +21,7 @@
 
 namespace Mucke {
 namespace {
-QString text(const char *de, const char *en) {
-    return QLocale().language() == QLocale::German ? QString::fromUtf8(de) : QString::fromUtf8(en);
-}
-QString trackName(const Track &t) {
-    return t.artist.isEmpty() ? (t.title.isEmpty() ? t.raw : t.title) : t.artist + " — " + t.title;
-}
+using SongTools::trackName;
 QString duration(double seconds) {
     int n = std::max(0, int(seconds));
     return QString("%1:%2").arg(n / 60).arg(n % 60, 2, 10, QChar('0'));
@@ -51,25 +47,8 @@ class ActivityObserver final : public QObject {
         return false;
     }
 };
-QPushButton *button(QString label, QBoxLayout *layout, const std::function<void()> &action) {
-    auto *b = new QPushButton(label);
-    b->setMinimumHeight(32);
-    layout->addWidget(b);
-    QObject::connect(b, &QPushButton::clicked, b, action);
-    return b;
-}
-QDialogButtonBox *dialogButtons(QDialogButtonBox::StandardButtons buttons) {
-    auto *box = new QDialogButtonBox(buttons);
-    const QList<QPair<QDialogButtonBox::StandardButton, QString>> captions = {
-        {QDialogButtonBox::Save, text("Speichern", "Save")},
-        {QDialogButtonBox::Cancel, text("Abbrechen", "Cancel")},
-        {QDialogButtonBox::Close, text("Schließen", "Close")},
-        {QDialogButtonBox::Ok, QString("OK")}};
-    for (const auto &caption : captions)
-        if (auto *button = box->button(caption.first))
-            button->setText(caption.second);
-    return box;
-}
+using DialogWidgets::button;
+using DialogWidgets::dialogButtons;
 QTableView *table(QStandardItemModel *model) {
     auto *v = new QTableView;
     v->setModel(model);
@@ -101,146 +80,6 @@ QString selectedID(QTableView *v) {
     auto ix = v->currentIndex();
     return ix.isValid() ? v->model()->index(ix.row(), 0).data(Qt::UserRole).toString() : QString();
 }
-constexpr int ImportChoiceRole = Qt::UserRole + 1;
-constexpr int ImportConflictRole = Qt::UserRole + 2;
-QString importChoiceCaption(QString key) {
-    if (key == "local")
-        return text("Lokal behalten", "Keep local");
-    if (key == "both")
-        return text("Beide behalten", "Keep both");
-    if (key == "skip")
-        return text("Überspringen", "Skip");
-    return text("Import", "Incoming");
-}
-class ImportChoiceDelegate final : public QStyledItemDelegate {
-  public:
-    explicit ImportChoiceDelegate(QObject *parent) : QStyledItemDelegate(parent) {}
-    void paint(QPainter *painter, const QStyleOptionViewItem &option,
-               const QModelIndex &index) const override {
-        QStyleOptionComboBox combo;
-        combo.rect =
-            QRect(option.rect.left() + 4, option.rect.center().y() - 16, option.rect.width() - 8, 32);
-        combo.state = option.state;
-        combo.palette = option.palette;
-        combo.currentText = index.data().toString();
-        combo.subControls = QStyle::SC_All;
-        combo.frame = true;
-        QStyle *style = option.widget ? option.widget->style() : QApplication::style();
-        style->drawComplexControl(QStyle::CC_ComboBox, &combo, painter, option.widget);
-        style->drawControl(QStyle::CE_ComboBoxLabel, &combo, painter, option.widget);
-    }
-    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &,
-                          const QModelIndex &index) const override {
-        auto *combo = new QComboBox(parent);
-        combo->setObjectName("importChoice");
-        for (const auto &key : {QString("incoming"), QString("local"), QString("both"), QString("skip")}) {
-            if (key == "both" && !index.data(ImportConflictRole).toBool())
-                continue;
-            combo->addItem(importChoiceCaption(key), key);
-        }
-        return combo;
-    }
-    void setEditorData(QWidget *editor, const QModelIndex &index) const override {
-        auto *combo = qobject_cast<QComboBox *>(editor);
-        combo->setCurrentIndex(std::max(0, combo->findData(index.data(ImportChoiceRole))));
-    }
-    void setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const override {
-        auto *combo = qobject_cast<QComboBox *>(editor);
-        model->setData(index, combo->currentData(), ImportChoiceRole);
-        model->setData(index, combo->currentText(), Qt::DisplayRole);
-    }
-    void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option,
-                              const QModelIndex &) const override {
-        editor->setGeometry(
-            QRect(option.rect.left() + 4, option.rect.center().y() - 16, option.rect.width() - 8, 32));
-    }
-};
-
-class LyricsDialog final : public QDialog {
-    QNetworkAccessManager network;
-    QPointer<QNetworkReply> active;
-    QPlainTextEdit *lyrics;
-    QLabel *state;
-    QVector<QPair<QString, QString>> queries;
-    QByteArray bytes;
-    int queryIndex = 0;
-    bool timedOut = false;
-    void next() {
-        if (!isVisible())
-            return;
-        if (timedOut || queryIndex >= queries.size()) {
-            state->setText(text("Kein Songtext gefunden. Die Websuche kann weitere Quellen zeigen.",
-                                "No lyrics found. Web search may find other sources."));
-            return;
-        }
-        const auto query = queries[queryIndex++];
-        QNetworkRequest request(SongTools::lyricsURL(query.first, query.second));
-        request.setHeader(QNetworkRequest::UserAgentHeader, "MuckeBabyLinux");
-        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
-        request.setTransferTimeout(6000);
-        bytes.clear();
-        active = network.get(request);
-        active->setReadBufferSize(65536);
-        auto *reply = active.data();
-        QObject::connect(reply, &QNetworkReply::readyRead, this, [this, reply] {
-            bytes += reply->readAll();
-            if (bytes.size() > 512 * 1024)
-                reply->abort();
-        });
-        QObject::connect(reply, &QNetworkReply::finished, this, [this, reply] {
-            bytes += reply->readAll();
-            const bool ok = reply->error() == QNetworkReply::NoError &&
-                            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200 &&
-                            bytes.size() <= 512 * 1024;
-            const QString result =
-                ok ? QJsonDocument::fromJson(bytes).object()["lyrics"].toString().trimmed() : QString();
-            active = nullptr;
-            reply->deleteLater();
-            if (!result.isEmpty()) {
-                lyrics->setPlainText(result);
-                state->setText(text("Quelle: lyrics.ovh", "Source: lyrics.ovh"));
-            } else
-                next();
-        });
-    }
-
-  public:
-    explicit LyricsDialog(const Track &track, QWidget *parent) : QDialog(parent) {
-        setObjectName("lyricsDialog");
-        setWindowTitle(text("Songtext", "Lyrics"));
-        resize(520, 590);
-        auto *layout = new QVBoxLayout(this);
-        auto *heading = new QLabel(trackName(track));
-        heading->setTextFormat(Qt::PlainText);
-        heading->setWordWrap(true);
-        layout->addWidget(heading);
-        state =
-            new QLabel(text("Songtext wird bei lyrics.ovh gesucht …", "Searching lyrics.ovh for lyrics …"));
-        state->setWordWrap(true);
-        layout->addWidget(state);
-        lyrics = new QPlainTextEdit;
-        lyrics->setReadOnly(true);
-        layout->addWidget(lyrics, 1);
-        auto *actions = new QHBoxLayout;
-        layout->addLayout(actions);
-        button(text("Im Web suchen", "Search the web"), actions,
-               [track] { QDesktopServices::openUrl(SongTools::lyricsSearchURL(track)); });
-        button(text("Schließen", "Close"), actions, [this] { reject(); });
-        queries = SongTools::lyricsQueries(track);
-        QTimer::singleShot(0, this, [this] { next(); });
-        QTimer::singleShot(20000, this, [this] {
-            timedOut = true;
-            if (active)
-                active->abort();
-        });
-    }
-    ~LyricsDialog() override {
-        if (active) {
-            active->disconnect(this);
-            active->abort();
-        }
-    }
-};
 
 } // namespace
 class MainWindow::Impl {
@@ -352,7 +191,7 @@ class MainWindow::Impl {
         version->setObjectName("version");
         heading->addWidget(version);
         heading->addStretch();
-        play = button(text("▶ Abspielen", "▶ Play"), heading, [this] { togglePlayback(); });
+        play = button(germanOrEnglish("▶ Abspielen", "▶ Play"), heading, [this] { togglePlayback(); });
         play->setObjectName("mainPlay");
         play->setProperty("consoleButton", true);
         play->setMinimumHeight(26);
@@ -361,38 +200,38 @@ class MainWindow::Impl {
         divider->setFixedHeight(20);
         heading->addWidget(divider);
         iconButton(
-            Symbol::Search, text("Senderkatalog", "Station catalog"), heading, [this] { catalogDialog(); },
+            Symbol::Search, germanOrEnglish("Senderkatalog", "Station catalog"), heading, [this] { catalogDialog(); },
             "catalogOpen");
         iconButton(
-            Symbol::Add, text("Sender hinzufügen", "Add station"), heading, [this] { editStation({}); },
+            Symbol::Add, germanOrEnglish("Sender hinzufügen", "Add station"), heading, [this] { editStation({}); },
             "stationAdd");
         iconButton(
-            Symbol::Edit, text("Sender bearbeiten", "Edit station"), heading,
+            Symbol::Edit, germanOrEnglish("Sender bearbeiten", "Edit station"), heading,
             [this] { editStation(selectedID(stationView)); }, "stationEdit");
         iconButton(
-            Symbol::Settings, text("Einstellungen", "Settings"), heading, [this] { settings(); },
+            Symbol::Settings, germanOrEnglish("Einstellungen", "Settings"), heading, [this] { settings(); },
             "settingsOpen");
-        iconButton(Symbol::Audio, text("Audioeinstellungen", "Audio settings"), heading,
+        iconButton(Symbol::Audio, germanOrEnglish("Audioeinstellungen", "Audio settings"), heading,
                    [this] { settings(2); }, "audioSettingsOpen");
-        historyToggle = iconButton(Symbol::History, text("Verlauf ein-/ausblenden", "Show or hide history"),
+        historyToggle = iconButton(Symbol::History, germanOrEnglish("Verlauf ein-/ausblenden", "Show or hide history"),
                                    heading, [this] { columns->showHistory(!columns->hasHistory()); });
         themes = new QComboBox(root);
         themes->addItems(themeNames);
         themes->hide();
-        themes->setAccessibleName(text("Theme", "Theme"));
-        auto *themeButton = iconButton(Symbol::Palette, text("Theme wählen", "Choose theme"), heading, [] {});
+        themes->setAccessibleName(germanOrEnglish("Theme", "Theme"));
+        auto *themeButton = iconButton(Symbol::Palette, germanOrEnglish("Theme wählen", "Choose theme"), heading, [] {});
         auto *themeMenu = new QMenu(themeButton);
         for (int i = 0; i < themeIDs.size(); ++i)
             themeMenu->addAction(themeNames[i], q, [this, i] { themes->setCurrentIndex(i); });
         themeButton->setMenu(themeMenu);
-        auto *moreButton = iconButton(Symbol::More, text("Weitere Aktionen", "More actions"), heading, [] {});
+        auto *moreButton = iconButton(Symbol::More, germanOrEnglish("Weitere Aktionen", "More actions"), heading, [] {});
         auto *mainMenu = new QMenu(moreButton);
         moreButton->setMenu(mainMenu);
-        mainMenu->addAction(text("Miniplayer", "Mini player"), q, [this] { miniPlayer(); });
+        mainMenu->addAction(germanOrEnglish("Miniplayer", "Mini player"), q, [this] { miniPlayer(); });
         auto *fullButton = new QPushButton(q);
         fullButton->hide();
         fullScreenButton = fullButton;
-        mainMenu->addAction(text("Vollbild-Visualizer", "Fullscreen visualizer"), q,
+        mainMenu->addAction(germanOrEnglish("Vollbild-Visualizer", "Fullscreen visualizer"), q,
                             [this] { fullScreen(); });
         mainMenu->addSeparator();
         layout->addWidget(headerSurface);
@@ -408,11 +247,11 @@ class MainWindow::Impl {
         stationsCaption->setObjectName("sectionHeading");
         stationHeading->addWidget(stationsCaption);
         stationHeading->addStretch();
-        iconButton(Symbol::List, text("Sender auswählen", "Choose station"), stationHeading, [this] {
+        iconButton(Symbol::List, germanOrEnglish("Sender auswählen", "Choose station"), stationHeading, [this] {
             search->setFocus();
             search->selectAll();
         });
-        iconButton(Symbol::Folder, text("Sendergruppen", "Station groups"), stationHeading,
+        iconButton(Symbol::Folder, germanOrEnglish("Sendergruppen", "Station groups"), stationHeading,
                    [this] { groupsDialog(); });
         ll->addLayout(stationHeading);
         auto *stationFilters = new QWidget;
@@ -422,13 +261,13 @@ class MainWindow::Impl {
         filterLayout->setSpacing(6);
         search = new QLineEdit;
         search->setObjectName("stationSearch");
-        search->setPlaceholderText(text("Sender suchen …", "Search stations …"));
+        search->setPlaceholderText(germanOrEnglish("Sender suchen …", "Search stations …"));
         search->setFixedHeight(30);
         filterLayout->addWidget(search);
         auto *filters = new QHBoxLayout;
         group = new QComboBox;
         favorites = new QCheckBox("★");
-        favorites->setToolTip(text("Nur Favoriten", "Favorites only"));
+        favorites->setToolTip(germanOrEnglish("Nur Favoriten", "Favorites only"));
         favorites->setAccessibleName(favorites->toolTip());
         group->setMaximumWidth(180);
         filters->addWidget(group);
@@ -440,7 +279,7 @@ class MainWindow::Impl {
         filterLayout->addWidget(stationCount);
         ll->addWidget(stationFilters);
         stationModel = new QStandardItemModel(q);
-        stationModel->setHorizontalHeaderLabels({text("Sender", "Station"), "★"});
+        stationModel->setHorizontalHeaderLabels({germanOrEnglish("Sender", "Station"), "★"});
         stationView = table(stationModel);
         stationView->setObjectName("stations");
         stationView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
@@ -463,53 +302,53 @@ class MainWindow::Impl {
         rl->setSpacing(0);
         auto *rightHeading = new QHBoxLayout;
         rightHeading->setContentsMargins(10, 5, 8, 5);
-        historyHeading = new QLabel(text("Verlauf", "History"));
+        historyHeading = new QLabel(germanOrEnglish("Verlauf", "History"));
         historyHeading->setObjectName("historyHeading");
         rightHeading->addWidget(historyHeading);
         rightHeading->addStretch();
-        auto *libraryNavigation = new Console::AdaptiveActions(text("Bibliothek anzeigen", "Show library"));
+        auto *libraryNavigation = new Console::AdaptiveActions(germanOrEnglish("Bibliothek anzeigen", "Show library"));
         libraryNavigation->setObjectName("libraryNavigation");
         adaptiveBars.append(libraryNavigation);
         rightHeading->addWidget(libraryNavigation, 1);
         int libraryIndex = 0;
-        for (const auto &entry : {qMakePair(Symbol::History, text("Verlauf", "History")),
-                                  qMakePair(Symbol::Bookmarks, text("Merkliste", "Bookmarks")),
-                                  qMakePair(Symbol::Waveform, text("Aufnahmen", "Recordings"))}) {
+        for (const auto &entry : {qMakePair(Symbol::History, germanOrEnglish("Verlauf", "History")),
+                                  qMakePair(Symbol::Bookmarks, germanOrEnglish("Merkliste", "Bookmarks")),
+                                  qMakePair(Symbol::Waveform, germanOrEnglish("Aufnahmen", "Recordings"))}) {
             const int index = libraryIndex++;
             libraryNavigation->add(entry.first, entry.second, [this, index] { tabs->setCurrentIndex(index); });
         }
-        iconButton(Symbol::History, text("Verlauf ausblenden", "Hide history"), rightHeading,
+        iconButton(Symbol::History, germanOrEnglish("Verlauf ausblenden", "Hide history"), rightHeading,
                    [this] { columns->showHistory(false); });
         rl->addLayout(rightHeading);
         tabs = new QTabWidget;
         tabs->setObjectName("libraryTabs");
         tabs->tabBar()->hide();
         QObject::connect(tabs, &QTabWidget::currentChanged, q, [this](int index) {
-            historyHeading->setText(index == 1        ? text("Merkliste", "Bookmarks")
-                                    : index == 2      ? text("Aufnahmen", "Recordings")
+            historyHeading->setText(index == 1        ? germanOrEnglish("Merkliste", "Bookmarks")
+                                    : index == 2      ? germanOrEnglish("Aufnahmen", "Recordings")
                                     : theme == "midi" ? "PLAYBACK_HISTORY"
-                                                      : text("Verlauf", "History"));
+                                                      : germanOrEnglish("Verlauf", "History"));
         });
         historyModel = new QStandardItemModel(q);
         bookmarkModel = new QStandardItemModel(q);
         recordingModel = new QStandardItemModel(q);
         historyModel->setHorizontalHeaderLabels(
-            {text("Zeit", "Time"), text("Titel", "Track"), text("Sender", "Station")});
+            {germanOrEnglish("Zeit", "Time"), germanOrEnglish("Titel", "Track"), germanOrEnglish("Sender", "Station")});
         bookmarkModel->setHorizontalHeaderLabels(
-            {text("Gespeichert", "Saved"), text("Titel", "Track"), text("Sender", "Station")});
-        recordingModel->setHorizontalHeaderLabels({text("Beginn", "Start"), text("Sender", "Station"),
-                                                   text("Dauer", "Duration"), text("Größe", "Size")});
+            {germanOrEnglish("Gespeichert", "Saved"), germanOrEnglish("Titel", "Track"), germanOrEnglish("Sender", "Station")});
+        recordingModel->setHorizontalHeaderLabels({germanOrEnglish("Beginn", "Start"), germanOrEnglish("Sender", "Station"),
+                                                   germanOrEnglish("Dauer", "Duration"), germanOrEnglish("Größe", "Size")});
         auto *historyPage = new QWidget;
         auto *hl = new QVBoxLayout(historyPage);
         hl->setContentsMargins(10, 8, 10, 0);
         hl->setSpacing(6);
         auto *hf = new QHBoxLayout;
         historySearch = new QLineEdit;
-        historySearch->setPlaceholderText(text("Titel / Künstler filtern", "Filter title / artist"));
+        historySearch->setPlaceholderText(germanOrEnglish("Titel / Künstler filtern", "Filter title / artist"));
         historyStation = new QComboBox;
         period = new QComboBox;
-        period->addItems({text("Alle Zeiten", "All time"), text("Heute", "Today"), text("7 Tage", "7 days"),
-                          text("30 Tage", "30 days"), text("Zeitraum …", "Custom dates …")});
+        period->addItems({germanOrEnglish("Alle Zeiten", "All time"), germanOrEnglish("Heute", "Today"), germanOrEnglish("7 Tage", "7 days"),
+                          germanOrEnglish("30 Tage", "30 days"), germanOrEnglish("Zeitraum …", "Custom dates …")});
         period->setObjectName("historyPeriod");
         historySearch->setFixedHeight(30);
         hl->addWidget(historySearch);
@@ -533,9 +372,9 @@ class MainWindow::Impl {
             date->setDisplayFormat("yyyy-MM-dd");
             date->setCalendarPopup(true);
         }
-        dateLayout->addWidget(new QLabel(text("Von", "From")));
+        dateLayout->addWidget(new QLabel(germanOrEnglish("Von", "From")));
         dateLayout->addWidget(historyFrom, 1);
-        dateLayout->addWidget(new QLabel(text("Bis", "Through")));
+        dateLayout->addWidget(new QLabel(germanOrEnglish("Bis", "Through")));
         dateLayout->addWidget(historyTo, 1);
         historyDates->hide();
         hl->addWidget(historyDates);
@@ -570,15 +409,14 @@ class MainWindow::Impl {
         actionButton(Symbol::Lyrics, "Lyrics", ha, [this] {
             for (const auto &track : store->history())
                 if (track.id == selectedID(historyView)) {
-                    LyricsDialog dialog(track, q);
-                    dialog.exec();
+                    showLyricsDialog(track, q);
                 }
         });
         auto *audioExport = actionButton(
             Symbol::Export, "Export", ha, [this] { exportSongs(historyView, false); }, "historyAudioExport");
         Q_UNUSED(audioExport);
         auto *historyActions = iconButton(
-            Symbol::More, text("Weitere Titelaktionen", "More track actions"), ha,
+            Symbol::More, germanOrEnglish("Weitere Titelaktionen", "More track actions"), ha,
             [this] { trackMenu(historyView, false, QCursor::pos()); }, "historyTrackActions");
         Q_UNUSED(historyActions);
         ha->addStretch();
@@ -590,13 +428,13 @@ class MainWindow::Impl {
         historyActionsBar->setObjectName("historyActionsBar");
         historyActionsBar->setLayout(ha);
         hl->addWidget(historyActionsBar);
-        tabs->addTab(historyPage, text("Verlauf", "History"));
+        tabs->addTab(historyPage, germanOrEnglish("Verlauf", "History"));
         auto *bp = new QWidget;
         auto *bl = new QVBoxLayout(bp);
         bl->setContentsMargins(10, 8, 10, 6);
         bookmarkSearch = new QLineEdit;
         bookmarkSearch->setObjectName("bookmarkSearch");
-        bookmarkSearch->setPlaceholderText(text("Merkliste durchsuchen …", "Search bookmarks …"));
+        bookmarkSearch->setPlaceholderText(germanOrEnglish("Merkliste durchsuchen …", "Search bookmarks …"));
         bl->addWidget(bookmarkSearch);
         QObject::connect(bookmarkSearch, &QLineEdit::textChanged, q, [this] { bookmarks(); });
         bookmarkView = table(bookmarkModel);
@@ -609,27 +447,27 @@ class MainWindow::Impl {
         bookmarkDelegate = new Console::ItemDelegate(Console::ItemDelegate::Kind::Track, bookmarkView);
         bookmarkView->setItemDelegate(bookmarkDelegate);
         bl->addWidget(bookmarkView, 1);
-        auto *bookmarkBar = new Console::AdaptiveActions(text("Weitere Merklistenaktionen", "More bookmark actions"));
+        auto *bookmarkBar = new Console::AdaptiveActions(germanOrEnglish("Weitere Merklistenaktionen", "More bookmark actions"));
         bookmarkBar->setObjectName("bookmarkActionsBar");
         adaptiveBars.append(bookmarkBar);
-        bookmarkBar->add(Symbol::Stop, text("Entfernen", "Remove"), [this] {
+        bookmarkBar->add(Symbol::Stop, germanOrEnglish("Entfernen", "Remove"), [this] {
             auto id = selectedID(bookmarkView);
             if (!id.isEmpty())
                 store->removeBookmark(id);
         });
-        bookmarkBar->add(Symbol::Export, text("Exportieren …", "Export …"), [this] { exportBookmarks(); }, "bookmarkExport");
-        bookmarkBar->add(Symbol::Recognition, text("Erkennungsdaten", "Recognition details"), [this] { recognition(); });
-        auto *bookmarkActions = bookmarkBar->add(Symbol::More, text("Titelaktionen", "Track actions"), [this] { trackMenu(bookmarkView, true, QCursor::pos()); });
+        bookmarkBar->add(Symbol::Export, germanOrEnglish("Exportieren …", "Export …"), [this] { exportBookmarks(); }, "bookmarkExport");
+        bookmarkBar->add(Symbol::Recognition, germanOrEnglish("Erkennungsdaten", "Recognition details"), [this] { recognition(); });
+        auto *bookmarkActions = bookmarkBar->add(Symbol::More, germanOrEnglish("Titelaktionen", "Track actions"), [this] { trackMenu(bookmarkView, true, QCursor::pos()); });
         bookmarkActions->setObjectName("bookmarkTrackActions");
         bookmarkActions->setToolTip(
-            text("Titelaktionen: Musiklinks und Songtext", "Track actions: music links and lyrics"));
+            germanOrEnglish("Titelaktionen: Musiklinks und Songtext", "Track actions: music links and lyrics"));
         bookmarkActions->setAccessibleName(bookmarkActions->toolTip());
         bookmarkView->setContextMenuPolicy(Qt::CustomContextMenu);
         QObject::connect(bookmarkView, &QWidget::customContextMenuRequested, q, [this](QPoint position) {
             trackMenu(bookmarkView, true, bookmarkView->viewport()->mapToGlobal(position));
         });
         bl->addWidget(bookmarkBar);
-        tabs->addTab(bp, text("Merkliste", "Bookmarks"));
+        tabs->addTab(bp, germanOrEnglish("Merkliste", "Bookmarks"));
         auto *rp = new QWidget;
         auto *rpl = new QVBoxLayout(rp);
         rpl->setContentsMargins(10, 8, 10, 6);
@@ -643,34 +481,34 @@ class MainWindow::Impl {
         recordingView->setColumnWidth(3, 80);
         recordingView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         rpl->addWidget(recordingView);
-        auto *recordingBar = new Console::AdaptiveActions(text("Weitere Aufnahmeaktionen", "More recording actions"));
+        auto *recordingBar = new Console::AdaptiveActions(germanOrEnglish("Weitere Aufnahmeaktionen", "More recording actions"));
         recordingBar->setObjectName("recordingActionsBar");
         adaptiveBars.append(recordingBar);
-        recordingBar->add(Symbol::Play, text("Anhören", "Listen"), [this] {
+        recordingBar->add(Symbol::Play, germanOrEnglish("Anhören", "Listen"), [this] {
             auto id = selectedID(recordingView);
             if (!id.isEmpty() && allowPreview())
                 media->previewRecording(id);
         });
-        auto *stopPreview = recordingBar->add(Symbol::Stop, text("Vorschau stoppen", "Stop preview"), [this] { media->stopPreview(); });
-        stopPreview->setToolTip(text("Vorschau stoppen", "Stop preview"));
+        auto *stopPreview = recordingBar->add(Symbol::Stop, germanOrEnglish("Vorschau stoppen", "Stop preview"), [this] { media->stopPreview(); });
+        stopPreview->setToolTip(germanOrEnglish("Vorschau stoppen", "Stop preview"));
         stopPreview->setAccessibleName(stopPreview->toolTip());
-        recordingBar->add(Symbol::Export, text("Ausschnitt …", "Clip …"), [this] { exportClip(); }, "recordingClip");
-        recordingBar->add(Symbol::Stop, text("Löschen …", "Delete …"), [this] {
+        recordingBar->add(Symbol::Export, germanOrEnglish("Ausschnitt …", "Clip …"), [this] { exportClip(); }, "recordingClip");
+        recordingBar->add(Symbol::Stop, germanOrEnglish("Löschen …", "Delete …"), [this] {
             auto id = selectedID(recordingView);
             for (auto r : media->recordings())
                 if (r.id == id) {
                     if (r.active) {
-                        error(text("Die aktive Aufnahme kann nicht gelöscht werden.",
+                        error(germanOrEnglish("Die aktive Aufnahme kann nicht gelöscht werden.",
                                    "The active recording cannot be deleted."));
                         return;
                     }
-                    if (confirm(text("Diese Aufnahmedatei dauerhaft löschen? Der Verlauf bleibt erhalten.",
+                    if (confirm(germanOrEnglish("Diese Aufnahmedatei dauerhaft löschen? Der Verlauf bleibt erhalten.",
                                      "Permanently delete this recording file? History is kept.")))
                         media->removeRecording(id);
                 }
         });
         rpl->addWidget(recordingBar);
-        tabs->addTab(rp, text("Aufnahmen", "Recordings"));
+        tabs->addTab(rp, germanOrEnglish("Aufnahmen", "Recordings"));
         rl->addWidget(tabs, 1);
         visual = new Visualizer;
         visual->setObjectName("mainVisualizer");
@@ -684,14 +522,14 @@ class MainWindow::Impl {
         bufferLayout->setSpacing(5);
         auto *buffer = new QHBoxLayout;
         buffer->setSpacing(7);
-        pause = button(text("Pause", "Pause"), buffer, [this] { media->togglePause(); });
+        pause = button(germanOrEnglish("Pause", "Pause"), buffer, [this] { media->togglePause(); });
         pause->setProperty("consoleButton", true);
         pause->setMinimumHeight(24);
         back15 = iconButton(
-            Symbol::Back, text("15 Sekunden zurück", "Back 15 seconds"), buffer,
+            Symbol::Back, germanOrEnglish("15 Sekunden zurück", "Back 15 seconds"), buffer,
             [this] { media->seekDelay(std::min(state.bufferSeconds, state.delaySeconds + 15)); }, "back15");
         forward15 = iconButton(
-            Symbol::Forward, text("15 Sekunden vor", "Forward 15 seconds"), buffer,
+            Symbol::Forward, germanOrEnglish("15 Sekunden vor", "Forward 15 seconds"), buffer,
             [this] { media->seekDelay(std::max(0., state.delaySeconds - 15)); }, "forward15");
         buffer->addStretch();
         liveButton = button("Live", buffer, [this] { media->goLive(); });
@@ -700,7 +538,7 @@ class MainWindow::Impl {
         bufferLayout->addLayout(buffer);
         delay = new QSlider(Qt::Horizontal);
         delay->setRange(0, 0);
-        delay->setAccessibleName(text("Puffer-Verzögerung", "Buffer delay"));
+        delay->setAccessibleName(germanOrEnglish("Puffer-Verzögerung", "Buffer delay"));
         bufferLayout->addWidget(delay);
         bufferStatus = new QLabel;
         bufferStatus->setObjectName("bufferStatus");
@@ -718,9 +556,9 @@ class MainWindow::Impl {
         playingText->setSpacing(1);
         playingText->setContentsMargins(0, 0, 0, 0);
         playingText->setSizeConstraint(QLayout::SetFixedSize);
-        artist = new QLabel(text("Kein Sender", "No station"));
+        artist = new QLabel(germanOrEnglish("Kein Sender", "No station"));
         artist->setObjectName("stationCaption");
-        now = new QLabel(text("Bereit für Musik", "Ready for music"));
+        now = new QLabel(germanOrEnglish("Bereit für Musik", "Ready for music"));
         now->setObjectName("nowPlaying");
         for (auto *label : {artist, now}) {
             label->setTextFormat(Qt::PlainText);
@@ -748,22 +586,21 @@ class MainWindow::Impl {
         titleScroll->viewport()->setAutoFillBackground(false);
         titleScroll->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         footer->addWidget(titleScroll, 1);
-        iconButton(Symbol::Recognition, text("Musikerkennung unter Linux", "Music recognition on Linux"), footer,
+        iconButton(Symbol::Recognition, germanOrEnglish("Musikerkennung unter Linux", "Music recognition on Linux"), footer,
                    [this] { recognition(); });
         bookmark = iconButton(Symbol::Heart,
-                              text("Aktuellen Titel merken (Strg+D)", "Bookmark current track (Ctrl+D)"),
+                              germanOrEnglish("Aktuellen Titel merken (Strg+D)", "Bookmark current track (Ctrl+D)"),
                               footer, [this] {
                                   if (!state.heardTrack.raw.isEmpty() || !state.heardTrack.title.isEmpty())
                                       store->bookmark(state.heardTrack);
                               });
-        iconButton(Symbol::Bookmarks, text("Merkliste öffnen", "Open bookmarks"), footer, [this] {
+        iconButton(Symbol::Bookmarks, germanOrEnglish("Merkliste öffnen", "Open bookmarks"), footer, [this] {
             columns->showHistory(true);
             tabs->setCurrentIndex(1);
         });
-        record = button(text("Aufnahme", "Record"), footer, [this] {
+        record = button(germanOrEnglish("Aufnahme", "Record"), footer, [this] {
             if (!state.recordRequested &&
-                !confirm(text(
-                    "Aufnahme einschalten? Audio wird im Musikordner gespeichert. Unter 10 GiB freiem Speicher stoppt die Aufnahme automatisch.",
+                !confirm(germanOrEnglish("Aufnahme einschalten? Audio wird im Musikordner gespeichert. Unter 10 GiB freiem Speicher stoppt die Aufnahme automatisch.",
                     "Enable recording? Audio is saved in your Music folder. Recording stops automatically below 10 GiB of free space.")))
                 return;
             const bool enabled = !state.recordRequested;
@@ -776,11 +613,11 @@ class MainWindow::Impl {
         record->setProperty("consoleButton", true);
         recordStatus = new QLabel(q);
         recordStatus->hide();
-        iconButton(Symbol::Timer, text("Einschlaftimer", "Sleep timer"), footer, [this] {
+        iconButton(Symbol::Timer, germanOrEnglish("Einschlaftimer", "Sleep timer"), footer, [this] {
             bool ok;
             const int minutes =
-                QInputDialog::getInt(q, text("Einschlaftimer", "Sleep timer"),
-                                     text("Minuten (0 = aus)", "Minutes (0 = off)"), 30, 0, 1440, 1, &ok);
+                QInputDialog::getInt(q, germanOrEnglish("Einschlaftimer", "Sleep timer"),
+                                     germanOrEnglish("Minuten (0 = aus)", "Minutes (0 = off)"), 30, 0, 1440, 1, &ok);
             if (ok)
                 media->setSleepTimer(minutes * 60);
         });
@@ -791,48 +628,47 @@ class MainWindow::Impl {
         volume->setObjectName("volume");
         volume->setRange(0, 100);
         volume->setFixedWidth(140);
-        volume->setAccessibleName(text("Lautstärke", "Volume"));
+        volume->setAccessibleName(germanOrEnglish("Lautstärke", "Volume"));
         footer->addWidget(volume);
         volumeKnob = new Console::VolumeKnob;
         volumeKnob->setObjectName("volumeKnob");
-        volumeKnob->setAccessibleName(text("Lautstärke", "Volume"));
+        volumeKnob->setAccessibleName(germanOrEnglish("Lautstärke", "Volume"));
         footer->addWidget(volumeKnob);
         QObject::connect(volumeKnob, &QSlider::valueChanged, q,
                          [this](int value) { volume->setValue(value); });
         layout->addWidget(footerSurface);
-        auto *file = q->menuBar()->addMenu(text("Bibliothek", "Library"));
-        file->addAction(text("Importieren …", "Import …"), q, [this] { importLibrary(); });
-        file->addAction(text("Genrelisten …", "Genre collections …"), q, [this] { genreLists(); });
-        file->addAction(text("Exportieren …", "Export …"), q, [this] {
-            auto path = QFileDialog::getSaveFileName(q, text("Bibliothek exportieren", "Export library"),
+        auto *file = q->menuBar()->addMenu(germanOrEnglish("Bibliothek", "Library"));
+        file->addAction(germanOrEnglish("Importieren …", "Import …"), q, [this] { importLibrary(); });
+        file->addAction(germanOrEnglish("Genrelisten …", "Genre collections …"), q, [this] { genreLists(); });
+        file->addAction(germanOrEnglish("Exportieren …", "Export …"), q, [this] {
+            auto path = QFileDialog::getSaveFileName(q, germanOrEnglish("Bibliothek exportieren", "Export library"),
                                                      "mucke-library.json", "JSON (*.json)");
             if (!path.isEmpty())
                 store->exportLibrary(path);
         });
-        file->addAction(text("Gruppen …", "Groups …"), q, [this] { groupsDialog(); });
-        file->addAction(text("Musikerkennung unter Linux", "Music recognition on Linux"), q,
+        file->addAction(germanOrEnglish("Gruppen …", "Groups …"), q, [this] { groupsDialog(); });
+        file->addAction(germanOrEnglish("Musikerkennung unter Linux", "Music recognition on Linux"), q,
                         [this] { recognition(); });
-        file->addAction(text("Aufnahmeordner öffnen", "Open recording folder"), q, [this] {
+        file->addAction(germanOrEnglish("Aufnahmeordner öffnen", "Open recording folder"), q, [this] {
             QDesktopServices::openUrl(QUrl::fromLocalFile(media->recordingsDirectory()));
         });
-        auto *help = q->menuBar()->addMenu(text("Hilfe", "Help"));
-        help->addAction(text("Über Mucke, Baby!", "About Mucke, Baby!"), q, [this] {
+        auto *help = q->menuBar()->addMenu(germanOrEnglish("Hilfe", "Help"));
+        help->addAction(germanOrEnglish("Über Mucke, Baby!", "About Mucke, Baby!"), q, [this] {
             QMessageBox::about(
-                q, text("Über Mucke, Baby!", "About Mucke, Baby!"),
+                q, germanOrEnglish("Über Mucke, Baby!", "About Mucke, Baby!"),
                 QString("Mucke, Baby! %1\n\n").arg(MUCKE_VERSION) +
-                    text(
-                        "Natives Internetradio mit Qt 6 und libVLC.\nEigener Quellcode unter MIT-Lizenz.",
+                    germanOrEnglish("Natives Internetradio mit Qt 6 und libVLC.\nEigener Quellcode unter MIT-Lizenz.",
                         "Native internet radio with Qt 6 and libVLC.\nProject source code is licensed under MIT."));
         });
-        help->addAction(text("Nach Updates suchen …", "Check for updates …"), q, [this] { checkForUpdates(q); });
-        help->addAction(text("Quellcode und Lizenzen", "Source code and licenses"), q, [] {
+        help->addAction(germanOrEnglish("Nach Updates suchen …", "Check for updates …"), q, [this] { checkForUpdates(q); });
+        help->addAction(germanOrEnglish("Quellcode und Lizenzen", "Source code and licenses"), q, [] {
             QDesktopServices::openUrl(
                 QUrl("https://github.com/DanielMuellerIR/mucke_baby/blob/master/THIRD-PARTY.md"));
         });
         help->addSeparator();
-        help->addAction(text("Impressum", "Legal notice"), q,
+        help->addAction(germanOrEnglish("Impressum", "Legal notice"), q,
                         [] { QDesktopServices::openUrl(QUrl("https://dm0.de/impressum.html")); });
-        help->addAction(text("Datenschutz", "Privacy"), q,
+        help->addAction(germanOrEnglish("Datenschutz", "Privacy"), q,
                         [] { QDesktopServices::openUrl(QUrl("https://dm0.de/datenschutz.html")); });
         mainMenu->addMenu(file);
         mainMenu->addMenu(help);
@@ -1027,12 +863,12 @@ class MainWindow::Impl {
         status->show();
     }
     bool confirm(QString question) {
-        return QMessageBox::question(q, text("Bitte bestätigen", "Please confirm"), question,
+        return QMessageBox::question(q, germanOrEnglish("Bitte bestätigen", "Please confirm"), question,
                                      QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
     }
     bool allowPreview() {
         return state.state == PlaybackState::Stopped || state.previewActive ||
-               confirm(text("Vorschau beendet die aktuelle Live-Wiedergabe. Fortfahren?",
+               confirm(germanOrEnglish("Vorschau beendet die aktuelle Live-Wiedergabe. Fortfahren?",
                             "Preview ends current live playback. Continue?"));
     }
     void playSelected() {
@@ -1050,12 +886,12 @@ class MainWindow::Impl {
         QString gid = group->currentData().toString(), sid = historyStation->currentData().toString();
         updating = true;
         group->clear();
-        group->addItem(text("Alle Sender", "All stations"), "");
+        group->addItem(germanOrEnglish("Alle Sender", "All stations"), "");
         for (auto g : store->groups())
             group->addItem(g.name, g.id);
         group->setCurrentIndex(std::max(0, group->findData(gid)));
         historyStation->clear();
-        historyStation->addItem(text("Alle Sender", "All stations"), "");
+        historyStation->addItem(germanOrEnglish("Alle Sender", "All stations"), "");
         for (auto s : store->stations())
             historyStation->addItem(s.name, s.id);
         historyStation->setCurrentIndex(std::max(0, historyStation->findData(sid)));
@@ -1081,7 +917,7 @@ class MainWindow::Impl {
                 !s.url.contains(search->text(), Qt::CaseInsensitive))
                 continue;
             row(stationModel,
-                {s.name + (s.enabled ? QString() : text(" (deaktiviert)", " (disabled)")),
+                {s.name + (s.enabled ? QString() : germanOrEnglish(" (deaktiviert)", " (disabled)")),
                  s.favorite ? "★" : ""},
                 s.id);
             auto *item = stationModel->item(stationModel->rowCount() - 1);
@@ -1096,7 +932,7 @@ class MainWindow::Impl {
                 stationView->selectRow(stationModel->rowCount() - 1);
         }
         stationView->resizeRowsToContents();
-        stationCount->setText(text("%1 von %2 Sendern", "%1 of %2 stations")
+        stationCount->setText(germanOrEnglish("%1 von %2 Sendern", "%1 of %2 stations")
                                   .arg(stationModel->rowCount())
                                   .arg(store->stations().size()));
     }
@@ -1166,7 +1002,7 @@ class MainWindow::Impl {
             }
         }
         historyCount->setText(
-            text("%1 von %2 Titeln", "%1 of %2 tracks").arg(historyModel->rowCount()).arg(list.size()));
+            germanOrEnglish("%1 von %2 Titeln", "%1 of %2 tracks").arg(historyModel->rowCount()).arg(list.size()));
         configureTrackColumns(historyView);
         if (nextSelection.isValid()) {
             selection->setCurrentIndex(nextSelection, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
@@ -1199,7 +1035,7 @@ class MainWindow::Impl {
         for (auto r : media->recordings())
             row(recordingModel,
                 {r.start.toLocalTime().toString("yyyy-MM-dd HH:mm"),
-                 r.station + (r.active ? text(" ● aktiv", " ● active") : ""),
+                 r.station + (r.active ? germanOrEnglish(" ● aktiv", " ● active") : ""),
                  duration(r.start.secsTo(r.end.isValid() ? r.end : QDateTime::currentDateTimeUtc())),
                  QString::number(r.bytes / 1048576., 'f', 1) + " MiB"},
                 r.id);
@@ -1242,43 +1078,43 @@ class MainWindow::Impl {
         updating = false;
         bool playing = s.state == PlaybackState::Playing || s.state == PlaybackState::Buffering ||
                        s.state == PlaybackState::Resolving || s.state == PlaybackState::Paused;
-        play->setText(playing ? text("Stopp", "Stop") : text("Abspielen", "Play"));
+        play->setText(playing ? germanOrEnglish("Stopp", "Stop") : germanOrEnglish("Abspielen", "Play"));
         play->setIcon(Console::icon(playing ? Symbol::Stop : Symbol::Play,
                                     theme == "stack" ? QColor("#1A1203") : colors(theme).accent, 12));
         pause->setEnabled(s.timeshiftAvailable || (s.previewActive && (s.state == PlaybackState::Playing ||
                                                                        s.state == PlaybackState::Paused)));
-        pause->setText(s.timeshiftPaused || s.state == PlaybackState::Paused ? text("Fortsetzen", "Resume")
-                                                                             : text("Pause", "Pause"));
-        record->setText(s.recordActive      ? text("Aufnahme läuft", "Recording")
-                        : s.recordRequested ? text("Aufnahme wartet", "Waiting")
-                                            : text("Aufnahme", "Record"));
+        pause->setText(s.timeshiftPaused || s.state == PlaybackState::Paused ? germanOrEnglish("Fortsetzen", "Resume")
+                                                                             : germanOrEnglish("Pause", "Pause"));
+        record->setText(s.recordActive      ? germanOrEnglish("Aufnahme läuft", "Recording")
+                        : s.recordRequested ? germanOrEnglish("Aufnahme wartet", "Waiting")
+                                            : germanOrEnglish("Aufnahme", "Record"));
         record->setIcon(
             Console::icon(Symbol::Record, s.recordRequested ? QColor("#E0241B") : colors(theme).muted, 14));
         record->setToolTip(s.recordStatus + "\n" +
-                           (s.recordRequested ? text("Aufnahme ausschalten", "Disable recording")
-                                              : text("Aufnahme einschalten", "Enable recording")));
+                           (s.recordRequested ? germanOrEnglish("Aufnahme ausschalten", "Disable recording")
+                                              : germanOrEnglish("Aufnahme einschalten", "Enable recording")));
         const auto previousTitle = now->text();
         now->setText(
             trackName(s.heardTrack).isEmpty()
-                ? (s.stationName.isEmpty() ? text("Bereit für Musik", "Ready for music") : s.stationName)
+                ? (s.stationName.isEmpty() ? germanOrEnglish("Bereit für Musik", "Ready for music") : s.stationName)
                 : trackName(s.heardTrack));
         now->setToolTip(now->text());
         if (now->text() != previousTitle)
             titleScroll->restart();
-        artist->setText(s.stationName.isEmpty() ? text("Kein Sender", "No station") : s.stationName);
+        artist->setText(s.stationName.isEmpty() ? germanOrEnglish("Kein Sender", "No station") : s.stationName);
         runtime->setText(playbackClock.isValid() ? duration(playbackClock.elapsed() / 1000.) : QString());
-        QStringList states = {text("Gestoppt", "Stopped"),
-                              text("Sender wird aufgelöst …", "Resolving station …"),
-                              text("Verbindung / Puffer …", "Connecting / buffering …"),
-                              text("Wiedergabe", "Playing"),
-                              text("Pausiert", "Paused"),
-                              text("Fehler", "Error")};
+        QStringList states = {germanOrEnglish("Gestoppt", "Stopped"),
+                              germanOrEnglish("Sender wird aufgelöst …", "Resolving station …"),
+                              germanOrEnglish("Verbindung / Puffer …", "Connecting / buffering …"),
+                              germanOrEnglish("Wiedergabe", "Playing"),
+                              germanOrEnglish("Pausiert", "Paused"),
+                              germanOrEnglish("Fehler", "Error")};
         const bool recordingWaiting = s.recordRequested && !s.recordActive && !s.recordStatus.isEmpty();
         QString playbackStatus =
             !notice.isEmpty() ? notice
             : s.error.isEmpty()
-                ? states[int(s.state)] + (s.previewActive ? text(" · Vorschau", " · Preview") : "") +
-                      (s.sleepRemaining ? text(" · Timer ", " · Timer ") + duration(s.sleepRemaining) : "")
+                ? states[int(s.state)] + (s.previewActive ? germanOrEnglish(" · Vorschau", " · Preview") : "") +
+                      (s.sleepRemaining ? germanOrEnglish(" · Timer ", " · Timer ") + duration(s.sleepRemaining) : "")
                 : s.error;
         if (recordingWaiting)
             playbackStatus += " · " + s.recordStatus;
@@ -1294,8 +1130,8 @@ class MainWindow::Impl {
         const bool canGoLive = !s.previewActive && !s.stationID.isEmpty() && (s.timeshiftEnabled || s.timeshiftAvailable);
         liveButton->setEnabled(canGoLive);
         recordStatus->setText(s.recordStatus);
-        bufferStatus->setText(text("Puffer ", "Buffer ") + duration(s.bufferSeconds) +
-                              text(" · Verzögerung ", " · Delay ") + duration(s.delaySeconds));
+        bufferStatus->setText(germanOrEnglish("Puffer ", "Buffer ") + duration(s.bufferSeconds) +
+                              germanOrEnglish(" · Verzögerung ", " · Delay ") + duration(s.delaySeconds));
         delay->setEnabled(s.timeshiftAvailable);
         back15->setEnabled(s.timeshiftAvailable && s.delaySeconds < s.bufferSeconds);
         forward15->setEnabled(s.timeshiftAvailable && s.delaySeconds > 0);
@@ -1420,10 +1256,10 @@ class MainWindow::Impl {
         volumeKnob->setVisible(knob);
         volumeKnob->tint = c.accent;
         volumeKnob->update();
-        historyHeading->setText(tabs->currentIndex() == 1   ? text("Merkliste", "Bookmarks")
-                                : tabs->currentIndex() == 2 ? text("Aufnahmen", "Recordings")
+        historyHeading->setText(tabs->currentIndex() == 1   ? germanOrEnglish("Merkliste", "Bookmarks")
+                                : tabs->currentIndex() == 2 ? germanOrEnglish("Aufnahmen", "Recordings")
                                 : id == "midi"              ? "PLAYBACK_HISTORY"
-                                                            : text("Verlauf", "History"));
+                                                            : germanOrEnglish("Verlauf", "History"));
         columns->setStyleSheet(QString("Mucke--Console--Columns{background:%1;}").arg(c.divider.name()));
         q->setStyleSheet(css);
         if (tabs->currentIndex() == 0 && id != "schlicht")
@@ -1466,8 +1302,8 @@ class MainWindow::Impl {
             station.id = newID();
         QDialog dialog(q);
         dialog.setObjectName("stationEditor");
-        dialog.setWindowTitle(fresh ? text("Sender hinzufügen", "Add station")
-                                    : text("Sender bearbeiten", "Edit station"));
+        dialog.setWindowTitle(fresh ? germanOrEnglish("Sender hinzufügen", "Add station")
+                                    : germanOrEnglish("Sender bearbeiten", "Edit station"));
         dialog.resize(510, 460);
         auto *layout = new QVBoxLayout(&dialog);
         auto *form = new QFormLayout;
@@ -1482,11 +1318,11 @@ class MainWindow::Impl {
         auto *favorite = new QCheckBox;
         favorite->setObjectName("stationFavorite");
         favorite->setChecked(station.favorite);
-        form->addRow(text("Name", "Name"), name);
-        form->addRow(text("Stream-URL", "Stream URL"), url);
+        form->addRow(germanOrEnglish("Name", "Name"), name);
+        form->addRow(germanOrEnglish("Stream-URL", "Stream URL"), url);
         form->addRow("Radio Browser ID", rbid);
-        form->addRow(text("Aktiviert", "Enabled"), enabled);
-        form->addRow(text("Favorit", "Favorite"), favorite);
+        form->addRow(germanOrEnglish("Aktiviert", "Enabled"), enabled);
+        form->addRow(germanOrEnglish("Favorit", "Favorite"), favorite);
         auto *position = new QSpinBox;
         position->setObjectName("stationPosition");
         position->setRange(1, std::max(1, int(store->stations().size()) + (fresh ? 1 : 0)));
@@ -1497,7 +1333,7 @@ class MainWindow::Impl {
             ++pos;
         }
         position->setValue(fresh ? position->maximum() : pos);
-        form->addRow(text("Position", "Position"), position);
+        form->addRow(germanOrEnglish("Position", "Position"), position);
         layout->addLayout(form);
         auto *groups = new QListWidget;
         for (auto g : store->groups()) {
@@ -1506,9 +1342,9 @@ class MainWindow::Impl {
             item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
             item->setCheckState(g.stationIDs.contains(station.id) ? Qt::Checked : Qt::Unchecked);
         }
-        layout->addWidget(new QLabel(text("Gruppen", "Groups")));
+        layout->addWidget(new QLabel(germanOrEnglish("Gruppen", "Groups")));
         layout->addWidget(groups);
-        auto *repair = new QPushButton(text("URL im Katalog prüfen", "Check URL in catalog"));
+        auto *repair = new QPushButton(germanOrEnglish("URL im Katalog prüfen", "Check URL in catalog"));
         repair->setEnabled(!rbid->text().isEmpty());
         layout->addWidget(repair);
         QObject::connect(rbid, &QLineEdit::textChanged, &dialog,
@@ -1521,7 +1357,7 @@ class MainWindow::Impl {
                          [&, url, rbid, repair](QString found, QString proposed) {
                              repair->setEnabled(true);
                              if (found == rbid->text().trimmed() &&
-                                 QMessageBox::question(&dialog, text("URL ersetzen?", "Replace URL?"),
+                                 QMessageBox::question(&dialog, germanOrEnglish("URL ersetzen?", "Replace URL?"),
                                                        proposed) == QMessageBox::Yes)
                                  url->setText(proposed);
                          });
@@ -1529,10 +1365,10 @@ class MainWindow::Impl {
                          [repair](QString) { repair->setEnabled(true); });
         auto *buttons = dialogButtons(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
         if (!fresh) {
-            auto *remove = buttons->addButton(text("Sender löschen …", "Delete station …"),
+            auto *remove = buttons->addButton(germanOrEnglish("Sender löschen …", "Delete station …"),
                                               QDialogButtonBox::DestructiveRole);
             QObject::connect(remove, &QPushButton::clicked, &dialog, [&, id] {
-                if (confirm(text("Sender löschen? Verlauf und Aufnahmen bleiben erhalten.",
+                if (confirm(germanOrEnglish("Sender löschen? Verlauf und Aufnahmen bleiben erhalten.",
                                  "Delete station? History and recordings are kept.")) &&
                     store->removeStation(id))
                     dialog.reject();
@@ -1543,8 +1379,8 @@ class MainWindow::Impl {
         QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&, this] {
             QString reason;
             if (name->text().trimmed().isEmpty() || !validStreamURL(url->text().trimmed(), &reason)) {
-                QMessageBox::warning(&dialog, text("Eingabe prüfen", "Check input"),
-                                     reason.isEmpty() ? text("Name und gültige HTTP(S)-URL angeben.",
+                QMessageBox::warning(&dialog, germanOrEnglish("Eingabe prüfen", "Check input"),
+                                     reason.isEmpty() ? germanOrEnglish("Name und gültige HTTP(S)-URL angeben.",
                                                              "Enter a name and valid HTTP(S) URL.")
                                                       : reason);
                 return;
@@ -1578,7 +1414,7 @@ class MainWindow::Impl {
     void groupsDialog() {
         QDialog dialog(q);
         dialog.setObjectName("groupsDialog");
-        dialog.setWindowTitle(text("Gruppen verwalten", "Manage groups"));
+        dialog.setWindowTitle(germanOrEnglish("Gruppen verwalten", "Manage groups"));
         dialog.resize(460, 400);
         auto *layout = new QVBoxLayout(&dialog);
         auto *list = new QListWidget;
@@ -1592,23 +1428,23 @@ class MainWindow::Impl {
         };
         reload();
         auto *actions = new QHBoxLayout;
-        button(text("Neu", "New"), actions, [&, this] {
+        button(germanOrEnglish("Neu", "New"), actions, [&, this] {
             bool ok;
-            auto name = QInputDialog::getText(&dialog, text("Gruppe", "Group"), text("Name", "Name"),
+            auto name = QInputDialog::getText(&dialog, germanOrEnglish("Gruppe", "Group"), germanOrEnglish("Name", "Name"),
                                               QLineEdit::Normal, {}, &ok);
             if (ok && !name.trimmed().isEmpty()) {
                 store->saveGroup({newID(), name.trimmed(), {}});
                 reload();
             }
         });
-        button(text("Umbenennen", "Rename"), actions, [&, this] {
+        button(germanOrEnglish("Umbenennen", "Rename"), actions, [&, this] {
             if (!list->currentItem())
                 return;
             QString id = list->currentItem()->data(Qt::UserRole).toString();
             for (auto g : store->groups())
                 if (g.id == id) {
                     bool ok;
-                    auto name = QInputDialog::getText(&dialog, text("Gruppe", "Group"), text("Name", "Name"),
+                    auto name = QInputDialog::getText(&dialog, germanOrEnglish("Gruppe", "Group"), germanOrEnglish("Name", "Name"),
                                                       QLineEdit::Normal, g.name, &ok);
                     if (ok && !name.trimmed().isEmpty()) {
                         g.name = name.trimmed();
@@ -1618,8 +1454,8 @@ class MainWindow::Impl {
                     break;
                 }
         });
-        button(text("Löschen", "Delete"), actions, [&, this] {
-            if (list->currentItem() && confirm(text("Gruppe löschen? Sender bleiben erhalten.",
+        button(germanOrEnglish("Löschen", "Delete"), actions, [&, this] {
+            if (list->currentItem() && confirm(germanOrEnglish("Gruppe löschen? Sender bleiben erhalten.",
                                                     "Delete group? Stations are kept."))) {
                 store->removeGroup(list->currentItem()->data(Qt::UserRole).toString());
                 reload();
@@ -1634,12 +1470,12 @@ class MainWindow::Impl {
     void catalogDialog() {
         QDialog dialog(q);
         dialog.setObjectName("catalogDialog");
-        dialog.setWindowTitle(text("Senderkatalog · Radio Browser", "Station catalog · Radio Browser"));
+        dialog.setWindowTitle(germanOrEnglish("Senderkatalog · Radio Browser", "Station catalog · Radio Browser"));
         dialog.resize(860, 620);
         auto *layout = new QVBoxLayout(&dialog);
         auto *form = new QGridLayout;
-        QStringList labels = {text("Name", "Name"), text("Land (Code)", "Country (code)"),
-                              text("Sprache", "Language"), text("Tag", "Tag"), "Codec"};
+        QStringList labels = {germanOrEnglish("Name", "Name"), germanOrEnglish("Land (Code)", "Country (code)"),
+                              germanOrEnglish("Sprache", "Language"), germanOrEnglish("Tag", "Tag"), "Codec"};
         QVector<QLineEdit *> inputs;
         for (int i = 0; i < labels.size(); ++i) {
             auto *edit = new QLineEdit;
@@ -1651,19 +1487,19 @@ class MainWindow::Impl {
         auto *bitrate = new QSpinBox;
         bitrate->setRange(0, 10000);
         bitrate->setSuffix(" kbps");
-        bitrate->setSpecialValueText(text("Jede Bitrate", "Any bitrate"));
+        bitrate->setSpecialValueText(germanOrEnglish("Jede Bitrate", "Any bitrate"));
         form->addWidget(bitrate, 1, 2);
         auto *order = new QComboBox;
-        order->addItem(text("Beliebtheit", "Popularity"), "clickcount");
-        order->addItem(text("Name", "Name"), "name");
-        order->addItem(text("Bitrate", "Bitrate"), "bitrate");
+        order->addItem(germanOrEnglish("Beliebtheit", "Popularity"), "clickcount");
+        order->addItem(germanOrEnglish("Name", "Name"), "name");
+        order->addItem(germanOrEnglish("Bitrate", "Bitrate"), "bitrate");
         form->addWidget(order, 2, 0);
         layout->addLayout(form);
         auto *model = new QStandardItemModel(&dialog);
-        model->setHorizontalHeaderLabels({text("Sender", "Station"), text("Stream", "Stream")});
+        model->setHorizontalHeaderLabels({germanOrEnglish("Sender", "Station"), germanOrEnglish("Stream", "Stream")});
         auto *view = table(model);
         layout->addWidget(view, 1);
-        auto *info = new QLabel(text("Nach Sendern suchen. Vorschau ersetzt die Live-Wiedergabe.",
+        auto *info = new QLabel(germanOrEnglish("Nach Sendern suchen. Vorschau ersetzt die Live-Wiedergabe.",
                                      "Search stations. Preview replaces live playback."));
         info->setWordWrap(true);
         layout->addWidget(info);
@@ -1681,27 +1517,27 @@ class MainWindow::Impl {
             filters["bitrateMin"] = bitrate->value();
             filters["order"] = order->currentData().toString();
             filters["reverse"] = order->currentData().toString() != "name";
-            info->setText(text("Suche …", "Searching …"));
+            info->setText(germanOrEnglish("Suche …", "Searching …"));
             catalog->search(filters, page);
         };
         auto *actions = new QHBoxLayout;
-        button(text("Suchen", "Search"), actions, [&] { search(0); });
-        auto *previous = button(text("Zurück", "Previous"), actions, [&] { search(std::max(0, page - 1)); });
-        auto *next = button(text("Weiter", "Next"), actions, [&] {
+        button(germanOrEnglish("Suchen", "Search"), actions, [&] { search(0); });
+        auto *previous = button(germanOrEnglish("Zurück", "Previous"), actions, [&] { search(std::max(0, page - 1)); });
+        auto *next = button(germanOrEnglish("Weiter", "Next"), actions, [&] {
             if (more)
                 search(page + 1);
         });
         previous->setEnabled(false);
         next->setEnabled(false);
         actions->addStretch();
-        button(text("Vorschau", "Preview"), actions, [&, this] {
+        button(germanOrEnglish("Vorschau", "Preview"), actions, [&, this] {
             int r = view->currentIndex().row();
             if (r >= 0 && r < results.size() && allowPreview()) {
                 media->previewStation(results[r]);
                 catalogPreviewStarted = true;
             }
         });
-        button(text("Hinzufügen", "Add"), actions, [&, this] {
+        button(germanOrEnglish("Hinzufügen", "Add"), actions, [&, this] {
             int r = view->currentIndex().row();
             if (r < 0 || r >= results.size())
                 return;
@@ -1712,12 +1548,12 @@ class MainWindow::Impl {
                     duplicate = true;
             if (duplicate) {
                 info->setText(
-                    text("Sender ist bereits in der Bibliothek.", "Station is already in your library."));
+                    germanOrEnglish("Sender ist bereits in der Bibliothek.", "Station is already in your library."));
                 return;
             }
             s.id = newID();
             if (store->saveStation(s))
-                info->setText(text("Sender hinzugefügt.", "Station added."));
+                info->setText(germanOrEnglish("Sender hinzugefügt.", "Station added."));
         });
         layout->addLayout(actions);
         QObject::connect(catalog, &CatalogService::results, &dialog,
@@ -1731,8 +1567,8 @@ class MainWindow::Impl {
                              next->setEnabled(more);
                              info->setText(
                                  QString::number(found.size()) +
-                                 text(" Sender · Seite ", " stations · page ") + QString::number(page + 1) +
-                                 (cached.isValid() ? text(" · Cache: ", " · Cached: ") +
+                                 germanOrEnglish(" Sender · Seite ", " stations · page ") + QString::number(page + 1) +
+                                 (cached.isValid() ? germanOrEnglish(" · Cache: ", " · Cached: ") +
                                                          cached.toLocalTime().toString("yyyy-MM-dd HH:mm")
                                                    : ""));
                          });
@@ -1745,17 +1581,16 @@ class MainWindow::Impl {
     void genreLists() {
         QFile manifest(":/genre-lists/manifest.json");
         if (!manifest.open(QIODevice::ReadOnly)) {
-            error(text("Genrelisten sind nicht verfügbar.", "Genre collections are unavailable."));
+            error(germanOrEnglish("Genrelisten sind nicht verfügbar.", "Genre collections are unavailable."));
             return;
         }
         const auto entries = QJsonDocument::fromJson(manifest.read(1024 * 1024)).array();
         QDialog dialog(q);
         dialog.setObjectName("genreLists");
-        dialog.setWindowTitle(text("Kuratierte Genrelisten", "Curated genre collections"));
+        dialog.setWindowTitle(germanOrEnglish("Kuratierte Genrelisten", "Curated genre collections"));
         dialog.resize(480, 380);
         auto *layout = new QVBoxLayout(&dialog);
-        auto *hint = new QLabel(text(
-            "Öffentliche Senderlisten. Vor dem Import können neue Einträge und Konflikte geprüft werden.",
+        auto *hint = new QLabel(germanOrEnglish("Öffentliche Senderlisten. Vor dem Import können neue Einträge und Konflikte geprüft werden.",
             "Public station collections. You can review new entries and conflicts before importing."));
         hint->setWordWrap(true);
         layout->addWidget(hint);
@@ -1766,14 +1601,14 @@ class MainWindow::Impl {
             const auto entry = value.toObject();
             QString name = entry["name"].toString();
             if (entry["id"].toString() == "oerr")
-                name = text("Öffentlich-rechtlich (DE)", "Public-service radio (DE)");
+                name = germanOrEnglish("Öffentlich-rechtlich (DE)", "Public-service radio (DE)");
             auto *item = new QListWidgetItem(name, list);
             item->setData(Qt::UserRole, entry);
         }
         if (list->count())
             list->setCurrentRow(0);
         auto *buttons = dialogButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-        buttons->button(QDialogButtonBox::Ok)->setText(text("Import prüfen …", "Review import …"));
+        buttons->button(QDialogButtonBox::Ok)->setText(germanOrEnglish("Import prüfen …", "Review import …"));
         layout->addWidget(buttons);
         QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
         QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -1786,7 +1621,7 @@ class MainWindow::Impl {
         QFile source(":/genre-lists/" + filename);
         if (!source.open(QIODevice::ReadOnly)) {
             error(
-                text("Die Genreliste konnte nicht geladen werden.", "Could not load the genre collection."));
+                germanOrEnglish("Die Genreliste konnte nicht geladen werden.", "Could not load the genre collection."));
             return;
         }
         const auto incoming = QJsonDocument::fromJson(source.read(1024 * 1024)).array();
@@ -1826,7 +1661,7 @@ class MainWindow::Impl {
             {"bookmarks", QJsonArray{}}};
         QTemporaryFile temporary;
         if (!temporary.open()) {
-            error(text("Temporäre Importdatei konnte nicht angelegt werden.",
+            error(germanOrEnglish("Temporäre Importdatei konnte nicht angelegt werden.",
                        "Could not create temporary import file."));
             return;
         }
@@ -1836,7 +1671,7 @@ class MainWindow::Impl {
     }
     void importLibrary(QString path = {}) {
         if (path.isEmpty())
-            path = QFileDialog::getOpenFileName(q, text("Bibliothek importieren", "Import library"), {},
+            path = QFileDialog::getOpenFileName(q, germanOrEnglish("Bibliothek importieren", "Import library"), {},
                                                 "JSON (*.json)");
         if (path.isEmpty())
             return;
@@ -1844,68 +1679,11 @@ class MainWindow::Impl {
         auto items = preview["items"].toArray();
         if (items.isEmpty()) {
             store->discardImport(preview);
-            error(text("Keine importierbaren Einträge gefunden.", "No importable entries found."));
+            error(germanOrEnglish("Keine importierbaren Einträge gefunden.", "No importable entries found."));
             return;
         }
-        QDialog dialog(q);
-        dialog.setObjectName("importPreview");
-        dialog.setWindowTitle(text("Import prüfen", "Review import"));
-        dialog.resize(830, 540);
-        auto *layout = new QVBoxLayout(&dialog);
-        auto counts = preview["counts"].toObject();
-        auto *label = new QLabel(QString("%1 %2 · %3 %4 · %5 %6")
-                                     .arg(counts["new"].toInt())
-                                     .arg(text("neu", "new"))
-                                     .arg(counts["unchanged"].toInt())
-                                     .arg(text("unverändert", "unchanged"))
-                                     .arg(counts["conflict"].toInt())
-                                     .arg(text("Konflikte", "conflicts")));
-        layout->addWidget(label);
-        auto *table = new QTableWidget(items.size(), 4);
-        table->setHorizontalHeaderLabels({text("Typ / Status", "Type / status"), text("Lokal", "Local"),
-                                          text("Import", "Incoming"), text("Übernehmen", "Choice")});
-        table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-        table->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked |
-                               QAbstractItemView::EditKeyPressed);
-        table->setItemDelegateForColumn(3, new ImportChoiceDelegate(table));
-        table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-        table->verticalHeader()->setDefaultSectionSize(100);
-        const QHash<QString, QString> kinds = {{"station", text("Sender", "Station")},
-                                               {"group", text("Gruppe", "Group")},
-                                               {"bookmark", text("Merkeintrag", "Bookmark")}};
-        const QHash<QString, QString> states = {{"new", text("Neu", "New")},
-                                                {"unchanged", text("Unverändert", "Unchanged")},
-                                                {"conflict", text("Konflikt", "Conflict")}};
-        for (int i = 0; i < items.size(); ++i) {
-            auto item = items[i].toObject();
-            table->setItem(
-                i, 0,
-                new QTableWidgetItem(kinds.value(item["kind"].toString(), item["kind"].toString()) + " / " +
-                                     states.value(item["status"].toString(), item["status"].toString())));
-            table->setItem(i, 1, new QTableWidgetItem(item["local"].toObject()["text"].toString()));
-            table->setItem(i, 2, new QTableWidgetItem(item["incoming"].toObject()["text"].toString()));
-            for (int column = 0; column < 3; ++column)
-                table->item(i, column)->setToolTip(table->item(i, column)->text());
-            for (int column = 0; column < 3; ++column)
-                table->item(i, column)->setFlags(table->item(i, column)->flags() & ~Qt::ItemIsEditable);
-            const QString key = item["defaultChoice"].toString("incoming");
-            auto *choice = new QTableWidgetItem(importChoiceCaption(key));
-            choice->setData(ImportChoiceRole, key);
-            choice->setData(ImportConflictRole, item["status"].toString() == "conflict");
-            table->setItem(i, 3, choice);
-        }
-        layout->addWidget(table, 1);
-        auto *buttons = dialogButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-        layout->addWidget(buttons);
-        QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-        QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-        if (dialog.exec() == QDialog::Accepted) {
-            QJsonObject selected;
-            for (int i = 0; i < items.size(); ++i)
-                selected[items[i].toObject()["key"].toString()] =
-                    table->item(i, 3)->data(ImportChoiceRole).toString();
-            store->applyImport(preview, selected);
-        }
+        if (const auto selected = reviewLibraryImport(q, preview))
+            store->applyImport(preview, *selected);
         store->discardImport(preview);
     }
     void openMusic(bool spotify) {
@@ -1919,16 +1697,16 @@ class MainWindow::Impl {
                 if (candidate.id == id) { track = candidate; break; }
         }
         if (SongTools::query(track).isEmpty()) {
-            error(text("Zuerst einen Titel auswählen oder einen Sender abspielen.",
+            error(germanOrEnglish("Zuerst einen Titel auswählen oder einen Sender abspielen.",
                        "Select a track or play a station first."));
             return;
         }
         if (!QDesktopServices::openUrl(spotify ? SongTools::spotifyURL(track) : SongTools::appleMusicURL(track)))
-            error(text("Der Browser konnte nicht geöffnet werden.", "Could not open the browser."));
+            error(germanOrEnglish("Der Browser konnte nicht geöffnet werden.", "Could not open the browser."));
     }
     void exportBookmarks() {
         QString filter;
-        auto path = QFileDialog::getSaveFileName(q, text("Merkliste exportieren", "Export bookmarks"),
+        auto path = QFileDialog::getSaveFileName(q, germanOrEnglish("Merkliste exportieren", "Export bookmarks"),
                                                  "mucke-bookmarks.csv", "CSV (*.csv);;Text (*.txt)", &filter);
         if (!path.isEmpty()) {
             QStringList visibleIDs;
@@ -1941,7 +1719,7 @@ class MainWindow::Impl {
     void exportSongs(QTableView *view, bool fromBookmarks) {
         const auto selected = view->selectionModel()->selectedRows();
         if (selected.isEmpty() || selected.size() > 100) {
-            error(text("Bitte 1 bis 100 Titel auswählen.", "Select 1 to 100 tracks."));
+            error(germanOrEnglish("Bitte 1 bis 100 Titel auswählen.", "Select 1 to 100 tracks."));
             return;
         }
         const auto library = fromBookmarks ? store->bookmarks() : store->history();
@@ -1967,8 +1745,8 @@ class MainWindow::Impl {
                 track = candidate;
         QMenu menu(q);
         if (!fromBookmarks) {
-            auto *clear = menu.addAction(text("Verlauf löschen …", "Clear history …"), q, [this] {
-                if (confirm(text("Gesamten Verlauf löschen? Aufnahmen und Merkliste bleiben erhalten.",
+            auto *clear = menu.addAction(germanOrEnglish("Verlauf löschen …", "Clear history …"), q, [this] {
+                if (confirm(germanOrEnglish("Gesamten Verlauf löschen? Aufnahmen und Merkliste bleiben erhalten.",
                                  "Clear all history? Recordings and bookmarks are kept.")))
                     store->clearHistory();
             });
@@ -1977,34 +1755,33 @@ class MainWindow::Impl {
         }
         if (track.id.isEmpty()) {
             if (fromBookmarks)
-                error(text("Zuerst einen Titel auswählen.", "Select a track first."));
+                error(germanOrEnglish("Zuerst einen Titel auswählen.", "Select a track first."));
             else
                 menu.exec(position);
             return;
         }
-        menu.addAction(text("Audio exportieren …", "Export audio …"), q,
+        menu.addAction(germanOrEnglish("Audio exportieren …", "Export audio …"), q,
                        [this, view, fromBookmarks] { exportSongs(view, fromBookmarks); });
         menu.addSeparator();
-        menu.addAction(text("In Apple Music suchen", "Search Apple Music"), q,
+        menu.addAction(germanOrEnglish("In Apple Music suchen", "Search Apple Music"), q,
                        [track] { QDesktopServices::openUrl(SongTools::appleMusicURL(track)); });
-        menu.addAction(text("In Spotify suchen", "Search Spotify"), q,
+        menu.addAction(germanOrEnglish("In Spotify suchen", "Search Spotify"), q,
                        [track] { QDesktopServices::openUrl(SongTools::spotifyURL(track)); });
         menu.addSeparator();
-        menu.addAction(text("Songtext …", "Lyrics …"), q, [this, track] {
-            LyricsDialog dialog(track, q);
-            dialog.exec();
+        menu.addAction(germanOrEnglish("Songtext …", "Lyrics …"), q, [this, track] {
+            showLyricsDialog(track, q);
         });
         menu.exec(position);
     }
     void recognition() {
-        QString details = text("ShazamKit steht unter Linux nicht zur Verfügung. Live-Erkennung ist hier "
+        QString details = germanOrEnglish("ShazamKit steht unter Linux nicht zur Verfügung. Live-Erkennung ist hier "
                                "nicht verfügbar. Importierte Erkennungsdaten bleiben erhalten.",
                                "ShazamKit is not available on Linux. Live recognition is unavailable here. "
                                "Imported recognition data is retained.");
         for (auto t : store->bookmarks())
             if (t.id == selectedID(bookmarkView) && !t.recognition.is_null())
                 details += "\n\n" + QString::fromStdString(t.recognition.dump(2));
-        QMessageBox::information(q, text("Erkennung / Herkunft", "Recognition / provenance"), details);
+        QMessageBox::information(q, germanOrEnglish("Erkennung / Herkunft", "Recognition / provenance"), details);
     }
     void exportClip() {
         const QString id = selectedID(recordingView);
@@ -2016,11 +1793,11 @@ class MainWindow::Impl {
             return;
         QDialog dialog(q);
         dialog.setObjectName("exportClip");
-        dialog.setWindowTitle(text("Aufnahmeausschnitt exportieren", "Export recording clip"));
+        dialog.setWindowTitle(germanOrEnglish("Aufnahmeausschnitt exportieren", "Export recording clip"));
         dialog.resize(510, 470);
         auto temporary = std::make_shared<QTemporaryDir>();
         if (!temporary->isValid()) {
-            error(text("Temporärer Exportordner nicht verfügbar.", "Temporary export folder unavailable."));
+            error(germanOrEnglish("Temporärer Exportordner nicht verfügbar.", "Temporary export folder unavailable."));
             return;
         }
         auto *layout = new QVBoxLayout(&dialog);
@@ -2039,16 +1816,16 @@ class MainWindow::Impl {
         auto *start = spin(total, 0), *length = spin(total, std::min(total, 180.)), *fadeIn = spin(30, 0),
              *fadeOut = spin(30, 0);
         auto *title = new QLineEdit, *artistEdit = new QLineEdit, *album = new QLineEdit(recording.station);
-        form->addRow(text("Start ab Aufnahmebeginn", "Start from recording beginning"), start);
-        form->addRow(text("Dauer", "Duration"), length);
-        form->addRow(text("Einblenden", "Fade in"), fadeIn);
-        form->addRow(text("Ausblenden", "Fade out"), fadeOut);
-        form->addRow(text("Titel", "Title"), title);
-        form->addRow(text("Künstler", "Artist"), artistEdit);
-        form->addRow(text("Album", "Album"), album);
+        form->addRow(germanOrEnglish("Start ab Aufnahmebeginn", "Start from recording beginning"), start);
+        form->addRow(germanOrEnglish("Dauer", "Duration"), length);
+        form->addRow(germanOrEnglish("Einblenden", "Fade in"), fadeIn);
+        form->addRow(germanOrEnglish("Ausblenden", "Fade out"), fadeOut);
+        form->addRow(germanOrEnglish("Titel", "Title"), title);
+        form->addRow(germanOrEnglish("Künstler", "Artist"), artistEdit);
+        form->addRow(germanOrEnglish("Album", "Album"), album);
         layout->addLayout(form);
         auto *hint = new QLabel(
-            text("Ausschnitt als M4A (AAC) vorbereiten, anhören und dieselbe Datei speichern. Die Aufnahme "
+            germanOrEnglish("Ausschnitt als M4A (AAC) vorbereiten, anhören und dieselbe Datei speichern. Die Aufnahme "
                  "bleibt erhalten.",
                  "Prepare an M4A (AAC) clip, listen, and save the same file. The recording is kept."));
         hint->setWordWrap(true);
@@ -2063,12 +1840,12 @@ class MainWindow::Impl {
         bool running = false, previewing = false;
         QThread *saveWorker = nullptr;
         auto saveCancelled = std::make_shared<std::atomic_bool>(false);
-        auto *prepare = button(text("Vorbereiten", "Prepare"), actions, [] {});
-        auto *listen = button(text("Anhören", "Listen"), actions, [] {});
+        auto *prepare = button(germanOrEnglish("Vorbereiten", "Prepare"), actions, [] {});
+        auto *listen = button(germanOrEnglish("Anhören", "Listen"), actions, [] {});
         listen->setEnabled(false);
-        auto *save = button(text("Speichern …", "Save …"), actions, [] {});
+        auto *save = button(germanOrEnglish("Speichern …", "Save …"), actions, [] {});
         save->setEnabled(false);
-        auto *close = button(text("Schließen", "Close"), actions, [&] { dialog.reject(); });
+        auto *close = button(germanOrEnglish("Schließen", "Close"), actions, [&] { dialog.reject(); });
         auto setSaving = [&](bool saving) {
             for (auto *field : {start, length, fadeIn, fadeOut})
                 field->setEnabled(!saving);
@@ -2077,7 +1854,7 @@ class MainWindow::Impl {
             prepare->setEnabled(!saving);
             listen->setEnabled(!saving && !prepared.isEmpty());
             save->setEnabled(saving || !prepared.isEmpty());
-            save->setText(saving ? text("Abbrechen", "Cancel") : text("Speichern …", "Save …"));
+            save->setText(saving ? germanOrEnglish("Abbrechen", "Cancel") : germanOrEnglish("Speichern …", "Save …"));
             progress->setVisible(saving);
         };
         auto invalidate = [&] {
@@ -2095,7 +1872,7 @@ class MainWindow::Impl {
             prepared.clear();
             listen->setEnabled(false);
             save->setEnabled(false);
-            hint->setText(text("Einstellungen geändert. Bitte erneut vorbereiten.",
+            hint->setText(germanOrEnglish("Einstellungen geändert. Bitte erneut vorbereiten.",
                                "Settings changed. Please prepare again."));
         };
         for (auto *field : {start, length, fadeIn, fadeOut})
@@ -2106,7 +1883,7 @@ class MainWindow::Impl {
         QObject::connect(prepare, &QPushButton::clicked, &dialog, [&] {
             if (length->value() <= 0 || start->value() + length->value() > total + .1 ||
                 fadeIn->value() + fadeOut->value() > length->value()) {
-                hint->setText(text("Ausschnitt und Blenden müssen innerhalb der Aufnahme liegen.",
+                hint->setText(germanOrEnglish("Ausschnitt und Blenden müssen innerhalb der Aufnahme liegen.",
                                    "The clip and fades must fit within the recording."));
                 return;
             }
@@ -2115,7 +1892,7 @@ class MainWindow::Impl {
             running = true;
             prepare->setEnabled(false);
             progress->show();
-            hint->setText(text("Ausschnitt wird vorbereitet …", "Preparing clip …"));
+            hint->setText(germanOrEnglish("Ausschnitt wird vorbereitet …", "Preparing clip …"));
             media->exportClip(
                 job, id, start->value(), length->value(), fadeIn->value(), fadeOut->value(),
                 {{"title", title->text()}, {"artist", artistEdit->text()}, {"album", album->text()}},
@@ -2134,13 +1911,13 @@ class MainWindow::Impl {
                     return;
                 }
                 if (!QFileInfo(path).isFile()) {
-                    hint->setText(text("Die Exportdatei fehlt.", "The exported file is missing."));
+                    hint->setText(germanOrEnglish("Die Exportdatei fehlt.", "The exported file is missing."));
                     return;
                 }
                 prepared = path;
                 listen->setEnabled(true);
                 save->setEnabled(true);
-                hint->setText(text("Vorbereitet. Vorschau und Speichern verwenden dieselben Audiodaten.",
+                hint->setText(germanOrEnglish("Vorbereitet. Vorschau und Speichern verwenden dieselben Audiodaten.",
                                    "Prepared. Preview and save use the same audio data."));
             });
         QObject::connect(listen, &QPushButton::clicked, &dialog, [&] {
@@ -2157,7 +1934,7 @@ class MainWindow::Impl {
             if (prepared.isEmpty())
                 return;
             QString destination = QFileDialog::getSaveFileName(
-                &dialog, text("Ausschnitt speichern", "Save clip"), "mucke-clip.m4a", "M4A (*.m4a)", nullptr,
+                &dialog, germanOrEnglish("Ausschnitt speichern", "Save clip"), "mucke-clip.m4a", "M4A (*.m4a)", nullptr,
                 QFileDialog::DontConfirmOverwrite);
             if (destination.isEmpty())
                 return;
@@ -2174,14 +1951,14 @@ class MainWindow::Impl {
             QObject::connect(saveWorker, &QThread::finished, &dialog, [&, result] {
                 saveWorker = nullptr;
                 setSaving(false);
-                hint->setText(result->cancelled ? text("Speichern abgebrochen.", "Saving cancelled.")
+                hint->setText(result->cancelled ? germanOrEnglish("Speichern abgebrochen.", "Saving cancelled.")
                               : result->path.isEmpty()
-                                  ? text("Speichern fehlgeschlagen: ", "Saving failed: ") + result->error
-                                  : text("Gespeichert: ", "Saved: ") + result->path);
+                                  ? germanOrEnglish("Speichern fehlgeschlagen: ", "Saving failed: ") + result->error
+                                  : germanOrEnglish("Gespeichert: ", "Saved: ") + result->path);
             });
             QObject::connect(saveWorker, &QThread::finished, saveWorker, &QObject::deleteLater);
             setSaving(true);
-            hint->setText(text("Ausschnitt wird gespeichert …", "Saving clip …"));
+            hint->setText(germanOrEnglish("Ausschnitt wird gespeichert …", "Saving clip …"));
             saveWorker->start();
         });
         dialog.exec();
@@ -2196,7 +1973,7 @@ class MainWindow::Impl {
         auto original = store->settings();
         QDialog dialog(q);
         dialog.setObjectName("settingsDialog");
-        dialog.setWindowTitle(text("Einstellungen", "Settings"));
+        dialog.setWindowTitle(germanOrEnglish("Einstellungen", "Settings"));
         dialog.resize(620, 650);
         auto *layout = new QVBoxLayout(&dialog);
         auto *pages = new QTabWidget;
@@ -2205,25 +1982,25 @@ class MainWindow::Impl {
         auto *form = new QFormLayout(general);
         auto *language = new QComboBox;
         language->setObjectName("language");
-        language->addItem(text("Systemsprache", "System language"), "system");
+        language->addItem(germanOrEnglish("Systemsprache", "System language"), "system");
         language->addItem("Deutsch", "de");
         language->addItem("English", "en");
         language->setCurrentIndex(std::max(0, language->findData(original["language"].toString("system"))));
-        form->addRow(text("Sprache (nach Neustart)", "Language (after restart)"), language);
-        auto *updateChecks = new QCheckBox(text("Beim Start auf GitHub nach Updates suchen", "Check GitHub for updates on startup"));
+        form->addRow(germanOrEnglish("Sprache (nach Neustart)", "Language (after restart)"), language);
+        auto *updateChecks = new QCheckBox(germanOrEnglish("Beim Start auf GitHub nach Updates suchen", "Check GitHub for updates on startup"));
         updateChecks->setObjectName("updateChecks");
         updateChecks->setChecked(original["updateChecks"].toBool(false));
         form->addRow(updateChecks);
         auto *autostart = new QComboBox;
         autostart->setObjectName("startupMode");
-        autostart->addItem(text("Nicht abspielen", "Do not play"), "none");
-        autostart->addItem(text("Letzten Sender spielen", "Play last station"), "last");
-        autostart->addItem(text("Gewählten Sender spielen", "Play selected station"), "selected");
+        autostart->addItem(germanOrEnglish("Nicht abspielen", "Do not play"), "none");
+        autostart->addItem(germanOrEnglish("Letzten Sender spielen", "Play last station"), "last");
+        autostart->addItem(germanOrEnglish("Gewählten Sender spielen", "Play selected station"), "selected");
         autostart->setCurrentIndex(std::max(0, autostart->findData(original["autostart"].toString("none"))));
-        form->addRow(text("Beim App-Start", "On app startup"), autostart);
+        form->addRow(germanOrEnglish("Beim App-Start", "On app startup"), autostart);
         auto stationCombo = [this](QString id) {
             auto *combo = new QComboBox;
-            combo->addItem(text("Nicht belegt", "Unassigned"), "");
+            combo->addItem(germanOrEnglish("Nicht belegt", "Unassigned"), "");
             for (auto s : store->stations())
                 if (s.enabled)
                     combo->addItem(s.name, s.id);
@@ -2231,21 +2008,21 @@ class MainWindow::Impl {
             return combo;
         };
         auto *selected = stationCombo(original["selectedStationID"].toString());
-        form->addRow(text("Startsender", "Startup station"), selected);
+        form->addRow(germanOrEnglish("Startsender", "Startup station"), selected);
         auto *tray = new QCheckBox(
-            text("Beim Schließen im Infobereich weiterlaufen", "Keep running in tray when closing"));
+            germanOrEnglish("Beim Schließen im Infobereich weiterlaufen", "Keep running in tray when closing"));
         tray->setObjectName("closeToTray");
         tray->setChecked(original["closeToTray"].toBool(false));
         form->addRow(tray);
         auto *timeshift =
-            new QCheckBox(text("Temporären Audiopuffer aktivieren", "Enable temporary audio buffer"));
+            new QCheckBox(germanOrEnglish("Temporären Audiopuffer aktivieren", "Enable temporary audio buffer"));
         timeshift->setObjectName("timeshiftEnabled");
         timeshift->setChecked(state.timeshiftEnabled);
         form->addRow(timeshift);
         auto *bufferHint = new QLabel(bufferExplanation());
         bufferHint->setWordWrap(true);
         form->addRow(bufferHint);
-        pages->addTab(general, text("Allgemein", "General"));
+        pages->addTab(general, germanOrEnglish("Allgemein", "General"));
         auto *quick = new QWidget;
         auto *qf = new QFormLayout(quick);
         QVector<QComboBox *> quickSlotControls;
@@ -2255,20 +2032,20 @@ class MainWindow::Impl {
             quickSlotControls.append(c);
             qf->addRow(QString("Alt+%1").arg(i + 1), c);
         }
-        pages->addTab(quick, text("Schnelltasten", "Quick slots"));
+        pages->addTab(quick, germanOrEnglish("Schnelltasten", "Quick slots"));
         auto *audio = new QWidget;
         auto *af = new QVBoxLayout(audio);
-        auto *eqEnabled = new QCheckBox(text("Equalizer aktivieren", "Enable equalizer"));
+        auto *eqEnabled = new QCheckBox(germanOrEnglish("Equalizer aktivieren", "Enable equalizer"));
         eqEnabled->setChecked(original["equalizerEnabled"].toBool());
         eqEnabled->setObjectName("equalizerEnabled");
         af->addWidget(eqEnabled);
         auto *preset = new QComboBox;
         preset->setObjectName("equalizerPreset");
-        preset->addItem(text("Eigene Einstellung", "Custom"), -1);
-        preset->addItem(text("Neutral", "Flat"), 0);
-        preset->addItem(text("Mehr Bass", "More bass"), 1);
-        preset->addItem(text("Sprachbetonung", "Speech"), 2);
-        preset->addItem(text("Sanfte Höhen", "Soft highs"), 3);
+        preset->addItem(germanOrEnglish("Eigene Einstellung", "Custom"), -1);
+        preset->addItem(germanOrEnglish("Neutral", "Flat"), 0);
+        preset->addItem(germanOrEnglish("Mehr Bass", "More bass"), 1);
+        preset->addItem(germanOrEnglish("Sprachbetonung", "Speech"), 2);
+        preset->addItem(germanOrEnglish("Sanfte Höhen", "Soft highs"), 3);
         af->addWidget(preset);
         auto *bandsLayout = new QHBoxLayout;
         QVector<QSlider *> bands;
@@ -2301,7 +2078,7 @@ class MainWindow::Impl {
         preamp->setRange(-12, 0);
         preamp->setSuffix(" dB");
         preamp->setValue(original["equalizerPreamp"].toDouble());
-        audioForm->addRow(text("Vorverstärkung", "Preamp"), preamp);
+        audioForm->addRow(germanOrEnglish("Vorverstärkung", "Preamp"), preamp);
         auto *headroom = new QLabel;
         headroom->setObjectName("equalizerHeadroom");
         headroom->setWordWrap(true);
@@ -2311,13 +2088,13 @@ class MainWindow::Impl {
             for (auto *band : bands)
                 boost = std::max(boost, double(band->value()));
             if (!eqEnabled->isChecked()) {
-                headroom->setText(text("Equalizer ausgeschaltet; neutraler Audiopfad.",
+                headroom->setText(germanOrEnglish("Equalizer ausgeschaltet; neutraler Audiopfad.",
                                        "Equalizer off; neutral audio path."));
                 return;
             }
-            headroom->setText(text("Wirksame Vorverstärkung: ", "Effective preamp: ") +
+            headroom->setText(germanOrEnglish("Wirksame Vorverstärkung: ", "Effective preamp: ") +
                               QString::number(std::min(preamp->value(), -boost), 'f', 1) + " dB" +
-                              text(" · Pegelreserve.", " · Headroom."));
+                              germanOrEnglish(" · Pegelreserve.", " · Headroom."));
         };
         bool applyingPreset = false;
         QObject::connect(preamp, qOverload<double>(&QDoubleSpinBox::valueChanged), &dialog,
@@ -2371,10 +2148,10 @@ class MainWindow::Impl {
             if (!gainStation->currentData().toString().isEmpty())
                 gains[gainStation->currentData().toString()] = n;
         });
-        audioForm->addRow(text("Senderpegel", "Station gain"), gainStation);
-        audioForm->addRow(text("Anpassung", "Adjustment"), gain);
+        audioForm->addRow(germanOrEnglish("Senderpegel", "Station gain"), gainStation);
+        audioForm->addRow(germanOrEnglish("Anpassung", "Adjustment"), gain);
         af->addLayout(audioForm);
-        auto *reset = new QPushButton(text("Equalizer neutral", "Reset equalizer"));
+        auto *reset = new QPushButton(germanOrEnglish("Equalizer neutral", "Reset equalizer"));
         af->addWidget(reset);
         QObject::connect(reset, &QPushButton::clicked, &dialog, [&] {
             preset->setCurrentIndex(preset->findData(0));
@@ -2389,7 +2166,7 @@ class MainWindow::Impl {
         QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&, this] {
             if (timeshift->isChecked() && !state.timeshiftEnabled &&
                 !confirm(
-                    text("Temporären Audiopuffer aktivieren?\n\n", "Enable temporary audio buffer?\n\n") +
+                    germanOrEnglish("Temporären Audiopuffer aktivieren?\n\n", "Enable temporary audio buffer?\n\n") +
                     bufferExplanation()))
                 return;
             auto settings = store->settings();
@@ -2425,8 +2202,7 @@ class MainWindow::Impl {
         dialog.exec();
     }
     QString bufferExplanation() const {
-        return text(
-            "Der temporäre Audiopuffer hält höchstens 5 Minuten und 32 MiB. Unter 10 GiB freiem "
+        return germanOrEnglish("Der temporäre Audiopuffer hält höchstens 5 Minuten und 32 MiB. Unter 10 GiB freiem "
             "Speicher wird er gestoppt. Alte Segmente werden automatisch entfernt; Senderwechsel, "
             "Ausschalten und Beenden löschen den Puffer. Läuft eine Pause aus dem verfügbaren "
             "Puffer, stoppt die verzögerte Wiedergabe. Mit „Live“ fortsetzen. Aufnahmen bleiben davon "
@@ -2455,7 +2231,7 @@ class MainWindow::Impl {
         QSignalBlocker blocker(miniStations);
         const QString selected = miniStations->currentData().toString();
         miniStations->clear();
-        miniStations->addItem(text("Sender auswählen …", "Choose station …"), QString());
+        miniStations->addItem(germanOrEnglish("Sender auswählen …", "Choose station …"), QString());
         for (const auto &station : store->stations())
             if (station.enabled)
                 miniStations->addItem(station.name, station.id);
@@ -2486,7 +2262,7 @@ class MainWindow::Impl {
             miniStations->setObjectName("miniStations");
             miniStations->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
             miniStations->setMinimumContentsLength(12);
-            miniStations->setAccessibleName(text("Sender", "Station"));
+            miniStations->setAccessibleName(germanOrEnglish("Sender", "Station"));
             header->addWidget(miniStations, 1);
             refreshMiniStations();
             QObject::connect(miniStations, qOverload<int>(&QComboBox::activated), mini, [this](int) {
@@ -2494,10 +2270,10 @@ class MainWindow::Impl {
                 if (!station.id.isEmpty() && station.enabled)
                     media->play(station);
             });
-            iconButton(Symbol::Audio, text("Audioeinstellungen", "Audio settings"), header,
+            iconButton(Symbol::Audio, germanOrEnglish("Audioeinstellungen", "Audio settings"), header,
                        [this] { settings(2); });
             auto *onTop = iconButton(
-                Symbol::Pin, text("Immer im Vordergrund", "Always on top"), header, [] {}, "miniAlwaysOnTop");
+                Symbol::Pin, germanOrEnglish("Immer im Vordergrund", "Always on top"), header, [] {}, "miniAlwaysOnTop");
             onTop->setCheckable(true);
             onTop->setChecked(store->settings()["miniAlwaysOnTop"].toBool(false));
             QObject::connect(onTop, &QPushButton::toggled, mini, [this](bool enabled) {
@@ -2510,7 +2286,7 @@ class MainWindow::Impl {
                 if (visible)
                     mini->show();
             });
-            iconButton(Symbol::Mini, text("Hauptfenster anzeigen", "Show main window"), header, [this] {
+            iconButton(Symbol::Mini, germanOrEnglish("Hauptfenster anzeigen", "Show main window"), header, [this] {
                 q->showNormal();
                 q->raise();
                 mini->hide();
@@ -2540,7 +2316,7 @@ class MainWindow::Impl {
             vol->setObjectName("miniVolume");
             vol->setRange(0, 100);
             vol->setValue(state.volume);
-            vol->setAccessibleName(text("Lautstärke", "Volume"));
+            vol->setAccessibleName(germanOrEnglish("Lautstärke", "Volume"));
             transport->addWidget(vol, 1);
             auto *percentage = new QLabel(QString::number(state.volume) + " %");
             percentage->setObjectName("miniVolumeValue");
@@ -2566,10 +2342,10 @@ class MainWindow::Impl {
             miniPause->setObjectName("miniPause");
             miniPause->setProperty("consoleButton", true);
             miniBack = iconButton(
-                Symbol::Back, text("15 Sekunden zurück", "Back 15 seconds"), bufferRow,
+                Symbol::Back, germanOrEnglish("15 Sekunden zurück", "Back 15 seconds"), bufferRow,
                 [this] { back15->click(); }, "miniBack15");
             miniForward = iconButton(
-                Symbol::Forward, text("15 Sekunden vor", "Forward 15 seconds"), bufferRow,
+                Symbol::Forward, germanOrEnglish("15 Sekunden vor", "Forward 15 seconds"), bufferRow,
                 [this] { forward15->click(); }, "miniForward15");
             bufferRow->addStretch();
             miniLive = button("Live", bufferRow, [this] { media->goLive(); });
@@ -2578,7 +2354,7 @@ class MainWindow::Impl {
             miniDelay = new QSlider(Qt::Horizontal);
             miniDelay->setObjectName("miniDelay");
             miniDelay->setRange(0, 0);
-            miniDelay->setAccessibleName(text("Puffer-Verzögerung", "Buffer delay"));
+            miniDelay->setAccessibleName(germanOrEnglish("Puffer-Verzögerung", "Buffer delay"));
             bufferLayout->addWidget(miniDelay);
             QObject::connect(miniDelay, &QSlider::sliderReleased, mini,
                              [this] { media->seekDelay(miniDelay->value()); });
@@ -2593,7 +2369,7 @@ class MainWindow::Impl {
             miniRecord->setObjectName("miniRecord");
             miniRecord->setProperty("consoleButton", true);
             recordingRow->addStretch();
-            iconButton(Symbol::Recognition, text("Musikerkennung unter Linux", "Music recognition on Linux"),
+            iconButton(Symbol::Recognition, germanOrEnglish("Musikerkennung unter Linux", "Music recognition on Linux"),
                        recordingRow, [this] { recognition(); });
             mini->setStyleSheet(q->styleSheet());
             applyTheme(theme);
@@ -2633,8 +2409,8 @@ class MainWindow::Impl {
             actions->addWidget(themePicker);
             QObject::connect(themePicker, qOverload<int>(&QComboBox::currentIndexChanged), full,
                              [this](int n) { themes->setCurrentIndex(n); });
-            button(text("Wiedergabe / Stop", "Play / stop"), actions, [this] { play->click(); });
-            button(text("Schließen (Esc)", "Close (Esc)"), actions, [this] { full->hide(); });
+            button(germanOrEnglish("Wiedergabe / Stop", "Play / stop"), actions, [this] { play->click(); });
+            button(germanOrEnglish("Schließen (Esc)", "Close (Esc)"), actions, [this] { full->hide(); });
             layout->addLayout(actions);
             QObject::connect(media, &MediaEngine::snapshotChanged, full, [label](PlaybackSnapshot s) {
                 label->setText(trackName(s.heardTrack) + "\n" + s.stationName);
@@ -2685,8 +2461,8 @@ class MainWindow::Impl {
                      .arg(i * 4 + 4, 2, 10, QChar('0')),
                  titles[i], "Radio Example · Jazz"},
                 QString("track-%1").arg(i));
-        stationCount->setText(text("15 von 15 Sendern", "15 of 15 stations"));
-        historyCount->setText(text("8 von 8 Titeln", "8 of 8 tracks"));
+        stationCount->setText(germanOrEnglish("15 von 15 Sendern", "15 of 15 stations"));
+        historyCount->setText(germanOrEnglish("8 von 8 Titeln", "8 of 8 tracks"));
         stationView->resizeRowsToContents();
         now->setText("Example Artist – Afternoon Session");
         artist->setText("Radio Example · Jazz");

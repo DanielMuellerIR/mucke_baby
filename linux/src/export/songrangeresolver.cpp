@@ -1,8 +1,8 @@
 #include "songrangeresolver.h"
+#include "../i18n.h"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
-#include <QLocale>
 #include <QMap>
 #include <QProcess>
 #include <QSet>
@@ -20,11 +20,8 @@ constexpr int maxTracks = 100;
 constexpr int maxCacheFiles = 16;
 constexpr int maxBoundaries = 4096;
 constexpr qint64 maxCacheBytes = 4 * 1024 * 1024;
-QString text(const char *de, const char *en) {
-    return QString::fromUtf8(QLocale().language() == QLocale::German ? de : en);
-}
 QString invalidSourceText() {
-    return text("Die Aufnahmedatei fehlt oder wurde verändert.", "The recording file is missing or has changed.");
+    return germanOrEnglish("Die Aufnahmedatei fehlt oder wurde verändert.", "The recording file is missing or has changed.");
 }
 bool exportable(SongAudioStatus s) {
     return s == SongAudioStatus::Available || s == SongAudioStatus::Partial || s == SongAudioStatus::Approximate;
@@ -271,7 +268,7 @@ public:
             if (!m.failure.isEmpty()) { fail(p, SongAudioStatus::Unsupported, m.failure); continue; }
             const auto start = m.points.value(c.boundary.byteOffset), end = m.points.value(c.endByte);
             if (!start.found || !end.found || end.upper <= start.lower) {
-                fail(p, SongAudioStatus::MissingBoundaries, text("Die Byte-Grenzen ergeben keinen abspielbaren Ausschnitt.", "The byte boundaries do not form a playable excerpt.")); continue;
+                fail(p, SongAudioStatus::MissingBoundaries, germanOrEnglish("Die Byte-Grenzen ergeben keinen abspielbaren Ausschnitt.", "The byte boundaries do not form a playable excerpt.")); continue;
             }
             p.sourceRevision = m.rev;
             p.audioStart = 0; p.audioEnd = m.duration;
@@ -280,10 +277,10 @@ public:
             p.suggestedStart = start.lower; p.suggestedEnd = end.upper;
             const bool approximate = start.grouped || end.grouped || start.upper - start.lower > 0.00001 || end.upper - end.lower > 0.00001;
             p.status = approximate ? SongAudioStatus::Approximate : (p.partialStart || p.partialEnd ? SongAudioStatus::Partial : SongAudioStatus::Available);
-            p.explanation = approximate ? text("Die Grenze liegt innerhalb eines Audioframes oder einer Ogg-Seite. Der Vorschlag enthält das gesamte belegbare Intervall.", "The boundary lies inside an audio frame or Ogg page. The suggestion includes the entire supported interval.") :
-                (p.partialStart || p.partialEnd ? text("Die Aufnahme enthält nur einen Teil des Titels.", "The recording contains only part of this song.") :
-                 text("Die Schnittgrenzen sind durch Audiopakete belegt.", "The cut boundaries are supported by audio packets."));
-            if (approximate && (p.partialStart || p.partialEnd)) p.explanation += text(" Der Titel ist außerdem unvollständig.", " The song is also incomplete.");
+            p.explanation = approximate ? germanOrEnglish("Die Grenze liegt innerhalb eines Audioframes oder einer Ogg-Seite. Der Vorschlag enthält das gesamte belegbare Intervall.", "The boundary lies inside an audio frame or Ogg page. The suggestion includes the entire supported interval.") :
+                (p.partialStart || p.partialEnd ? germanOrEnglish("Die Aufnahme enthält nur einen Teil des Titels.", "The recording contains only part of this song.") :
+                 germanOrEnglish("Die Schnittgrenzen sind durch Audiopakete belegt.", "The cut boundaries are supported by audio packets."));
+            if (approximate && (p.partialStart || p.partialEnd)) p.explanation += germanOrEnglish(" Der Titel ist außerdem unvollständig.", " The song is also incomplete.");
         }
     }
     void nextFile() {
@@ -340,7 +337,7 @@ public:
             });
         timeout = new QTimer(q); timeout->setSingleShot(true);
         QObject::connect(timeout, &QTimer::timeout, q, [this] {
-            mapping.failure = text("Die Audioanalyse hat das Zeitlimit überschritten.", "Audio analysis exceeded its time limit.");
+            mapping.failure = germanOrEnglish("Die Audioanalyse hat das Zeitlimit überschritten.", "Audio analysis exceeded its time limit.");
             completeProbe(false);
         });
         timeout->start(90000);
@@ -374,7 +371,7 @@ public:
         }
         const double extent = maxEnd - origin;
         if (!success || bad || !sawStream || !originKnown || group.pos < 0 || !supported.contains(codec) || !std::isfinite(extent) || extent <= 0) {
-            if (mapping.failure.isEmpty()) mapping.failure = text("Für dieses Audioformat sind keine eindeutigen Byte-/Paketgrenzen verfügbar.", "Unambiguous byte-to-packet boundaries are unavailable for this audio format.");
+            if (mapping.failure.isEmpty()) mapping.failure = germanOrEnglish("Für dieses Audioformat sind keine eindeutigen Byte-/Paketgrenzen verfügbar.", "Unambiguous byte-to-packet boundaries are unavailable for this audio format.");
         } else {
             // start_time entfernt u.a. MP3-Priming; negative Opus-PTS werden auf den hörbaren Anfang geklemmt.
             mapping.duration = streamDuration > 0 ? std::min(extent, streamDuration) : extent;
@@ -398,7 +395,7 @@ public:
 SongRangeResolver::SongRangeResolver(QString directory, QObject *parent) : QObject(parent), d(std::make_unique<Impl>(this, std::move(directory))) {}
 SongRangeResolver::~SongRangeResolver() { shutdown(); }
 void SongRangeResolver::prepare(QString requestID, QVector<Track> tracks, QVector<Recording> recordings, QVector<RecordingBoundary> boundaries) {
-    d->cancelCurrent(text("Die Vorbereitung wurde durch eine neue Anfrage ersetzt.", "Preparation was replaced by a new request."));
+    d->cancelCurrent(germanOrEnglish("Die Vorbereitung wurde durch eine neue Anfrage ersetzt.", "Preparation was replaced by a new request."));
     d->issued.clear(); d->issuedFiles.clear();
     if (d->stopped) { emit prepared(requestID, {}); return; }
     ++d->generation;
@@ -416,7 +413,7 @@ void SongRangeResolver::prepare(QString requestID, QVector<Track> tracks, QVecto
     if (tracks.size() > maxTracks) {
         for (int i = 0; i < d->tracks.size(); ++i) {
             auto &p = d->proposals[i]; p.requestID = requestID; p.trackID = d->tracks[i].id;
-            d->fail(p, SongAudioStatus::Failed, text("Bitte höchstens 100 Titel gleichzeitig auswählen.", "Select at most 100 songs at a time."));
+            d->fail(p, SongAudioStatus::Failed, germanOrEnglish("Bitte höchstens 100 Titel gleichzeitig auswählen.", "Select at most 100 songs at a time."));
         }
         d->finishRequest(); return;
     }
@@ -434,7 +431,7 @@ void SongRangeResolver::prepare(QString requestID, QVector<Track> tracks, QVecto
         p.requestID = requestID; p.trackID = t.id;
         p.metadata = {{"artist", t.artist}, {"title", t.title.isEmpty() ? t.raw : t.title}, {"album", t.station},
                       {"comment", t.raw}, {"date", t.receivedAt.toString(Qt::ISODateWithMs)}};
-        d->fail(p, SongAudioStatus::MissingBoundaries, text("Zu diesem Titel fehlen eindeutige Aufnahmegrenzen.", "This song has no unambiguous recording boundaries."));
+        d->fail(p, SongAudioStatus::MissingBoundaries, germanOrEnglish("Zu diesem Titel fehlen eindeutige Aufnahmegrenzen.", "This song has no unambiguous recording boundaries."));
         if (t.id.isEmpty() || trackIDs.value(t.id) != 1 || t.sessionID.isEmpty()) continue;
         QVector<Candidate> options;
         bool active = false;
@@ -459,7 +456,7 @@ void SongRangeResolver::prepare(QString requestID, QVector<Track> tracks, QVecto
             options.push_back({ti, r, bs[match], end, match + 1 == bs.size()});
         }
         if (options.isEmpty()) {
-            if (active) d->fail(p, SongAudioStatus::ActiveRecording, text("Die Aufnahme läuft noch. Bitte zuerst die Aufnahme beenden.", "The recording is still active. Stop recording first."));
+            if (active) d->fail(p, SongAudioStatus::ActiveRecording, germanOrEnglish("Die Aufnahme läuft noch. Bitte zuerst die Aufnahme beenden.", "The recording is still active. Stop recording first."));
             continue;
         }
         std::stable_sort(options.begin(), options.end(), [](const auto &a, const auto &b) {
@@ -480,7 +477,7 @@ void SongRangeResolver::prepare(QString requestID, QVector<Track> tracks, QVecto
         }
         if (offsets.size() > maxBoundaries + 1) {
             for (const int index : it.value()) d->fail(d->proposals[d->candidates[index].trackIndex], SongAudioStatus::Unsupported,
-                text("Die Datei überschreitet das Limit von 4096 Aufnahmegrenzen.", "The file exceeds the limit of 4096 recording boundaries."));
+                germanOrEnglish("Die Datei überschreitet das Limit von 4096 Aufnahmegrenzen.", "The file exceeds the limit of 4096 recording boundaries."));
             continue;
         }
         d->files.push_back(it.key()); d->fileOffsets.insert(it.key(), offsets.values().toVector());
@@ -491,7 +488,7 @@ void SongRangeResolver::prepare(QString requestID, QVector<Track> tracks, QVecto
     QTimer::singleShot(0, this, [this, expected] { if (expected == d->generation) d->nextFile(); });
 }
 void SongRangeResolver::cancel(QString requestID) {
-    if (d->request == requestID) d->cancelCurrent(text("Die Vorbereitung wurde abgebrochen.", "Preparation was cancelled."));
+    if (d->request == requestID) d->cancelCurrent(germanOrEnglish("Die Vorbereitung wurde abgebrochen.", "Preparation was cancelled."));
     for (auto it = d->issued.begin(); it != d->issued.end();) {
         if (it->requestID == requestID) { d->issuedFiles.remove(it.key()); it = d->issued.erase(it); } else ++it;
     }
@@ -506,7 +503,7 @@ bool SongRangeResolver::validate(const SongExportProposal &proposal, QString *er
     if (d->stopped || issued == d->issued.cend() || !sameProposal(*issued, proposal) || !exportable(proposal.status) || !finite ||
         proposal.audioStart != 0 || proposal.suggestedStart < 0 || proposal.suggestedEnd <= proposal.suggestedStart ||
         proposal.suggestedEnd > proposal.audioEnd || proposal.startLower > proposal.startUpper || proposal.endLower > proposal.endUpper) {
-        if (error) *error = text("Dieser Schnittvorschlag ist nicht mehr gültig. Bitte erneut vorbereiten.", "This cut proposal is no longer valid. Prepare it again.");
+        if (error) *error = germanOrEnglish("Dieser Schnittvorschlag ist nicht mehr gültig. Bitte erneut vorbereiten.", "This cut proposal is no longer valid. Prepare it again.");
         return false;
     }
     Source source;
@@ -520,7 +517,7 @@ bool SongRangeResolver::validate(const SongExportProposal &proposal, QString *er
 void SongRangeResolver::shutdown() {
     if (!d || d->stopped) return;
     d->stopped = true;
-    d->cancelCurrent(text("Die Audioanalyse wurde beendet.", "Audio analysis was stopped."));
+    d->cancelCurrent(germanOrEnglish("Die Audioanalyse wurde beendet.", "Audio analysis was stopped."));
     d->stopProcess(); d->cache.clear(); d->issued.clear(); d->issuedFiles.clear();
 }
 }
