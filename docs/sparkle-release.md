@@ -52,10 +52,13 @@ Jede App hat ihr eigenes Schlüsselpaar; Schlüssel nie zwischen Projekten teile
    ersetzt. Ein ausgetauschtes DMG hätte eine andere Länge und Ed25519-Signatur
    als die im schon veröffentlichten Feed genannten Werte, und Sparkle lehnt das
    Update ab. In dem Fall die Version erhöhen und neu veröffentlichen.
-   Für ein gemeinsames macOS- und Linux-Release erzeugt
-   `./release.sh --publish --draft` stattdessen einen Entwurf mit dem DMG.
-   Das geprüfte Linux-Archiv und seine `SHA256SUMS` zum Entwurf hinzufügen
-   und erst anschließend veröffentlichen.
+   Für ein gemeinsames Release auf macOS `./release.sh --publish --draft`
+   ausführen. Der Befehl erzeugt den GitHub-Entwurf mit dem DMG. Auf Linux
+   `./release.sh` ausführen, um das Archiv und `SHA256SUMS` lokal zu bauen.
+   Beide geprüften Linux-Dateien zum Entwurf hinzufügen und ihn anschließend
+   veröffentlichen. Bei einem bereits vorhandenen Entwurf den Quellstand
+   des Tags und die hochgeladenen Dateien prüfen, fehlende Dateien ergänzen
+   und den bestehenden Entwurf fertigstellen.
 4. `.github/workflows/publish-appcast.yml` läuft beim Veröffentlichen des
    Releases: lädt dieses DMG, holt die gepinnten Sparkle-Werkzeuge
    (SHA-256-geprüft, derselbe Pin wie `build.sh`), erzeugt mit

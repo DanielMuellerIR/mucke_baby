@@ -9,6 +9,27 @@ root = Path(__file__).resolve().parents[1]
 source = (root / "wrappers/sign-and-release.sh").read_text()
 preflight = source[source.index('  PUSH_URLS='):source.index('  # Ein veröffentlichtes DMG')]
 publish = source[source.index('  git -C "$PROJECT_ROOT" push --no-follow-tags'):source.index('  # Veroeffentlichte Release-Dateien')]
+existing_release = source[source.index('  if RELEASE_IS_DRAFT='):source.index('  # --verify-tag:')]
+
+for draft, expected, message in [
+    ("true", 1, "bestehenden Entwurf"),
+    ("false", 1, "AppInfo.version"),
+    ("missing", 0, ""),
+]:
+    query = f"""set -euo pipefail
+TAG=v1.8.9
+REPO=example/fixture
+gh() {{
+    [[ "$*" == "release view v1.8.9 -R example/fixture --json isDraft --jq .isDraft" ]] || exit 2
+    [[ {draft} != missing ]] || return 1
+    echo {draft}
+}}
+"""
+    result = subprocess.run(["bash", "-c", query + existing_release], capture_output=True, text=True)
+    assert result.returncode == expected, result.stderr
+    assert message in result.stderr, result.stderr
+    if draft == "true":
+        assert "AppInfo.version" not in result.stderr, result.stderr
 
 with tempfile.TemporaryDirectory(prefix="mucke-publish-test-") as temporary:
     work = Path(temporary) / "work"

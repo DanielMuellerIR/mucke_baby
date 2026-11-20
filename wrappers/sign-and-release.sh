@@ -332,7 +332,14 @@ if [ "$PUBLISH" = "1" ]; then
   # weiter die Werte der alten Datei — Sparkle prueft beides und lehnt das Update
   # ab. Der richtige Weg ist deshalb eine neue Version, nicht ein neues Artefakt
   # unter demselben Tag.
-  if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+  if RELEASE_IS_DRAFT=$(gh release view "$TAG" -R "$REPO" --json isDraft --jq '.isDraft' 2>/dev/null); then
+    if [ "$RELEASE_IS_DRAFT" = true ]; then
+      echo "FEHLER: Für $TAG existiert bereits ein Release-Entwurf." >&2
+      echo "  Den bestehenden Entwurf und die hochgeladenen Dateien prüfen." >&2
+      echo "  Fehlende Artefakte ergänzen und den geprüften Entwurf veröffentlichen." >&2
+      echo "  Siehe docs/sparkle-release.md." >&2
+      exit 1
+    fi
     echo "FEHLER: Release $TAG existiert bereits; veröffentlichte Dateien werden nicht ersetzt." >&2
     echo "  Der Appcast-Workflow läuft nur beim Veröffentlichen eines Releases. Ein" >&2
     echo "  nachträglich ausgetauschtes DMG passt danach nicht mehr zu Länge und" >&2
