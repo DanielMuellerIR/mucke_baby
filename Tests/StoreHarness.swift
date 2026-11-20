@@ -83,7 +83,7 @@ enum StoreHarness {
               "add/update müssen gültige URLs normalisieren und Identität erhalten")
         let persisted = try JSONDecoder().decode(StationCollection.self, from: Data(contentsOf: store.stationsURL)).stations
         check(persisted == store.stations, "Akzeptierte Änderungen müssen auf Platte stehen")
-        check(store.importStations(try JSONDecoder().decode([SeedStation].self, from: Data("""
+        check(try store.importStations(JSONDecoder().decode([SeedStation].self, from: Data("""
         [{"name":"Duplicate","url":"https://EXAMPLE.com:443/Changed?Key=Y"},
          {"name":"Case-sensitive","url":"https://example.com/changed?Key=Y"},
          {"name":"Unsafe","url":"file:///tmp/audio"}]
@@ -142,10 +142,18 @@ enum StoreHarness {
         store.toggleFavorite(snapshot.last!)
         check(!store.addIfNew(name: "Catalog", url: "https://example.com/catalog"),
               "Katalog meldet ungespeicherten Sender als hinzugefügt")
-        check(store.importStations(try JSONDecoder().decode([SeedStation].self, from: Data("[{\"name\":\"Import\",\"url\":\"https://example.com/import\"}]".utf8))) == -2,
-              "Import meldet trotz Speicherfehler Erfolg")
         check(store.stations == snapshot && store.persistenceFailed,
               "Fehlgeschlagene Senderaktion verändert Zustand oder meldet keinen Speicherfehler")
+        store.persistenceFailed = false
+        let seed = try JSONDecoder().decode([SeedStation].self, from: Data("""
+        [{"name":"Import","url":"https://example.com/import"}]
+        """.utf8))
+        do {
+            _ = try store.importStations(seed)
+            fatalError("Import meldet trotz Speicherfehler Erfolg")
+        } catch StationSaveError.persistenceFailed {}
+        check(store.stations == snapshot && !store.persistenceFailed,
+              "Genre-Import verändert bei einem Fehler den gespeicherten Zustand oder öffnet den zweiten Alert")
         check(try Data(contentsOf: held.appendingPathComponent("stations.json")) == beforeFailure,
               "Fehlgeschlagene Speicherung verändert den Dateibestand")
 

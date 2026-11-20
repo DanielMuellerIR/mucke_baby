@@ -1,10 +1,12 @@
 import Foundation
+import os
 
 // Die URLSession bleibt echt; dieses Protokoll liefert ausschließlich Testbytes.
 final class ICYFixtureProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
+        precondition(request.value(forHTTPHeaderField: "User-Agent") == "MuckeBaby/\(AppInfo.version)")
         if request.url!.lastPathComponent == "hls-prefix" {
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
                 headerFields: ["Content-Type": "audio/mpeg"])!
@@ -109,12 +111,13 @@ enum ICYHarness {
     }
     static func main() {
         let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 1.25
         configuration.protocolClasses = [ICYFixtureProtocol.self]
         let titleQueue = DispatchQueue(label: "icy.test.titles", target: .main)
         titleQueue.suspend()
         let reader = ICYMetadataReader(configuration: configuration, titleQueue: titleQueue)
-        var titles: [String] = []
-        reader.onTitle = { title, _ in titles.append(title) }
+        let titles = OSAllocatedUnfairLock(initialState: [String]())
+        reader.onTitle = { title, _ in titles.withLock { $0.append(title) } }
         func start(_ title: String) {
             let parsed = DispatchSemaphore(value: 0)
             reader.start(url: URL(string: "https://fixture.invalid/\(title)")!,
@@ -128,15 +131,16 @@ enum ICYHarness {
         }
         start("old")
         reader.stop()
+        check(configuration.timeoutIntervalForRequest == 1.25, "Reader hat die injizierte Konfiguration verändert")
         titleQueue.resume()
         drainMain()
-        check(titles.isEmpty, "alter Titel kam nach stop() an")
+        check(titles.withLock { $0.isEmpty }, "alter Titel kam nach stop() an")
         titleQueue.suspend()
         start("old")
         start("current")
         titleQueue.resume()
         drainMain()
-        check(titles == ["current"], "Senderwechsel lieferte alten Titel: \(titles)")
+        check(titles.withLock { $0 == ["current"] }, "Senderwechsel lieferte alten Titel")
 
         // Nicht zur aktiven Session gehörende Delegate-Aufrufe dürfen weder
         // Parserzustand noch Senken des laufenden Senders verändern.
@@ -154,7 +158,7 @@ enum ICYHarness {
         while metadata.count % 16 != 0 { metadata.append(0) }
         reader.urlSession(foreign, dataTask: task, didReceive: Data([65, UInt8(metadata.count / 16)] + metadata))
         drainMain()
-        check(titles == ["current"], "fremde Daten wurden als aktueller Titel geliefert")
+        check(titles.withLock { $0 == ["current"] }, "fremde Daten wurden als aktueller Titel geliefert")
         reader.stop()
         foreign.invalidateAndCancel()
         // Audio-Start-Senke haelt unmittelbar vor recorder.begin an. stop muss
@@ -192,13 +196,13 @@ enum ICYHarness {
             let pipeline = ICYMetadataReader(configuration: configuration)
             let received = DispatchSemaphore(value: 0)
             let completed = DispatchSemaphore(value: 0)
-            var audioCount = 0
+            let audioCount = OSAllocatedUnfairLock(initialState: 0)
             pipeline.start(url: URL(string: "https://fixture.invalid/\(path)")!, allowAudioOnly: true,
                 onStart: { pipelineRecorder.begin(station: "Fixture", contentType: $0, at: $1) },
                 onAudio: { data in
                     pipelineRecorder.write(data)
-                    audioCount += data.count
-                    if audioCount == 256 { received.signal() }
+                    let count = audioCount.withLock { $0 += data.count; return $0 }
+                    if count == 256 { received.signal() }
                 }, onCompletion: { endedAt in
                     pipelineRecorder.end(at: endedAt)
                     completed.signal()
@@ -241,40 +245,45 @@ enum ICYHarness {
         delayedTitles.suspend()
         let integrated = ICYMetadataReader(configuration: configuration, titleQueue: delayedTitles)
         let done = DispatchSemaphore(value: 0)
-        var boundary: Date?
-        var shownBoundary: Date?
-        integrated.onTitle = { _, date in shownBoundary = date }
+        let boundary = OSAllocatedUnfairLock(initialState: Optional<Date>.none)
+        let shownBoundary = OSAllocatedUnfairLock(initialState: Optional<Date>.none)
+        integrated.onTitle = { _, date in shownBoundary.withLock { $0 = date } }
         integrated.start(url: URL(string: "https://fixture.invalid/rollover")!, allowAudioOnly: true,
             onStart: { rollover.begin(station: "Fixture", contentType: $0, at: $1.addingTimeInterval(-25 * 3600)) },
-            onBoundary: { _, date in boundary = date; rollover.songBoundary(at: date) },
+            onBoundary: { _, date in
+                boundary.withLock { $0 = date }
+                rollover.songBoundary(at: date)
+            },
             onAudio: { rollover.write($0) },
             onCompletion: { rollover.end(at: $0); done.signal() })
         check(done.wait(timeout: .now() + 5) == .success, "Integrierter Rollover endet nicht")
         rollover.flush()
         let rolled = rollover.snapshot()
         check(rolled.count == 2, "Rollover wartete auf Main-Titelzustellung")
-        check(shownBoundary == nil, "Titelqueue war nicht verzögert")
+        check(shownBoundary.withLock { $0 == nil }, "Titelqueue war nicht verzögert")
         check(try! Data(contentsOf: rollover.dir.appendingPathComponent(rolled[0].file)) == Data(1...8), "Audio vor Grenze fehlt")
         check(try! Data(contentsOf: rollover.dir.appendingPathComponent(rolled[1].file)) == Data(9...16), "Songanfang landete im alten Clip")
-        check(rolled[1].start == boundary, "Recorder benutzt anderen Grenzzeitpunkt")
+        let receivedBoundary = boundary.withLock { $0 }
+        check(rolled[1].start == receivedBoundary, "Recorder benutzt anderen Grenzzeitpunkt")
         delayedTitles.resume()
         drainMain()
-        check(shownBoundary == boundary, "Verlaufstitel benutzt Zustell- statt Parserzeit")
+        check(shownBoundary.withLock { $0 == receivedBoundary }, "Verlaufstitel benutzt Zustell- statt Parserzeit")
         integrated.stop()
         for path in ["hls-mime", "hls-redirect", "hls-prefix"] {
             let hls = ICYMetadataReader(configuration: configuration)
             let rejected = DispatchSemaphore(value: 0)
-            var bytes = 0, starts = 0, completions = 0
+            let callbacks = OSAllocatedUnfairLock(initialState: 0)
             hls.start(url: URL(string: "https://fixture.invalid/" + path)!, allowAudioOnly: true,
-                onStart: { _, _ in starts += 1 }, onAudio: { bytes += $0.count },
-                onCompletion: { _ in completions += 1 },
+                onStart: { _, _ in callbacks.withLock { $0 += 1 } },
+                onAudio: { _ in callbacks.withLock { $0 += 1 } },
+                onCompletion: { _ in callbacks.withLock { $0 += 1 } },
                 onUnsupportedFormat: { type in
                     check(type == StreamCapturePolicy.hlsContentType, "HLS-Formatgrenze fehlt")
                     rejected.signal()
                 })
             check(rejected.wait(timeout: .now() + 5) == .success, "HLS-Ablehnung fehlt")
             hls.stop()
-            check(bytes == 0 && starts == 0 && completions == 0, "HLS öffnet Audiosenke oder Retry")
+            check(callbacks.withLock { $0 == 0 }, "HLS öffnet Audiosenke oder Retry")
         }
         print("ICYHarness: OK")
     }

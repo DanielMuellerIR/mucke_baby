@@ -286,7 +286,7 @@ final class Recorder: @unchecked Sendable {
     private func publishCapture(rollover: RecordingState.Rollover? = nil) {
         var state = currentCaptureState(); publishedBytes = captureBytes
         state.rollover = rollover
-        captureStateQueue.async { self.onCaptureState?(state) }
+        captureStateQueue.async { [state] in self.onCaptureState?(state) }
     }
 
     deinit { capacityTimer?.cancel() }

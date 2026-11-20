@@ -16,13 +16,13 @@ final class TimeshiftPlayback: ObservableObject {
     private(set) var endUsedStallGuard = false
     private(set) var buffer: TimeshiftBuffer?
     private(set) var snapshot: TimeshiftSnapshot?
-    private(set) var player: VLCMediaPlayer?
+    var player: VLCMediaPlayer? { resources.player }
+    private let resources = TimeshiftPlaybackResources()
     private let reader = ICYMetadataReader()
-    private var shim: TimeshiftDelegate?
+    private var shim: PlayerDelegateShim?
     private var streamURL: URL?
     private var generation = UUID()
     private var playbackGeneration = UUID()
-    private var timer: Timer?
     private var endGuard = TimeshiftEndGuard()
     private let makePlayer: () -> VLCMediaPlayer
     private let makeBuffer: () throws -> TimeshiftBuffer
@@ -33,9 +33,12 @@ final class TimeshiftPlayback: ObservableObject {
     }
 
     deinit {
-        timer?.invalidate(); reader.stop()
-        player?.delegate = nil; player?.stop()
-        try? buffer?.close()
+        reader.stop()
+        Task { @MainActor [resources, buffer] in
+            resources.timer?.invalidate()
+            resources.stopPlayer()
+            try? buffer?.close()
+        }
     }
 
     func start(url: URL) throws {
@@ -45,9 +48,11 @@ final class TimeshiftPlayback: ObservableObject {
         let buffer = try makeBuffer(), ticket = generation
         self.buffer = buffer; streamURL = url; phase = .live
         reader.onTitle = { [weak self] title, _ in
-            guard let self, self.generation == ticket else { return }
-            self.liveTitle = title
-            if self.phase == .live { self.heardTitle = title }
+            MainActor.assumeIsolated {
+                guard let self, self.generation == ticket else { return }
+                self.liveTitle = title
+                if self.phase == .live { self.heardTitle = title }
+            }
         }
         reader.start(url: url, allowAudioOnly: true,
                      onStart: { [weak self] type, _ in
@@ -63,7 +68,7 @@ final class TimeshiftPlayback: ObservableObject {
                          Task { @MainActor in self?.fail(TimeshiftFailure.closed, ticket: ticket) }
                      })
         replacePlayer(url: url, local: false)
-        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        resources.timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
     }
@@ -107,7 +112,9 @@ final class TimeshiftPlayback: ObservableObject {
     }
 
     func stop() {
-        generation = UUID(); timer?.invalidate(); timer = nil
+        generation = UUID()
+        resources.timer?.invalidate()
+        resources.timer = nil
         reader.stop(); reader.onTitle = nil
         stopPlayer()
         if let buffer {
@@ -143,13 +150,13 @@ final class TimeshiftPlayback: ObservableObject {
         stopPlayer()
         let ticket = playbackGeneration, receptionTicket = generation
         let next = makePlayer()
-        let delegate = TimeshiftDelegate { [weak self] state in
+        let delegate = PlayerDelegateShim(onState: { [weak self] state in
             guard let self, self.playbackGeneration == ticket else { return }
             if state == .error { self.fail(TimeshiftFailure.invalidAudio, ticket: receptionTicket) }
             else if local, self.phase == .delayed,
                     state == .ended || (state == .stopped && self.position > 0) { self.finishSnapshot() }
-        }
-        shim = delegate; player = next; next.delegate = delegate
+        }, onTime: {})
+        shim = delegate; resources.player = next; next.delegate = delegate
         let media = VLCMedia(url: url)
         media.addOption(local ? ":file-caching=300" : ":network-caching=1500")
         next.media = media; next.audio?.volume = 60; next.play()
@@ -157,8 +164,8 @@ final class TimeshiftPlayback: ObservableObject {
 
     private func stopPlayer() {
         playbackGeneration = UUID()
-        player?.delegate = nil
-        player?.stop(); player = nil; shim = nil
+        resources.stopPlayer()
+        shim = nil
     }
 
     private func finishSnapshot() {
@@ -167,12 +174,14 @@ final class TimeshiftPlayback: ObservableObject {
     }
 }
 
-private final class TimeshiftDelegate: NSObject, VLCMediaPlayerDelegate {
-    let onState: @MainActor (VLCMediaPlayerState) -> Void
-    init(onState: @escaping @MainActor (VLCMediaPlayerState) -> Void) { self.onState = onState }
-    func mediaPlayerStateChanged(_ notification: Notification) {
-        guard let player = notification.object as? VLCMediaPlayer else { return }
-        let state = player.state
-        Task { @MainActor in self.onState(state) }
+@MainActor
+private final class TimeshiftPlaybackResources {
+    var player: VLCMediaPlayer?
+    var timer: Timer?
+
+    func stopPlayer() {
+        player?.delegate = nil
+        player?.stop()
+        player = nil
     }
 }

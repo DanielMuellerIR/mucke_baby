@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 enum PlayerWindowRouter {
     @MainActor static var mainWindow: NSWindow? {
@@ -164,9 +165,10 @@ private struct MiniWindowConfigurator: NSViewRepresentable {
     }
     static func dismantleNSView(_ view: NSView, coordinator: Coordinator) { coordinator.stop() }
 
+    @MainActor
     final class Coordinator {
         private weak var window: NSWindow?
-        private var screenObserver: NSObjectProtocol?
+        private var screenObserver: AnyCancellable?
         func configure(_ window: NSWindow?, floating: Bool) {
             guard let window else { return }
             if self.window !== window {
@@ -175,8 +177,9 @@ private struct MiniWindowConfigurator: NSViewRepresentable {
                 window.setFrameAutosaveName("MuckeBabyMiniPlayer")
                 _ = window.setFrameUsingName("MuckeBabyMiniPlayer")
                 placeOnScreen()
-                screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
-                    object: nil, queue: .main) { [weak self] _ in self?.placeOnScreen() }
+                screenObserver = NotificationCenter.default.observeOnMain(NSApplication.didChangeScreenParametersNotification) { [weak self] in
+                    self?.placeOnScreen()
+                }
             }
             window.level = floating ? .floating : .normal
         }
@@ -185,9 +188,7 @@ private struct MiniWindowConfigurator: NSViewRepresentable {
             if frame != window.frame { window.setFrame(frame, display: true) }
         }
         func stop() {
-            if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
             screenObserver = nil; window = nil
         }
-        deinit { if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) } }
     }
 }

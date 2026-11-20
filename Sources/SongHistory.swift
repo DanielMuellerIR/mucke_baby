@@ -10,7 +10,7 @@ struct SongEntry: Identifiable, Codable, Equatable, Sendable {
     var title: String?
     var start: Date
     var end: Date?
-    // B1: true => Sammel-Platzhalter fuer den laufenden Mitschnitt (kein echter
+    // true => Sammel-Platzhalter fuer den laufenden Mitschnitt (kein echter
     // ICY-Titel). Optional, damit eine alte verlauf.json ohne dieses Feld weiter laedt.
     var placeholder: Bool? = nil
     var sessionID: UUID? = nil
@@ -79,7 +79,7 @@ final class SongHistory: ObservableObject {
         save()
     }
 
-    // B1: Platzhalter-Eintrag fuer eine Mitschnitt-Session oeffnen. Deckt die Zeit
+    // Platzhalter-Eintrag fuer eine Mitschnitt-Session oeffnen. Deckt die Zeit
     // vom Senderstart bis zum ersten echten ICY-Titel ab. Ohne ihn waere der
     // Mitschnitt von Sendern OHNE Songtitel (z.B. Hirschmilch/opus) nicht ueber den
     // Verlauf erreichbar (Export haengt am Verlauf-Eintrag). `at` deckt sich mit dem

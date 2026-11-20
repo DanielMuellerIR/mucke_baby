@@ -25,7 +25,9 @@ private let tapLog = Logger(subsystem: "de.danielmuller.macradio", category: "au
 
 /// Liefert unveröffentlichte Audio-Messwerte an die Visualizer. Sie lesen
 /// den aktuellen Stand pro Timeline-Frame, ohne SwiftUI mit Updates zu wecken.
-final class AudioTap: ObservableObject {
+// Gerätezustand gehört der Lifecycle-Queue. Analyse und UI teilen
+// ausschließlich die über AudioTapAnalysis synchronisierten Messwerte.
+final class AudioTap: ObservableObject, @unchecked Sendable {
     static let bandCount = 12
     static let waveCount = 220
 

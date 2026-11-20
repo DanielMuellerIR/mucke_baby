@@ -2,8 +2,9 @@ import Foundation
 
 // Gemeinsame Senke des vorhandenen ICY-Empfangs. Keine eigene Netzwerkverbindung.
 // Sender-/Empfangswechsel invalidieren den Puffer auch bei gleichem Sendernamen.
-final class TimeshiftCapture {
-    enum State: Equatable { case off, waiting, buffering, failed(String) }
+// Der Lock schützt Puffer, Stream-Identität und Zustandswechsel vor parallelem Zugriff.
+final class TimeshiftCapture: @unchecked Sendable {
+    enum State: Equatable, Sendable { case off, waiting, buffering, failed(String) }
     private let lock = NSLock()
     private var enabled = false
     private var session: UUID?
@@ -12,11 +13,11 @@ final class TimeshiftCapture {
     private var buffer: TimeshiftSegments?
     private var retired: TimeshiftSegments?
     private var state: State = .off
-    private let makeBuffer: () throws -> TimeshiftSegments
-    private let onState: (State) -> Void
+    private let makeBuffer: @Sendable () throws -> TimeshiftSegments
+    private let onState: @Sendable (State) -> Void
 
-    init(makeBuffer: @escaping () throws -> TimeshiftSegments = { try TimeshiftSegments() },
-         onState: @escaping (State) -> Void = { _ in }) {
+    init(makeBuffer: @escaping @Sendable () throws -> TimeshiftSegments = { try TimeshiftSegments() },
+         onState: @escaping @Sendable (State) -> Void = { _ in }) {
         self.makeBuffer = makeBuffer; self.onState = onState
     }
     deinit { try? buffer?.close() }

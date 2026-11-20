@@ -191,7 +191,9 @@ struct PreferencesView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Aufnahme") {
-                    Toggle("Laufende Streams mitschneiden", isOn: Binding(get: { player.recordingRequested }, set: player.setRecordingRequested))
+                    Toggle("Laufende Streams mitschneiden", isOn: Binding(
+                        get: { player.recordingRequested }, set: { player.setRecordingRequested($0) }
+                    ))
                     Text("Standardmäßig AUS. Der Schalter wirkt sofort während der Wiedergabe. Aufnahme stoppt unter 10 GiB freiem Speicher. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Der tatsächliche Status steht unten im Hauptfenster.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button("Aufnahmen im Finder zeigen") {
@@ -296,7 +298,9 @@ struct WelcomeView: View {
                         .font(.callout)
                 }
                 Section("Mitschnitt der Streams") {
-                    Toggle("Laufende Streams mitschneiden", isOn: Binding(get: { player.recordingRequested }, set: player.setRecordingRequested))
+                    Toggle("Laufende Streams mitschneiden", isOn: Binding(
+                        get: { player.recordingRequested }, set: { player.setRecordingRequested($0) }
+                    ))
                     Text("Standardmäßig AUS. Wenn aktiviert, wird der Stream während des Hörens als Audiodatei abgelegt, damit nichts verloren geht. Ablage: ~/Music/MuckeBaby/Aufnahmen/. Stoppt automatisch bei weniger als 10 GB freiem Speicher. Jederzeit hier oder unter Einstellungen → Aufnahme umschaltbar.")
                         .font(.callout).foregroundStyle(.secondary)
                     Button("Aufnahme-Ordner zeigen") {

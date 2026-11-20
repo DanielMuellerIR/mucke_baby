@@ -6,22 +6,9 @@
 // Programm seine eigene View jederzeit in ein Bitmap zeichnen darf (`cacheDisplay`).
 // Danach beendet sie sich selbst. Im Normalbetrieb (ohne die Variable) passiert nichts.
 
-import SwiftUI
 import AppKit
-import AppIntents
 
-/// Registriert Kurzbefehle und startet bei Bedarf den isolierten Screenshotlauf.
-final class MuckeAppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        try? TimeshiftSegments.cleanupAbandoned(root: TimeshiftSegments.defaultRoot)
-        RadioShortcuts.updateAppShortcutParameters()
-        ScreenshotDebug.runIfRequested()
-    }
-    func applicationWillTerminate(_ notification: Notification) {
-        ScreenshotDebug.restorePreferences()
-    }
-}
-
+@MainActor
 enum ScreenshotDebug {
     private static var restoreTheme: (() -> Void)?
 

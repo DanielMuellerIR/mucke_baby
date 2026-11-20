@@ -47,7 +47,7 @@ enum PlaylistResolver {
     static func fetchHead(_ url: URL, session: URLSession = .shared) async -> Data? {
         var req = URLRequest(url: url)
         req.setValue("bytes=0-65535", forHTTPHeaderField: "Range")
-        req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue(AppInfo.streamUserAgent, forHTTPHeaderField: "User-Agent")
         req.timeoutInterval = 8
         do {
             // Hart auf ~64 KB deckeln: Der Range-Header ist nur eine Bitte. Ignoriert

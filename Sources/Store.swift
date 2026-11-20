@@ -12,7 +12,7 @@ private enum StationLoadVersionError: Error { case unsupported }
 
 // Haelt die Senderliste und kuemmert sich um Laden/Speichern.
 // Speicherort: ~/Library/Application Support/MuckeBaby/stations.json
-// (gut von Hand editierbar und damit auch agent-/skriptsteuerbar).
+// Das JSON-Format ist von Hand editierbar.
 @MainActor
 final class Store: ObservableObject {
     @Published private(set) var stations: [Station] = []
@@ -282,7 +282,7 @@ final class Store: ObservableObject {
         return enabledStations.first { $0.id == id && StreamURLPolicy.validatedURL($0.url) != nil }
     }
 
-    // MARK: - Import (kuratierte Genre-Listen, Punkt 1)
+    // MARK: - Import kuratierter Genre-Listen
 
     // URL-Schluessel fuer Dubletten: Schema/Host case-insensitiv, Pfad/Query
     // bewusst case-sensitiv. Ungueltige bzw. Nicht-Web-URLs haben keinen Key.
@@ -309,9 +309,9 @@ final class Store: ObservableObject {
     }
 
     // Fuegt nur Sender hinzu, die per (normalisierter) URL noch nicht da sind.
-    // Gibt die Zahl der neu hinzugefuegten zurück; -2 bei Speicherfehler.
+    // Die Anzahl umfasst nur dauerhaft gespeicherte Sender.
     @discardableResult
-    func importStations(_ seeds: [SeedStation]) -> Int {
+    func importStations(_ seeds: [SeedStation]) throws -> Int {
         var seen = Set(stations.compactMap { normURL($0.url) })
         var next = stations
         var added = 0
@@ -319,14 +319,16 @@ final class Store: ObservableObject {
             guard let validated = StreamURLPolicy.validatedURL(s.url),
                   let key = normURL(validated.absoluteString)
             else { continue }
-            if seen.contains(key) { continue }
-            seen.insert(key)
+            guard seen.insert(key).inserted else { continue }
             // Importierte Sender nie als Favorit uebernehmen.
             next.append(Station(name: s.name, url: validated.absoluteString,
                                     enabled: true, favorite: false, radioBrowserID: s.radioBrowserID))
             added += 1
         }
-        if added > 0, !attemptCommit(next) { return -2 }
+        if added > 0 {
+            try commitStations(next)
+            persistenceFailed = false
+        }
         return added
     }
 
@@ -354,8 +356,8 @@ final class Store: ObservableObject {
     }
 
     @discardableResult
-    func importGenreList(_ list: GenreList) -> Int {
-        importStations(stations(in: list))
+    func importGenreList(_ list: GenreList) throws -> Int {
+        try importStations(stations(in: list))
     }
 
 }

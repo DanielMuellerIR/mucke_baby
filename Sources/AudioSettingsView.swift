@@ -172,6 +172,7 @@ private struct VerticalAudioBandSlider: NSViewRepresentable {
         context.coordinator.value = $value
         slider.doubleValue = value; slider.isEnabled = enabled
     }
+    @MainActor
     final class Coordinator: NSObject {
         var value: Binding<Double>
         init(value: Binding<Double>) { self.value = value }

@@ -24,7 +24,7 @@ player_sources=(
   Sources/TimeshiftSegments.swift Sources/TimeshiftCapture.swift
   Sources/SongRecognition.swift Sources/RecognitionModels.swift Sources/AudioSettings.swift
   Sources/SleepTimer.swift Sources/SleepTimerController.swift Sources/Safety.swift
-  Sources/PlaybackReconnect.swift Sources/RecordingState.swift
+  Sources/PlaybackReconnect.swift Sources/PlaybackObservations.swift Sources/RecordingState.swift
 )
 
 run_harness player-harness "${player_sources[@]}" Sources/PreviewPlayer.swift \

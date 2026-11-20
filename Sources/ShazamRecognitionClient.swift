@@ -24,13 +24,14 @@ final class ShazamMatchDelegate: NSObject, SHSessionDelegate {
     private var request: UUID?
     private var session: SHSession?
     private var delegate: ShazamMatchDelegate?
+    private var completion: (@MainActor (Result<RecognizedTrack?, RecognitionFailure>) -> Void)?
     private var work: Task<Void, Never>?
     private var signatureWork: Task<Data, Error>?
 
     func match(_ pcm: RecognitionPCM, completion: @escaping @MainActor (Result<RecognizedTrack?, RecognitionFailure>) -> Void) {
         cancel()
         let id = UUID(), session = SHSession()
-        request = id; self.session = session
+        request = id; self.session = session; self.completion = completion
         let minimum = session.catalog.minimumQuerySignatureDuration, maximum = session.catalog.maximumQuerySignatureDuration
         work = Task { [weak self] in
             guard let self else { return }
@@ -46,7 +47,7 @@ final class ShazamMatchDelegate: NSObject, SHSessionDelegate {
                 let delegate = ShazamMatchDelegate { [weak self] result in
                     Task { @MainActor in
                         guard let self, self.request == id else { return }
-                        self.cancel(); completion(result)
+                        self.finish(result)
                     }
                 }
                 self.delegate = delegate; session.delegate = delegate
@@ -56,13 +57,20 @@ final class ShazamMatchDelegate: NSObject, SHSessionDelegate {
             } catch is CancellationError { }
             catch {
                 guard self.request == id else { return }
-                self.cancel(); completion(.failure(error as? RecognitionFailure ?? .invalidAudio))
+                self.finish(.failure(error as? RecognitionFailure ?? .invalidAudio))
             }
         }
     }
 
+    private func finish(_ result: Result<RecognizedTrack?, RecognitionFailure>) {
+        let callback = completion
+        cancel()
+        callback?(result)
+    }
+
     func cancel() {
         request = nil
+        completion = nil
         work?.cancel(); work = nil; signatureWork?.cancel(); signatureWork = nil
         session?.delegate = nil; session = nil; delegate = nil
     }

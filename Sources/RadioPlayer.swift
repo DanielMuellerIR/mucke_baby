@@ -1,7 +1,6 @@
 import Foundation
 import AppKit
 import VLCKit
-import Network
 import os
 
 private let log = Logger(subsystem: "de.danielmuller.macradio", category: "player")
@@ -24,7 +23,7 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var nowPlayingTitle = "" {
         didSet { if oldValue != nowPlayingTitle { outputRevision &+= 1 } }
     }
-    // B2: Zeitpunkt, ab dem der aktuelle Sender wirklich spielt (erstes Audio).
+    // Zeitpunkt, ab dem der aktuelle Sender wirklich spielt (erstes Audio).
     // Footer zeigt daraus die laufende Sender-Laufzeit. nil = spielt nicht.
     @Published private(set) var playStartedAt: Date?
     // Aufgelöste Direkt-Stream-URL des laufenden Senders. Der AudioTap dekodiert NICHT parallel;
@@ -48,7 +47,6 @@ final class RadioPlayer: ObservableObject {
         }
     }
     private var timeshiftReader: TimeshiftSegmentStream?
-    private var timeshiftTimer: Timer?
     private var outputGeneration = UUID()
     @Published private(set) var outputRevision: UInt64 = 0
     private var receivedTitle = ""
@@ -58,7 +56,7 @@ final class RadioPlayer: ObservableObject {
     var canPause: Bool { timeshiftReader != nil && isPlaying }
     var listeningReceivedAt: Date? { timeshift.receivedAt(position: timeshiftTransport.position) }
     var canSeekTimeshift: Bool { timeshiftTransport.timeline.canStart && (!timeshift.requiresDecodedSampleRate || decodedSampleRate != nil) }
-    private let makeTimeshiftBuffer: () throws -> TimeshiftSegments
+    private let makeTimeshiftBuffer: @Sendable () throws -> TimeshiftSegments
     private lazy var timeshift: TimeshiftCapture = TimeshiftCapture(makeBuffer: makeTimeshiftBuffer, onState: { [weak self, deliverEvent] _ in
         deliverEvent { [weak self] in
             guard let self else { return }
@@ -98,11 +96,8 @@ final class RadioPlayer: ObservableObject {
     private var metadataActivityUptime: TimeInterval = 0
     private var sleepingStationID: UUID?
     private var sleepingPlaybackHeld = false
-    private let workspaceNotifications = NSWorkspace.shared.notificationCenter
-    private var systemObservers: [NSObjectProtocol] = []
+    private let observations = PlaybackObservations()
     private var desiredStation: Station?
-    private var networkMonitor: NWPathMonitor?
-    private var networkToken = UUID()
 
     var recognitionContext: RecognitionContext? {
         guard isPlaying, let station = currentStation, currentStreamURL != nil else { return nil }
@@ -128,7 +123,7 @@ final class RadioPlayer: ObservableObject {
         sleepTimer: SleepTimerController? = nil,
         history: SongHistory? = nil,
         timeshiftRoot: URL = TimeshiftSegments.defaultRoot,
-        makeTimeshiftBuffer: (() throws -> TimeshiftSegments)? = nil,
+        makeTimeshiftBuffer: (@Sendable () throws -> TimeshiftSegments)? = nil,
         icy: ICYMetadataReader = ICYMetadataReader(),
         deliverEvent: @escaping PlayerEventDelivery = deliverPlayerEventOnMain
     ) {
@@ -146,7 +141,9 @@ final class RadioPlayer: ObservableObject {
         self.metadataReconnect = metadataReconnect ?? PlaybackReconnect()
         let reconnect = self.reconnect
         // codereview-ok: icy/recorder sind app-lebenslange Member mit [weak self]-Closures — kein Retain-Cycle/Leak (2026-07-01)
-        icy.onTitle  = { [weak self] title, boundary in self?.setNowPlaying(title, at: boundary) }
+        icy.onTitle = { [weak self] title, boundary in
+            MainActor.assumeIsolated { self?.setNowPlaying(title, at: boundary) }
+        }
         recorder.onCaptureState = { [weak self] state in self?.captureStateChanged(state) }
         resetCapture()
         self.sleepTimer.onFadeChange = { [weak self] _ in
@@ -169,7 +166,8 @@ final class RadioPlayer: ObservableObject {
         }
         self.metadataReconnect.onTimeout = { [weak self] in self?.metadataEnded(at: Date()) }
         self.metadataReconnect.onChange = { [weak self] phase in self?.metadataPhaseChanged(phase) }
-        systemObservers = [
+        let workspaceNotifications = observations.center
+        observations.tokens = [
             workspaceNotifications.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.prepareForSleep() }
             },
@@ -178,13 +176,15 @@ final class RadioPlayer: ObservableObject {
             }]
     }
 
-    deinit { timeshiftTimer?.invalidate(); for observer in systemObservers { workspaceNotifications.removeObserver(observer) } }
+    deinit {
+        Task { @MainActor [observations] in observations.cancel() }
+    }
 
     func prepareForSleep() {
         guard sleepingStationID == nil, let desiredStation else { return }
         sleepingStationID = desiredStation.id
         sleepingPlaybackHeld = timeshiftTransport.holdsPlayback
-        reconnect.cancel(); stopMonitoringNetwork(); stopAttempt()
+        reconnect.cancel(); observations.stopNetwork(); stopAttempt()
         nowPlayingTitle = ""; statusText = String(localized: "Wiedergabe ruht bis zum Aufwachen.")
     }
 
@@ -210,10 +210,11 @@ final class RadioPlayer: ObservableObject {
         timeshiftRequested = enabled
         timeshift.setEnabled(enabled)
         if enabled { timeshift.noteTitle(receivedTitle, at: history.entries.last?.start, session: recordingSessionID) }
-        timeshiftTimer?.invalidate(); timeshiftTimer = nil
+        observations.timer?.invalidate()
+        observations.timer = nil
         timeshiftTransport = TimeshiftTransport()
         if enabled {
-            timeshiftTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            observations.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
                 Task { @MainActor in self?.refreshTimeshift() }
             }
         }
@@ -491,7 +492,7 @@ final class RadioPlayer: ObservableObject {
         guard StreamURLPolicy.validatedURL(raw) != nil else {
             desiredStation = nil
             reconnect.cancel()
-            stopMonitoringNetwork()
+            observations.stopNetwork()
             stopAttempt()
             statusText = String(localized: "Ungültige URL")
             return
@@ -671,7 +672,7 @@ final class RadioPlayer: ObservableObject {
         sleepingPlaybackHeld = false
         desiredStation = nil
         reconnect.cancel()
-        stopMonitoringNetwork()
+        observations.stopNetwork()
         stopAttempt()
         sleepTimer.cancel()
         statusText = String(localized: "Gestoppt")
@@ -726,7 +727,7 @@ final class RadioPlayer: ObservableObject {
         reconnect.playing()
         isPlaying = true
         isLoading = false
-        playStartedAt = Date()       // B2: Laufzeit ab erstem Audio
+        playStartedAt = Date()
         statusText = String(localized: "Wiedergabe")
         log.notice("status=playing \(self.currentStation?.name ?? "?", privacy: .public)")
     }
@@ -783,7 +784,7 @@ final class RadioPlayer: ObservableObject {
             statusText = String(localized: "Warte auf Netzwerk (\(attempt)/\(reconnect.maximumRetries)) …")
         case .exhausted:
             desiredStation = nil
-            stopMonitoringNetwork()
+            observations.stopNetwork()
             isLoading = false
             statusText = String(localized: "Verbindung fehlgeschlagen. Bitte den Sender erneut starten.")
         default: break
@@ -791,25 +792,11 @@ final class RadioPlayer: ObservableObject {
     }
 
     private func monitorNetwork() {
-        stopMonitoringNetwork()
-        let token = networkToken
-        let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { [weak self, deliverEvent] path in
-            let available = path.status != .unsatisfied
-            deliverEvent { [weak self] in
-                guard let self, self.networkToken == token, self.desiredStation != nil else { return }
-                self.reconnect.setNetworkAvailable(available)
-                self.metadataReconnect.setNetworkAvailable(available)
-            }
+        observations.startNetwork(deliverEvent: deliverEvent) { [weak self] available in
+            guard let self, self.desiredStation != nil else { return }
+            self.reconnect.setNetworkAvailable(available)
+            self.metadataReconnect.setNetworkAvailable(available)
         }
-        networkMonitor = monitor
-        monitor.start(queue: DispatchQueue(label: "MuckeBaby.network"))
-    }
-
-    private func stopMonitoringNetwork() {
-        networkToken = UUID()
-        networkMonitor?.cancel()
-        networkMonitor = nil
     }
 
     // Neuer ICY-Live-Titel -> Anzeige + Verlauf.

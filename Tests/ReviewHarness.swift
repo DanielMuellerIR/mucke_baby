@@ -10,7 +10,7 @@ enum ReviewHarness {
         try testRecordingDeletionSkipsDirectories()
         try testRecordingLifecycle()
         try testPersistenceRecovery()
-        try await testHistorySessionIdentity()
+        try testHistorySessionIdentity()
         try testHistoryFiltering()
         testURLPolicyAndIdentity()
         testLatestRequestWins()
@@ -628,7 +628,12 @@ enum ReviewHarness {
         check(unreachable == nil, "Fetch-Fehler lieferte trotzdem eine URL")
         let limited = await PlaylistResolver.fetchHead(URL(string: "\(base)/live.pls")!)
         check(limited?.count == 65536, "Playlist-Limit überschritten")
-        let streamClosed = await Task.detached { server.streamClosed.wait(timeout: .now() + 3) == .success }.value
+        let closed = server.streamClosed
+        let streamClosed = await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: closed.wait(timeout: .now() + 3) == .success)
+            }
+        }
         check(streamClosed,
               "Playlist-Verbindung läuft nach Erreichen des Limits weiter")
     }

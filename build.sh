@@ -2,7 +2,7 @@
 # Baut "Mucke, Baby!.app" aus den Swift-Quellen — ohne Xcode-Projekt, nur swiftc.
 # Audio-Engine: VLCKit (libVLC) -> spielt ALLE Codecs (mp3/aac/ogg/opus/flac…).
 # Das VLCKit-Framework wird einmalig heruntergeladen (nach .vendor/, gitignored)
-# und ins .app-Bundle kopiert. Komplett kommandozeilen-/agent-steuerbar.
+# und ins .app-Bundle kopiert.
 set -euo pipefail
 cd "$(dirname "$0")"
 if [[ "$(uname -s)" == Linux ]]; then
@@ -86,7 +86,7 @@ if isinstance(protocols,dict): protocols=protocols['constValueProtocols']
 PYMETA
 
 echo "Kompiliere …"
-swiftc -O -whole-module-optimization -parse-as-library \
+swiftc -O -whole-module-optimization -parse-as-library -strict-concurrency=complete \
   -module-name MuckeBaby \
   -Xfrontend -const-gather-protocols-file -Xfrontend "$BUILD/intent-protocols.json" \
   -emit-const-values-path "$BUILD/MuckeBaby.swiftconstvalues" \
@@ -139,7 +139,7 @@ if [ -f Resources/AppIcon.icns ]; then
   cp Resources/AppIcon.icns "$APPDIR/Contents/Resources/AppIcon.icns"
 fi
 
-# Kuratierte Genre-Listen (Punkt 1) ins Bundle.
+# Kuratierte Genre-Listen ins Bundle.
 if [ -d Resources/genre-lists ]; then
   cp -R Resources/genre-lists "$APPDIR/Contents/Resources/"
 fi

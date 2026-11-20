@@ -110,7 +110,7 @@ def serve(root):
                     drop += 1
                 self.response(b'{}')
                 return
-            capture = self.headers.get('User-Agent') == 'MuckeBaby/1.0'
+            capture = self.headers.get('User-Agent', '').startswith('MuckeBaby/')
             name = self.path.strip('/')
             if name not in formats:
                 with lock:

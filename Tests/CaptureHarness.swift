@@ -133,7 +133,8 @@ enum CaptureHarness {
         rollover.clearCapture(enabled: false, revision: 2, at: base.addingTimeInterval(86_403)); rollover.flush()
 
         let free = CaptureBox(Recorder.minFreeBytes + 1)
-        let disk = Recorder(directory: root.appendingPathComponent("disk"), availableCapacity: free.get, capacityCheckInterval: 0.01)
+        let disk = Recorder(directory: root.appendingPathComponent("disk"),
+                            availableCapacity: { free.get() }, capacityCheckInterval: 0.01)
         disk.configureCapture(station: "Disk", streamID: id, enabled: true, revision: 1, at: base)
         disk.captureAudio(Data([1]), at: base, streamID: id); disk.flush()
         check(disk.captureState().phase == .recording, "Disk-Fixture startet nicht")

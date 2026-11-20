@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Kuratierte Genre-Listen importieren (Punkt 1). Fuegt nur neue Sender hinzu.
+// Importiert nur Sender, deren Stream-URL noch nicht in der Liste steht.
 struct GenreListsView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -23,13 +23,14 @@ struct GenreListsView: View {
                     }
                     Spacer()
                     Button("Importieren") {
-                        let n = store.importGenreList(list)
-                        if n < 0 { store.persistenceFailed = false }
-                        message = n < 0
-                            ? String(localized: "Die Senderliste konnte nicht gespeichert werden. Bitte den Speicherzugriff prüfen und erneut versuchen.")
-                            : n > 0
-                            ? String(localized: "\(n) neue Sender aus „\(list.name)“ hinzugefügt.")
-                            : String(localized: "„\(list.name)“: alle Sender bereits vorhanden.")
+                        do {
+                            let added = try store.importGenreList(list)
+                            message = added > 0
+                                ? String(localized: "\(added) neue Sender aus „\(list.name)“ hinzugefügt.")
+                                : String(localized: "„\(list.name)“: alle Sender bereits vorhanden.")
+                        } catch {
+                            message = store.persistenceMessage
+                        }
                     }
                 }
             }

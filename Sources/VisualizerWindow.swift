@@ -1,15 +1,27 @@
 import SwiftUI
 import AppKit
+import Combine
+
+extension NotificationCenter {
+    func observeOnMain(_ name: Notification.Name, object: Any? = nil,
+                       using handler: @escaping @MainActor @Sendable () -> Void) -> AnyCancellable {
+        let token = addObserver(forName: name, object: object, queue: .main) { _ in
+            MainActor.assumeIsolated { handler() }
+        }
+        return AnyCancellable { self.removeObserver(token) }
+    }
+}
 
 enum VisualizerWindowIdentity: String, Codable, Hashable { case shared }
 
+@MainActor
 final class PlayerWindowState: ObservableObject {
     @Published private(set) var isVisible = false
     @Published private(set) var isFullScreen = false
     private weak var window: NSWindow?
-    private var observers: [NSObjectProtocol] = []
+    private var observers: [AnyCancellable] = []
     private var wantsFullScreen = false
-    private var returnAction: (() -> Void)?
+    private var returnAction: (@MainActor () -> Void)?
 
     func attach(_ window: NSWindow?) {
         guard let window else { return }
@@ -24,32 +36,37 @@ final class PlayerWindowState: ObservableObject {
         for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification,
                      NSWindow.didDeminiaturizeNotification, NSWindow.didBecomeKeyNotification, NSWindow.didEnterFullScreenNotification,
                      NSWindow.didExitFullScreenNotification, NSWindow.willCloseNotification] {
-            observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] note in
-                guard let self else { return }
-                self.trace(note.name.rawValue)
-                if note.name == NSWindow.willCloseNotification {
-                    // SwiftUI kann dasselbe NSWindow erneut öffnen; dessen Beobachter bleiben erhalten.
-                    VisualizerRenderTrace.window(self.window, visible: false, fullScreen: false)
-                    self.isVisible = false; self.isFullScreen = false
-                    self.returnAction = nil; self.wantsFullScreen = false
-                } else {
-                    if note.name == NSWindow.didEnterFullScreenNotification || note.name == NSWindow.didExitFullScreenNotification,
-                       let window = self.window, window.identifier?.rawValue == "MuckeBabyVisualizer" {
-                        VisualizerWindowPolicy.configure(window)
-                    }
-                    self.refresh()
-                    if note.name == NSWindow.didExitFullScreenNotification, let action = self.returnAction {
-                        self.returnAction = nil; self.window?.close(); action()
-                    }
-                    if self.wantsFullScreen && self.window?.isVisible == true { self.scheduleFullScreen() }
-                }
+            observers.append(center.observeOnMain(name, object: window) { [weak self] in
+                self?.handleWindowNotification(name)
             })
         }
         for name in [NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
-            observers.append(center.addObserver(forName: name, object: NSApp, queue: .main) { [weak self] _ in self?.refresh() })
+            observers.append(center.observeOnMain(name, object: NSApp) { [weak self] in
+                self?.refresh()
+            })
         }
         refresh()
         if wantsFullScreen { scheduleFullScreen() }
+    }
+
+    private func handleWindowNotification(_ name: Notification.Name) {
+        trace(name.rawValue)
+        if name == NSWindow.willCloseNotification {
+            // SwiftUI kann dasselbe NSWindow erneut öffnen; dessen Beobachter bleiben erhalten.
+            VisualizerRenderTrace.window(window, visible: false, fullScreen: false)
+            isVisible = false; isFullScreen = false
+            returnAction = nil; wantsFullScreen = false
+        } else {
+            if name == NSWindow.didEnterFullScreenNotification || name == NSWindow.didExitFullScreenNotification,
+               let window, window.identifier?.rawValue == "MuckeBabyVisualizer" {
+                VisualizerWindowPolicy.configure(window)
+            }
+            refresh()
+            if name == NSWindow.didExitFullScreenNotification, let action = returnAction {
+                returnAction = nil; window?.close(); action()
+            }
+            if wantsFullScreen && window?.isVisible == true { scheduleFullScreen() }
+        }
     }
 
     func showFullScreen(open: OpenWindowAction) {
@@ -70,13 +87,13 @@ final class PlayerWindowState: ObservableObject {
         window.toggleFullScreen(nil)
     }
 
-    func returnToMain(_ action: @escaping () -> Void) {
+    func returnToMain(_ action: @escaping @MainActor () -> Void) {
         if window?.styleMask.contains(.fullScreen) == true {
             returnAction = action; toggleFullScreen()
         } else { window?.close(); action() }
     }
 
-    func escape(_ action: @escaping () -> Void) {
+    func escape(_ action: @escaping @MainActor () -> Void) {
         if window?.styleMask.contains(.fullScreen) == true { toggleFullScreen() }
         else { returnToMain(action) }
     }
@@ -107,14 +124,12 @@ final class PlayerWindowState: ObservableObject {
     }
 
     func detach() {
-        observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll(); window = nil; isVisible = false; isFullScreen = false
         returnAction = nil
     }
-
-    deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 }
 
+@MainActor
 private enum VisualizerWindowPolicy {
     static func configure(_ window: NSWindow) {
         window.identifier = NSUserInterfaceItemIdentifier("MuckeBabyVisualizer")
@@ -175,6 +190,7 @@ struct VisualizerTimeline<Content: View>: View {
     }
 }
 
+@MainActor
 enum VisualizerRenderTrace {
     private static let destination = ProcessInfo.processInfo.environment["MUCKE_VISUALIZER_TRACE"].map { URL(fileURLWithPath: $0) }
     private static var frames: [String: Int] = [:]
@@ -194,8 +210,10 @@ enum VisualizerRenderTrace {
         frames[owner, default: 0] += 1
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            guard let destination, let data = try? JSONSerialization.data(withJSONObject: ["frames": frames, "windows": windows, "events": events, "at": Date().timeIntervalSince1970]) else { return }
-            try? data.write(to: destination, options: .atomic)
+            MainActor.assumeIsolated {
+                guard let destination, let data = try? JSONSerialization.data(withJSONObject: ["frames": frames, "windows": windows, "events": events, "at": Date().timeIntervalSince1970]) else { return }
+                try? data.write(to: destination, options: .atomic)
+            }
         }
     }
     static func window(_ window: NSWindow?, visible: Bool, fullScreen: Bool) {

@@ -39,13 +39,6 @@ struct HistoryPanel: View {
     @State private var displayedEntries: [SongEntry] = []
     @State private var recordings: RecordingLibrarySnapshot?
 
-    // Verlauf-Tinte: auf der hellen Pergament-Textur (retro) waere der dunkle
-    // Theme-Text unlesbar -> dort eine dunkle Tinte erzwingen. Sonst der normale
-    // Haupt-/Nebentext aus der Palette.
-    private var historyInk: Color { theme.id == .retro ? Color(hex: "#2A2018") : theme.palette.textPrimary }
-    private var historyInkDim: Color { theme.id == .retro ? Color(hex: "#5C4A38") : theme.palette.textSecondary }
-    private var historyActionInk: Color { theme.id == .retro ? Color(hex: "#6B5432") : theme.palette.textSecondary }
-
     /// Beschriftung eines Verlauf-Aktions-Buttons: Icon oben, kurzer Text darunter.
     /// Vertikal, damit die vier Buttons auch in der schmalen Verlauf-Spalte nebeneinander passen.
     @ViewBuilder
@@ -60,22 +53,9 @@ struct HistoryPanel: View {
                 .themedFont(theme, .label, size: 9 * uiFontScale)
                 .lineLimit(1)
         }
-        .foregroundStyle(historyActionInk)
+        .foregroundStyle(theme.palette.songListActions)
         .frame(minWidth: 38)
         .contentShape(Rectangle())
-    }
-
-    private func clean(_ comp: Calendar.Component, _ value: Int) {
-        let cutoff = Calendar.current.date(byAdding: comp, value: -value, to: Date()) ?? Date()
-        player.cleanupHistory(olderThan: cutoff)
-    }
-
-    // Nur die Aufnahme-Dateien (+ Index) aelter als der Cutoff loeschen — der
-    // Verlauf bleibt vollstaendig erhalten. Man sieht also weiter, welche Songs
-    // liefen; nur der Export ("Keine Aufnahme zu diesem Titel.") geht dann nicht mehr.
-    private func cleanRecordings(_ comp: Calendar.Component, _ value: Int) {
-        let cutoff = Calendar.current.date(byAdding: comp, value: -value, to: Date()) ?? Date()
-        player.recorder.prune(olderThan: cutoff)
     }
 
     private var selectedEntry: SongEntry? {
@@ -89,60 +69,23 @@ struct HistoryPanel: View {
         return !e.isPlaceholder
     }
 
-    // Titel des Panels. midi spricht Terminal: "PLAYBACK_HISTORY"; sonst "Verlauf".
-    // `SectionHeader` uebernimmt Tracking/Uppercase/Titel-Font/textSecondary aus dem Theme.
-    private var headerTitle: String { theme.id == .midi ? "PLAYBACK_HISTORY" : "Verlauf" }
-
     var body: some View {
         let visible = filter.apply(to: history.entries, now: filterNow)
         return VStack(spacing: 0) {
-            HStack {
-                // classic (schlicht): wie bisher der schlichte Headline-Text.
-                // console: stilisierter SectionHeader (Tracking/Uppercase je Theme).
-                if theme.isConsole {
-                    SectionHeader(headerTitle)
-                } else {
-                    Text("Verlauf").themedFont(theme, .title, size: 13 * uiFontScale, weight: .semibold)
-                        .foregroundColor(theme.palette.textPrimary)
-                }
-                Spacer()
-                Button(action: onOpenRecordings) { Image(systemName: "waveform") }
-                    .buttonStyle(.plain).help("Aufnahmebibliothek")
-                    .accessibilityLabel("Aufnahmebibliothek")
-                    .accessibilityIdentifier("recordings-open")
-                Menu {
-                    // Erster Satz: Verlauf-Eintraege UND die zugehoerigen Aufnahmen
-                    // bis zum Cutoff loeschen (bisheriges Verhalten, cleanupHistory).
-                    Section("Verlauf und Aufnahmen") {
-                        Button("Älter als 1 Tag löschen") { clean(.day, 1) }
-                        Button("Älter als 1 Woche löschen") { clean(.day, 7) }
-                        Button("Älter als 1 Monat löschen") { clean(.month, 1) }
-                    }
-                    // Zweiter Satz: NUR die lokalen Aufnahme-Dateien loeschen,
-                    // der Verlauf (welche Songs liefen) bleibt komplett stehen.
-                    Section("Nur Aufnahmen (Verlauf bleibt)") {
-                        Button("Älter als 1 Tag löschen") { cleanRecordings(.day, 1) }
-                        Button("Älter als 1 Woche löschen") { cleanRecordings(.day, 7) }
-                        Button("Älter als 1 Monat löschen") { cleanRecordings(.month, 1) }
-                        // .distantFuture als Cutoff = jede abgeschlossene Aufnahme ist
-                        // "aelter" -> alle weg. Eine gerade LAUFENDE Aufnahme (end == nil,
-                        // offenes FileHandle) bleibt bewusst bestehen.
-                        Button("Alle Aufnahmen löschen", role: .destructive) {
-                            showDeleteAllRecordingsConfirmation = true
-                        }
-                    }
-                    Divider()
-                    Button("Gesamten Verlauf löschen", role: .destructive) {
-                        showClearHistoryConfirmation = true
-                    }
-                } label: { Image(systemName: "ellipsis.circle").foregroundStyle(historyActionInk) }
-                    .menuStyle(.borderlessButton).fixedSize().help("Verlauf-Optionen")
-                Button { onClose() } label: { Image(systemName: "sidebar.trailing").foregroundStyle(historyActionInk) }
-                    .buttonStyle(.plain).help("Verlauf ausblenden")
-            }
-            .padding(10)
+
+            HistoryPanelHeader(
+                onClose: onClose,
+                onOpenRecordings: onOpenRecordings,
+                showDeleteAllRecordingsConfirmation: $showDeleteAllRecordingsConfirmation,
+                showClearHistoryConfirmation: $showClearHistoryConfirmation
+            )
             Divider()
-            filterControls(count: visible.count)
+            HistoryFilterControls(
+                filter: filterBinding,
+                entries: history.entries,
+                resultCount: visible.count,
+                onRefreshDate: { filterNow = Date() }
+            )
             Divider()
             historyList(visible)
 
@@ -150,12 +93,15 @@ struct HistoryPanel: View {
             if selectingMultiple {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("\(batchSelection.count) ausgewählt · maximal 100")
-                        .font(theme.font(.label, size: 10 * uiFontScale)).foregroundStyle(historyInkDim)
+                        .font(theme.font(.label, size: 10 * uiFontScale)).foregroundStyle(theme.palette.songListSecondary)
                     HStack {
                         Button("Exportieren …") { openBatchExport() }.disabled(batchSelection.isEmpty)
                             .accessibilityIdentifier("history-batch-export")
                         Spacer(minLength: 0)
-                        Button { selectingMultiple = false; batchSelection.removeAll() } label: {
+                        Button {
+                            selectingMultiple = false
+                            batchSelection.removeAll()
+                        } label: {
                             Image(systemName: "xmark.circle").frame(width: 28, height: 28)
                                 .contentShape(Rectangle())
                         }
@@ -164,8 +110,8 @@ struct HistoryPanel: View {
                     }
                 }
                 .padding(8)
-                .foregroundStyle(historyInk)
-                .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
+                .foregroundStyle(theme.palette.songListText)
+                .environment(\.colorScheme, theme.palette.parchment == nil ? colorScheme : .light)
                 Divider()
             }
             // Aktionen fuer den ausgewaehlten Titel — Icon UND Text.
@@ -200,7 +146,7 @@ struct HistoryPanel: View {
                     Button("Auswahl aufheben") { batchSelection.removeAll() }.disabled(batchSelection.isEmpty)
                     Button("Auswahl exportieren …") { openBatchExport() }.disabled(batchSelection.isEmpty)
                 } label: {
-                    Image(systemName: "chevron.down").foregroundStyle(historyActionInk)
+                    Image(systemName: "chevron.down").foregroundStyle(theme.palette.songListActions)
                         .frame(width: 24, height: 28)
                         .contentShape(Rectangle())
                 }
@@ -218,7 +164,7 @@ struct HistoryPanel: View {
         }
         // Panel-Hintergrund aus dem Theme.
         // retro: echte paper.png-Textur mit leichtem Creme-Scrim (Gleichmäßigkeit),
-        //        damit die dunkle Tinte (#2A2018) gut lesbar bleibt.
+        //        damit die dunkle Tinte gut lesbar bleibt.
         //        Fallback: prozedurales Pergament wenn paper.png fehlt.
         //        Alle anderen Themes: ThemedSurface(.panel).
         .background {
@@ -253,7 +199,9 @@ struct HistoryPanel: View {
         }
         .sheet(item: $exportRequest) { request in ExportEditorView(request: request) }
         .sheet(item: $batchRequest) { request in ExportBatchView(request: request) }
-        .onChange(of: selectingMultiple) { _, enabled in if !enabled { batchSelection.removeAll() } }
+        .onChange(of: selectingMultiple) { _, enabled in
+            if !enabled { batchSelection.removeAll() }
+        }
         .onChange(of: history.entries.map(\.id)) { _, ids in
             batchSelection.formIntersection(ids)
         }
@@ -282,81 +230,6 @@ struct HistoryPanel: View {
         filterRevision += 1
     }
 
-    private func filterControls(count: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(historyInkDim)
-                TextField("Titel oder Interpret suchen", text: filterBinding.query)
-                    .textFieldStyle(.plain)
-                    .accessibilityIdentifier("history-search")
-                if !filter.query.isEmpty {
-                    Button { updateFilter { $0.query = "" } } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).foregroundStyle(historyInkDim)
-                        .help("Suche löschen").accessibilityLabel("Suche löschen")
-                }
-            }
-            .padding(7)
-            .background(historyInk.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-            HStack(spacing: 8) {
-                Menu {
-                    Button("Alle Sender") { updateFilter { $0.station = nil } }
-                    Divider()
-                    ForEach(HistoryFilter.stations(in: history.entries), id: \.self) { station in
-                        Button { updateFilter { $0.station = station } } label: {
-                            if filter.station == station { Label(station, systemImage: "checkmark") }
-                            else { Text(station) }
-                        }
-                    }
-                } label: {
-                    filterLabel(filter.station ?? String(localized: "Alle Sender"), image: "dot.radiowaves.left.and.right")
-                }
-                .accessibilityLabel("Verlauf nach Sender filtern")
-                .accessibilityIdentifier("history-station-filter")
-                Menu {
-                    ForEach(HistoryPeriod.allCases) { period in
-                        Button { updateFilter { $0.period = period }; filterNow = Date() } label: {
-                            if filter.period == period { Label(period.title, systemImage: "checkmark") }
-                            else { Text(period.title) }
-                        }
-                    }
-                } label: { filterLabel(filter.period.title, image: "calendar") }
-                    .accessibilityLabel("Verlauf nach Zeitraum filtern")
-                    .accessibilityIdentifier("history-period-filter")
-            }
-            .menuStyle(.borderlessButton)
-            if filter.period == .custom {
-                DatePicker("Von", selection: filterBinding.firstDay, in: ...filter.lastDay, displayedComponents: .date)
-                DatePicker("Bis", selection: filterBinding.lastDay, in: filter.firstDay..., displayedComponents: .date)
-            }
-            HStack {
-                Text("\(count) von \(history.entries.count) Titeln")
-                    .foregroundStyle(historyInkDim)
-                    .accessibilityIdentifier("history-result-count")
-                Spacer(minLength: 4)
-                Button("Zurücksetzen") { updateFilter { $0 = HistoryFilter() }; filterNow = Date() }
-                    .buttonStyle(.plain)
-                    .disabled(!filter.isActive)
-                    .help("Alle Verlaufsfilter zurücksetzen")
-                    .accessibilityIdentifier("history-reset-filters")
-            }
-        }
-        .font(theme.font(.label, size: 11 * uiFontScale))
-        .foregroundStyle(historyInk)
-        .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
-        .padding(10)
-        .help("Suchwörter werden gemeinsam gesucht. Zeiträume umfassen ganze Kalendertage und alle darin gehörten Titel.")
-    }
-
-    private func filterLabel(_ title: String, image: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: image)
-            Text(title).lineLimit(1).truncationMode(.tail)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
-        .help(title)
-    }
-
     private func historyList(_ visible: [SongEntry]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -365,16 +238,12 @@ struct HistoryPanel: View {
                         VStack(spacing: 0) {
                             HStack(spacing: 0) {
                                 if selectingMultiple {
-                                    Toggle("Zum Stapelexport auswählen", isOn: Binding(get: { batchSelection.contains(entry.id) }, set: { selected in
-                                        if selected {
-                                            if batchSelection.count < ExportQueue.limit { batchSelection.insert(entry.id) }
-                                        } else { batchSelection.remove(entry.id) }
-                                    }))
-                                    .labelsHidden().toggleStyle(.checkbox)
-                                    .disabled(!batchSelection.contains(entry.id) && batchSelection.count >= ExportQueue.limit)
-                                    .accessibilityLabel("Zum Stapelexport auswählen: \(entry.artist ?? "") \(entry.title ?? entry.raw)")
-                                    .accessibilityIdentifier("history-batch-select-\(entry.id)")
-                                    .padding(.leading, 4)
+                                    Toggle("Zum Stapelexport auswählen", isOn: batchSelectionBinding(for: entry.id))
+                                        .labelsHidden().toggleStyle(.checkbox)
+                                        .disabled(!batchSelection.contains(entry.id) && batchSelection.count >= ExportQueue.limit)
+                                        .accessibilityLabel("Zum Stapelexport auswählen: \(entry.artist ?? "") \(entry.title ?? entry.raw)")
+                                        .accessibilityIdentifier("history-batch-select-\(entry.id)")
+                                        .padding(.leading, 4)
                                 }
                                 Button { selection = entry.id } label: {
                                     SongRow(entry: entry, audioLabel: recordings?.audio(for: entry).label)
@@ -388,8 +257,11 @@ struct HistoryPanel: View {
                                 // Die Dateidarstellung rendert erst auf Abruf, außerhalb des Main-Threads.
                                 .onDrag { dragProvider(for: entry) }
                                 if !entry.isPlaceholder {
-                                    BookmarkButton(song: entry, identifier: "bookmark-history-\(entry.id)",
-                                                   tint: theme.id == .retro ? historyActionInk : nil)
+                                    BookmarkButton(
+                                        song: entry,
+                                        identifier: "bookmark-history-\(entry.id)",
+                                        tint: theme.palette.parchment?.actions
+                                    )
                                 }
                             }
                             .background(selection == entry.id ? theme.palette.selection : Color.clear)
@@ -426,7 +298,7 @@ struct HistoryPanel: View {
                         }
                     }
                     .themedFont(theme, .body, size: 12 * uiFontScale)
-                    .foregroundStyle(historyInkDim)
+                    .foregroundStyle(theme.palette.songListSecondary)
                     .padding(16)
                 }
             }
@@ -437,8 +309,8 @@ struct HistoryPanel: View {
                     } label: { Label("Neueste anzeigen", systemImage: "arrow.down.to.line") }
                         .font(theme.font(.label, size: 10 * uiFontScale))
                         .buttonStyle(.bordered)
-                        .foregroundStyle(historyInk)
-                        .environment(\.colorScheme, theme.id == .retro ? .light : colorScheme)
+                        .foregroundStyle(theme.palette.songListText)
+                        .environment(\.colorScheme, theme.palette.parchment == nil ? colorScheme : .light)
                         .padding(8)
                 }
             }
@@ -506,6 +378,19 @@ struct HistoryPanel: View {
         }
     }
 
+    private func batchSelectionBinding(for id: SongEntry.ID) -> Binding<Bool> {
+        Binding(
+            get: { batchSelection.contains(id) },
+            set: { selected in
+                if !selected {
+                    batchSelection.remove(id)
+                } else if batchSelection.count < ExportQueue.limit {
+                    batchSelection.insert(id)
+                }
+            }
+        )
+    }
+
     // MARK: - Export (Aufnahme -> Song-Datei)
 
     private var canExportSelection: Bool {
@@ -522,7 +407,8 @@ struct HistoryPanel: View {
         guard let e = selectedEntry else { return }
         let availability = player.recorder.audioAvailability(for: e)
         guard let info = availability.source else {
-            exportMsg = String(localized: "Keine Aufnahme zu diesem Titel."); return
+            exportMsg = String(localized: "Keine Aufnahme zu diesem Titel.")
+            return
         }
         exportMsg = ""
         exportRequest = ExportEditorRequest(entry: e, source: info.url, offset: info.offset, duration: info.duration,
@@ -554,196 +440,5 @@ struct HistoryPanel: View {
         guard !jobs.isEmpty, jobs.count <= ExportQueue.limit else { return }
         batchRequest = ExportBatchRequest(jobs: jobs, availableWidth: (NSApp.keyWindow?.frame.width ?? 840) - 80,
                                           availableHeight: (NSApp.keyWindow?.frame.height ?? 760) - 80)
-    }
-}
-
-struct SongListSurface: View {
-    @Environment(\.theme) private var theme
-    var body: some View {
-        if theme.id == .retro { ParchmentBackground(texture: theme.image(theme.panelTexture)) }
-        else { ThemedSurface(.panel) }
-    }
-}
-
-// MARK: - ParchmentBackground
-
-/// Heller Pergament-Hintergrund für die gemeinsamen Songlisten im Retro-Theme.
-/// Wenn `texture` übergeben wird (paper.png), wird die echte PNG-Textur mit einem
-/// leichten Creme-Scrim überlagert — das sorgt für gleichmäßige Helligkeit und
-/// sichert die Lesbarkeit der dunklen Tinte (#2A2018).
-/// Fehlt die Textur (nil), greift der prozedurale Fallback.
-private struct ParchmentBackground: View {
-
-    /// Optionale echte Papier-Textur aus dem Bundle (paper.png).
-    var texture: Image?
-
-    var body: some View {
-        if let tex = texture {
-            // Echte Textur + leichter Creme-Scrim für Gleichmäßigkeit.
-            // WICHTIG: Creme-Farbe als Größen-Geber (füllt exakt das Angebot), Textur als
-            // OVERLAY. Sonst wuchs der ZStack auf die scaledToFill-Bildgröße und das
-            // History-Panel wurde breiter als sein `.frame(width:)` → drückte die Stage
-            // zusammen („zu viel Rand rechts"). Gleiches Muster wie in ThemedSurface.
-            Color(hex: "#E9DEC4")
-                .overlay { tex.resizable().scaledToFill() }
-                .overlay { Color(hex: "#E9DEC4").opacity(0.25) }
-                .clipped()
-        } else {
-            // Prozeduraler Fallback: warmes Papiergelb + Canvas-Noise
-            proceduralParchment
-        }
-    }
-
-    /// Prozeduraler Fallback wenn paper.png fehlt.
-    @ViewBuilder private var proceduralParchment: some View {
-        // Creme-Basis: warmes Papiergelb
-        Color(hex: "#E9DEC4")
-            .overlay {
-                Canvas { context, size in
-                    // LCG-Hash für deterministische Platzierung (kein random())
-                    var seed: UInt32 = 0xF7A8_B9CA
-                    func next() -> Double {
-                        seed = seed &* 1_664_525 &+ 1_013_904_223
-                        return Double(seed) / Double(UInt32.max)
-                    }
-
-                    // Feine horizontale Fasern (leicht gewellt, sehr niedrige Alpha)
-                    let fiberCount = 60
-                    for _ in 0..<fiberCount {
-                        let y = next() * Double(size.height)
-                        let alpha = 0.04 + next() * 0.06  // 0.04…0.10
-                        let col: Color = next() > 0.4
-                            ? Color(hex: "#A0896A").opacity(alpha)   // warme Faser
-                            : Color(hex: "#C8B899").opacity(alpha)   // helle Faser
-                        var path = Path()
-                        // Leichte Kurve (3 Punkte) statt gerader Linie → organischer
-                        let cx = next() * Double(size.width)
-                        let cy = y + (next() - 0.5) * 6
-                        path.move(to: CGPoint(x: 0, y: y + (next() - 0.5) * 4))
-                        path.addQuadCurve(
-                            to: CGPoint(x: size.width, y: y + (next() - 0.5) * 4),
-                            control: CGPoint(x: cx, y: cy)
-                        )
-                        context.stroke(path, with: .color(col), lineWidth: 0.6)
-                    }
-
-                    // Kleine Flecken (Altersflecken / Knötchen im Papier)
-                    let speckCount = 80
-                    for _ in 0..<speckCount {
-                        let x = next() * Double(size.width)
-                        let y = next() * Double(size.height)
-                        let r = 0.5 + next() * 2.5
-                        let alpha = 0.03 + next() * 0.07
-                        let warm = next() > 0.5
-                        let col: Color = warm
-                            ? Color(hex: "#8C7050").opacity(alpha)   // Dunkelbraun-Fleck
-                            : Color(hex: "#D4C4A0").opacity(alpha)   // Hellbeige-Aufheller
-                        let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
-                        context.fill(Path(ellipseIn: rect), with: .color(col))
-                    }
-
-                    // Leichte Vignette (Randvergilbung)
-                    context.fill(
-                        Path(CGRect(origin: .zero, size: size)),
-                        with: .radialGradient(
-                            Gradient(stops: [
-                                .init(color: .clear, location: 0.50),
-                                .init(color: Color(hex: "#B09870").opacity(0.10), location: 1.0)
-                            ]),
-                            center: .init(x: 0.5, y: 0.5),
-                            startRadius: 0,
-                            endRadius: max(size.width, size.height) * 0.70
-                        )
-                    )
-                }
-            }
-    }
-}
-
-// Eine Verlaufszeile: Zeitspanne, Titel, Sender.
-struct SongRow: View {
-    let entry: SongEntry
-    var showsInterval = true
-    var audioLabel: String? = nil
-
-    // Theme + Schriftfaktor wie im Panel. SongRow liest beide selbst aus dem
-    // Environment (kein Durchreichen noetig).
-    @Environment(\.theme) private var theme
-    @Environment(\.uiFontScale) private var uiFontScale
-
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; return f
-    }()
-    private static let dayFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateStyle = .short; return f
-    }()
-    private var isLive: Bool { showsInterval && entry.end == nil }
-
-    // Verlauf-Tinte: retro-Pergament ist hell -> dunkle Tinte erzwingen, sonst
-    // unlesbar. Sonst die normalen Palette-Farben.
-    private var ink: Color { theme.id == .retro ? Color(hex: "#2A2018") : theme.palette.textPrimary }
-    private var inkDim: Color { theme.id == .retro ? Color(hex: "#5C4A38") : theme.palette.textSecondary }
-    // Zeitstempel: midi-Terminal hebt sie in Neon-Akzent (accent2/Cyan) hervor.
-    private var timeColor: Color { theme.id == .midi ? theme.palette.accent2 : inkDim }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                // Platzhalter (Mitschnitt-Session) bekommt ein Aufnahme-Symbol,
-                // ein laufender echter Titel das Funkwellen-Symbol. Farben aus
-                // dem Theme: Aufnahme = alert (rot), Live = liveBadge.
-                if entry.isPlaceholder {
-                    Image(systemName: "record.circle")
-                        .themedFont(theme, .label, size: 10 * uiFontScale)
-                        .foregroundColor(theme.palette.alert)
-                } else if isLive {
-                    Image(systemName: "dot.radiowaves.left.and.right")
-                        .themedFont(theme, .label, size: 10 * uiFontScale)
-                        .foregroundColor(theme.palette.liveBadge)
-                }
-                Text(timeRange)
-                    .themedFont(theme, .body, size: 11 * uiFontScale)
-                    .foregroundColor(timeColor)
-            }
-            Text(songText)
-                .themedFont(theme, .body, size: 12 * uiFontScale, weight: isLive ? .semibold : .regular)
-                .foregroundColor(entry.isPlaceholder ? inkDim : ink)
-                .lineLimit(2)
-            Text(entry.station)
-                .themedFont(theme, .body, size: 10 * uiFontScale)
-                .foregroundColor(inkDim)
-            if let audioLabel {
-                Text(audioLabel)
-                    .themedFont(theme, .label, size: 10 * uiFontScale)
-                    .foregroundStyle(inkDim)
-                    .accessibilityIdentifier("history-audio-" + entry.id.uuidString)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 3)
-    }
-
-    private var songText: String {
-        if entry.isPlaceholder { return isLive ? "Mitschnitt (läuft …)" : "Mitschnitt" }
-        if let a = entry.artist, let t = entry.title { return "\(a) – \(t)" }
-        return entry.title ?? entry.raw
-    }
-    private var timeRange: String {
-        let s = Self.dayFmt.string(from: entry.start) + " · " + Self.timeFmt.string(from: entry.start)
-        if !showsInterval { return s }
-        if let e = entry.end { return "\(s) – \(Self.timeFmt.string(from: e))" }
-        return "\(s) – …"
-    }
-}
-
-// Kleiner Font-Helfer: routet einen festen Text durch den Theme-Font-Resolver
-// (`theme.font(slot, size:weight:)`). Fuer schlicht liefert der Resolver
-// `.system(size:weight:)` — bei gleicher Groesse also identisch zum frueheren
-// `scaledFont`. Console-Themes bekommen ihre eigene Schriftfamilie (Serif/Mono/…).
-// `size` schon mit dem uiFontScale multipliziert uebergeben.
-private extension View {
-    func themedFont(_ theme: Theme, _ slot: FontSlot, size: CGFloat,
-                    weight: Font.Weight = .regular) -> some View {
-        self.font(theme.font(slot, size: size, weight: weight))
     }
 }

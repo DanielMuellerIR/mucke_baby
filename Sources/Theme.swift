@@ -1,13 +1,9 @@
 // Theme.swift — Theme-System für „Mucke, Baby!".
 //
 // EINE theme-parametrisierte Codebasis: jedes Aussehen ist eine `Theme`-Instanz.
-// `schlicht` reproduziert exakt das bisherige native Look-and-feel (dark/light
-// folgt dem System). Die 6 Design-Themes setzen die Entwürfe aus
-// `design-proposal/` um. Views lesen Farben/Fonts/Texturen aus `@Environment(\.theme)`
-// statt sie hart zu codieren. Fehlt eine Textur-PNG, liefert der Loader `nil`
-// und die View fällt auf die Palette-Farbe zurück — alles bleibt lauffähig.
-//
-// Spec: design-proposal/THEME-PLAN.md
+// `schlicht` folgt der Hell-/Dunkel-Einstellung des Systems. Die Views lesen
+// Farben, Schriften und Texturen aus `@Environment(\.theme)`. Falls eine
+// Textur fehlt, fällt die View auf die Palette-Farbe zurück.
 
 import SwiftUI
 import AppKit
@@ -67,6 +63,19 @@ enum FontSlot { case title, body, label }
 
 // MARK: - Palette & Fonts
 
+struct HeaderPlatePalette {
+    let gradient: [Color]
+    let text: Color
+    let secondary: Color
+}
+
+struct ParchmentPalette {
+    let paper: Color
+    let text: Color
+    let secondary: Color
+    let actions: Color
+}
+
 /// Alle Farb-Token eines Themes. Views greifen ausschließlich hierauf zu.
 struct ThemePalette {
     var windowBackground: Color   // Fenster-Grundfläche / Window-Bg
@@ -86,6 +95,14 @@ struct ThemePalette {
     var selectionText: Color      // Text auf Auswahl
     var visualizer1: Color        // Visualizer-Verlauf Start
     var visualizer2: Color        // Visualizer-Verlauf Ende
+    var headerPlate: HeaderPlatePalette? = nil
+    var parchment: ParchmentPalette? = nil
+    var vuStageHalo: Color? = nil
+
+    // Das helle Pergament braucht auch im dunklen Theme dunkle Schrift.
+    var songListText: Color { parchment?.text ?? textPrimary }
+    var songListSecondary: Color { parchment?.secondary ?? textSecondary }
+    var songListActions: Color { parchment?.actions ?? textSecondary }
 }
 
 /// Schrift-Konfiguration eines Themes.
@@ -109,6 +126,7 @@ struct Theme: Identifiable {
     var fonts: ThemeFonts
     var control: ControlStyle
     var visualizer: VisualizerStyle
+    var historyTitle: String = "Verlauf"
     // Textur-Dateinamen (in Resources/themes/<id>/). nil = keine Textur.
     var backgroundTexture: String? = nil
     var panelTexture: String? = nil
@@ -238,7 +256,14 @@ struct Theme: Identifiable {
             favorite: Color(hex: "#C9A227"), alert: Color(hex: "#C0392B"),
             divider: Color(hex: "#3A352C"),
             selection: Color(hex: "#FF9F0A").opacity(0.18), selectionText: Color(hex: "#F5F0E1"),
-            visualizer1: Color(hex: "#FF9F0A"), visualizer2: Color(hex: "#C9A227")),
+            visualizer1: Color(hex: "#FF9F0A"), visualizer2: Color(hex: "#C9A227"),
+            parchment: ParchmentPalette(
+                paper: Color(hex: "#E9DEC4"),
+                text: Color(hex: "#2A2018"),
+                secondary: Color(hex: "#5C4A38"),
+                actions: Color(hex: "#6B5432")
+            ),
+            vuStageHalo: Color(hex: "#E08A2E")),
         fonts: ThemeFonts(title: .serif, body: .serif, label: .serif,
                           tracking: 0.5, uppercaseHeaders: true),
         control: .knob, visualizer: .vu,
@@ -279,7 +304,12 @@ struct Theme: Identifiable {
             favorite: Color(hex: "#C8A03C"), alert: Color(hex: "#E0241B"),
             divider: Color(hex: "#2A2419"),
             selection: Color(hex: "#C8A03C").opacity(0.18), selectionText: Color(hex: "#F7F4EC"),
-            visualizer1: Color(hex: "#E8C766"), visualizer2: Color(hex: "#C8A03C")),
+            visualizer1: Color(hex: "#E8C766"), visualizer2: Color(hex: "#C8A03C"),
+            headerPlate: HeaderPlatePalette(
+                gradient: [Color(hex: "#F7D97A"), Color(hex: "#D5A642"), Color(hex: "#94691C")],
+                text: Color(hex: "#1A1203"),
+                secondary: Color(hex: "#2A1E05")
+            )),
         fonts: ThemeFonts(title: .serif, body: .system, label: .system,
                           tracking: 0.5, uppercaseHeaders: true),
         control: .knob, visualizer: .vu,
@@ -307,7 +337,7 @@ struct Theme: Identifiable {
         fonts: ThemeFonts(title: .thin, body: .thin, label: .thin,
                           tracking: 1.0, uppercaseHeaders: true),
         control: .hairline, visualizer: .bars,
-        backgroundTexture: "bg-aluminum.png", panelTexture: "oak.png")
+        backgroundTexture: "bg-aluminum.png")
 
     // 6 — midi: pechschwarz + Cyber-Grid, Neon Magenta/Cyan/Violett, Terminal, fallende Noten.
     static let midi = Theme(
@@ -327,6 +357,7 @@ struct Theme: Identifiable {
         fonts: ThemeFonts(title: .monospaced, body: .monospaced, label: .monospaced,
                           tracking: 1.0, uppercaseHeaders: true),
         control: .terminal, visualizer: .midiNotes,
+        historyTitle: "PLAYBACK_HISTORY",
         backgroundTexture: "bg-cyber.png")
 }
 

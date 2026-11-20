@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // Prueft Sender im Hintergrund auf Erreichbarkeit (beim Start + bei Listenaenderung).
 // Laeuft nebenlaeufig (max 8 gleichzeitig) und blockiert die GUI nicht. Ergebnis
@@ -73,45 +74,50 @@ final class StationHealth: ObservableObject {
 
 // Einzel-Probe: cancelt nach den Headern (kein Body-Download bei Endlos-Streams).
 private final class HealthProbe: NSObject, URLSessionDataDelegate {
-    private var cont: CheckedContinuation<StationHealth.Status, Never>?
-    private var session: URLSession?
+    private let continuation: OSAllocatedUnfairLock<CheckedContinuation<StationHealth.Status, Never>?>
 
-    init(_ c: CheckedContinuation<StationHealth.Status, Never>) { cont = c }
+    init(_ continuation: CheckedContinuation<StationHealth.Status, Never>) {
+        self.continuation = OSAllocatedUnfairLock(initialState: continuation)
+    }
 
     func start(url: URL) {
         let cfg = URLSessionConfiguration.ephemeral
         cfg.timeoutIntervalForRequest = 8
         let s = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
-        session = s
         var req = URLRequest(url: url)
-        req.setValue("MuckeBaby/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue(AppInfo.streamUserAgent, forHTTPHeaderField: "User-Agent")
         req.setValue("1", forHTTPHeaderField: "Icy-MetaData")
         s.dataTask(with: req).resume()
     }
 
-    private func finish(_ st: StationHealth.Status) {
-        cont?.resume(returning: st); cont = nil
-        session?.invalidateAndCancel(); session = nil
+    private func finish(_ status: StationHealth.Status, session: URLSession) {
+        let callback = continuation.withLock { pending in
+            let callback = pending
+            pending = nil
+            return callback
+        }
+        guard let callback else { return }
+        session.invalidateAndCancel()
+        callback.resume(returning: status)
     }
 
     func urlSession(_ s: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
-                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+                    completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
         completionHandler(.cancel)
         if let http = response as? HTTPURLResponse {
             let c = http.statusCode
-            if (200..<400).contains(c) { finish(.ok) } else { finish(.bad("HTTP \(c)")) }
+            if (200..<400).contains(c) { finish(.ok, session: s) } else { finish(.bad("HTTP \(c)"), session: s) }
         } else {
-            finish(.ok)   // ICY-Server ohne HTTP-Statuszeile -> als ok werten
+            finish(.ok, session: s)   // ICY-Server ohne HTTP-Statuszeile -> als ok werten
         }
     }
 
     func urlSession(_ s: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard cont != nil else { return }
         if let e = error as NSError?, e.code != NSURLErrorCancelled {
-            finish(.bad(e.localizedDescription))
+            finish(.bad(e.localizedDescription), session: s)
         } else {
             // codereview-ok: else meldet bei ausbleibender Antwort korrekt 'Keine Antwort'; Cancelled-Pfad ist by design (2026-07-01)
-            finish(.bad("Keine Antwort"))
+            finish(.bad("Keine Antwort"), session: s)
         }
     }
 }

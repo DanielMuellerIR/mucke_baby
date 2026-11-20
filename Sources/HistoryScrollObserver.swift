@@ -36,7 +36,7 @@ struct HistoryScrollObserver: NSViewRepresentable {
                 observation = NotificationCenter.default.addObserver(
                     forName: NSView.boundsDidChangeNotification, object: enclosing.contentView, queue: .main
                 ) { [weak self] _ in
-                    DispatchQueue.main.async { self?.report() }
+                    DispatchQueue.main.async { [weak self] in self?.report() }
                 }
             }
             report()

@@ -69,7 +69,8 @@ struct TimeshiftEndGuard {
 // Vollständige MP3-Frames im begrenzten RAM-Puffer, genau ein lokaler
 // Wiedergabeausschnitt. Der Ausschnitt bleibt während Pause/Abspielen unverändert.
 // Empfangs- und Wiedergabezeit sind getrennt; ICY markiert die nächste Framegrenze.
-final class TimeshiftBuffer {
+// Methoden für Empfang und Wiedergabe greifen nur unter dem Lock auf den Puffer zu.
+final class TimeshiftBuffer: @unchecked Sendable {
     private struct Frame {
         let data: Data
         let start: TimeInterval
