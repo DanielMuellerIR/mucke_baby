@@ -7,7 +7,7 @@ enum RecordingFileStatus: Equatable, Sendable {
     case available, missing, unreadable, empty
 }
 
-struct RecordingLibraryItem: Identifiable, Sendable {
+struct RecordingLibraryItem: Identifiable, Equatable, Sendable {
     let clip: Recorder.Clip
     let status: RecordingFileStatus
     let bytes: Int64
@@ -40,7 +40,7 @@ struct RecordedAudioAvailability: Sendable {
     }
 }
 
-struct RecordingLibrarySnapshot: Sendable {
+struct RecordingLibrarySnapshot: Equatable, Sendable {
     var items: [RecordingLibraryItem] = []
     var indexWritable = true
     var indexRecovered = false
@@ -103,7 +103,7 @@ private let log = Logger(subsystem: "de.danielmuller.macradio", category: "recor
 final class Recorder: @unchecked Sendable {
 
     // Ein aufgenommenes Stueck (Datei).
-    struct Clip: Codable, Identifiable, Sendable {
+    struct Clip: Codable, Identifiable, Equatable, Sendable {
         var id = UUID()
         var file: String
         var station: String
@@ -154,9 +154,13 @@ final class Recorder: @unchecked Sendable {
     private var handle: FileHandle?
     private var fileStart: Date?
     private var bytesSinceCheck = 0
-    private var clips: [Clip] = []
-    private var indexWritable = true
-    private var indexRecovered = false
+    private var clips: [Clip] = [] { didSet { scheduleLibraryUpdate() } }
+    private var indexWritable = true { didSet { scheduleLibraryUpdate() } }
+    private var indexRecovered = false { didSet { scheduleLibraryUpdate() } }
+    private var librarySubscribers: [UUID: AsyncStream<RecordingLibrarySnapshot>.Continuation] = [:]
+    private var libraryTimer: DispatchSourceTimer?
+    private var libraryUpdatePending = false
+    private var lastLibrarySnapshot: RecordingLibrarySnapshot?
 
     init(directory: URL? = nil, minimumFreeBytes: Int64 = Recorder.minFreeBytes,
          availableCapacity: (@Sendable () -> Int64?)? = nil, capacityCheckInterval: TimeInterval = 15,
@@ -427,6 +431,64 @@ final class Recorder: @unchecked Sendable {
         }
         return RecordingLibrarySnapshot(items: items.sorted { $0.clip.start > $1.clip.start },
                                         indexWritable: indexWritable, indexRecovered: indexRecovered, directory: dir)
+    }
+
+    func libraryUpdates() -> AsyncStream<RecordingLibrarySnapshot> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(of: RecordingLibrarySnapshot.self,
+                                                            bufferingPolicy: .bufferingNewest(1))
+        continuation.onTermination = { [weak self] _ in
+            guard let self else { return }
+            self.q.async {
+                self.librarySubscribers.removeValue(forKey: id)
+                if self.librarySubscribers.isEmpty {
+                    self.updateLibraryTimer()
+                    self.lastLibrarySnapshot = nil
+                }
+            }
+        }
+        q.async {
+            let snapshot = self.makeLibrarySnapshot()
+            self.librarySubscribers[id] = continuation
+            if self.lastLibrarySnapshot == nil { self.lastLibrarySnapshot = snapshot }
+            continuation.yield(snapshot)
+            self.updateLibraryTimer()
+        }
+        return stream
+    }
+
+    private func scheduleLibraryUpdate() {
+        guard !librarySubscribers.isEmpty, !libraryUpdatePending else { return }
+        libraryUpdatePending = true
+        q.async {
+            self.libraryUpdatePending = false
+            self.updateLibraryTimer()
+            self.publishLibrarySnapshot()
+        }
+    }
+
+    private func updateLibraryTimer() {
+        if clips.isEmpty || librarySubscribers.isEmpty {
+            libraryTimer?.cancel()
+            libraryTimer = nil
+        } else if libraryTimer == nil {
+            // Bei indexierten Dateien sind Wachstum und Änderungen im Finder
+            // sichtbar, auch wenn der Recorder selbst den Index nicht ändert.
+            let timer = DispatchSource.makeTimerSource(queue: q)
+            timer.schedule(deadline: .now() + 2, repeating: .seconds(2), leeway: .milliseconds(200))
+            timer.setEventHandler { [weak self] in self?.publishLibrarySnapshot() }
+            libraryTimer = timer
+            timer.activate()
+        }
+    }
+
+    private func publishLibrarySnapshot() {
+        guard !librarySubscribers.isEmpty else { return }
+        let snapshot = makeLibrarySnapshot()
+        // Die Überdeckung laufender Einträge hängt auch von der Zeit ab.
+        guard snapshot != lastLibrarySnapshot || snapshot.items.contains(where: \.isActive) else { return }
+        lastLibrarySnapshot = snapshot
+        for subscriber in librarySubscribers.values { subscriber.yield(snapshot) }
     }
 
     private func removeCompletedOnQueue(id: UUID) throws {

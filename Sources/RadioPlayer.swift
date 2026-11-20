@@ -6,6 +6,11 @@ import os
 
 private let log = Logger(subsystem: "de.danielmuller.macradio", category: "player")
 
+@MainActor
+final class TimeshiftPresentation: ObservableObject {
+    @Published fileprivate(set) var transport = TimeshiftTransport()
+}
+
 // Kapselt VLCMediaPlayer (libVLC, spielt ALLE Codecs) plus einen eigenen
 // ICY-Metadaten-Reader fuer den Now-Playing-Titel (VLCKit liefert den nicht).
 @MainActor
@@ -35,11 +40,17 @@ final class RadioPlayer: ObservableObject {
     @Published private(set) var timeshiftRequested = false
     @Published private(set) var isHLSStream = false
     @Published private(set) var timeshiftStatus = String(localized: "Zeitversatz ist aus.")
-    @Published private(set) var timeshiftTransport = TimeshiftTransport()
+    let timeshiftPresentation = TimeshiftPresentation()
+    private(set) var timeshiftTransport: TimeshiftTransport {
+        get { timeshiftPresentation.transport }
+        set {
+            if newValue != timeshiftPresentation.transport { timeshiftPresentation.transport = newValue }
+        }
+    }
     private var timeshiftReader: TimeshiftSegmentStream?
     private var timeshiftTimer: Timer?
     private var outputGeneration = UUID()
-    private var outputRevision: UInt64 = 0
+    @Published private(set) var outputRevision: UInt64 = 0
     private var receivedTitle = ""
     private var decodedSampleRate: Int?
     var isPaused: Bool { timeshiftTransport.isPaused }
@@ -102,6 +113,10 @@ final class RadioPlayer: ObservableObject {
         return RecognitionContext(generation: outputRevision, stationID: station.id, title: nowPlayingTitle,
             listening: RecognitionListeningContext(outputID: outputGeneration, revision: outputRevision,
                 position: position, receivedAt: receivedAt))
+    }
+
+    func hasRecognitionTimestamp(for transport: TimeshiftTransport) -> Bool {
+        timeshiftReader == nil || timeshift.receivedAt(position: transport.position) != nil
     }
 
     init(
@@ -349,7 +364,7 @@ final class RadioPlayer: ObservableObject {
             startTimeshift(at: timeline.latestStart, paused: false, live: true)
             return
         }
-        if transport != timeshiftTransport { timeshiftTransport = transport }
+        timeshiftTransport = transport
     }
 
     func setRecordingRequested(_ enabled: Bool) {

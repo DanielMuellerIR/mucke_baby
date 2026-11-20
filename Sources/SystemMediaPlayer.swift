@@ -78,7 +78,7 @@ final class SystemMediaBinding {
             player.$isLoading.map { _ in () }.eraseToAnyPublisher(),
             player.$nowPlayingTitle.map { _ in () }.eraseToAnyPublisher(),
             player.$statusText.map { _ in () }.eraseToAnyPublisher(),
-            player.$timeshiftTransport.map(\.phase).removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            player.timeshiftPresentation.$transport.map(\.phase).removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
             store.$stations.map { _ in () }.eraseToAnyPublisher()]
         Publishers.MergeMany(changes).sink { [weak self] in self?.schedule() }.store(in: &subscriptions)
         NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
@@ -105,9 +105,8 @@ final class SystemMediaBinding {
 
 // Eine gemeinsame, verzögert erzeugte Abhängigkeitskette für Fenster und Menüleiste.
 @MainActor
-final class RadioServices: @preconcurrency ObservableObject {
+final class RadioServices {
     static let shared = RadioServices()
-    let objectWillChange = ObservableObjectPublisher()
     let store: Store
     let bookmarks: BookmarkStore
     let startup: StartupSettings
@@ -117,6 +116,7 @@ final class RadioServices: @preconcurrency ObservableObject {
     let audioTap: AudioTap
     let recognition: MusicRecognitionService
     private var subscriptions = Set<AnyCancellable>()
+    private var recognitionRefreshPending = false
     init() {
         let store = Store(), player = RadioPlayer()
         self.store = store; self.player = player; bookmarks = BookmarkStore(directory: store.dir)
@@ -131,19 +131,22 @@ final class RadioServices: @preconcurrency ObservableObject {
         let volume = UserDefaults.standard.object(forKey: "volume") as? Double ?? 0.77
         player.setVolume(Float(volume))
         systemMedia = SystemMediaBinding(player: player, store: store)
-        Publishers.Merge3(store.objectWillChange, startup.objectWillChange, player.objectWillChange)
-            .sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
-        audioSettings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &subscriptions)
         audioSettings.$configuration.sink { [weak player] in player?.configureAudio($0) }.store(in: &subscriptions)
         player.$effectiveOutputVolume.removeDuplicates()
             .sink { [weak audioTap] in audioTap?.setOutputVolume($0) }.store(in: &subscriptions)
         player.$currentStreamURL.removeDuplicates()
             .sink { [weak audioTap] in audioTap?.setStream($0) }.store(in: &subscriptions)
-        Publishers.Merge(player.objectWillChange, audioTap.objectWillChange)
-            .sink { [weak recognition] in
-                // @Published sendet vor der Änderung; Kontext erst danach lesen.
-                Task { @MainActor in recognition?.refresh() }
-            }.store(in: &subscriptions)
+        let recognitionChanges: [AnyPublisher<Void, Never>] = [
+            player.$outputRevision.map { _ in () }.eraseToAnyPublisher(),
+            player.$currentStreamURL.removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            player.$effectiveOutputVolume.removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            player.timeshiftPresentation.$transport
+                .map { [weak player] transport in player?.hasRecognitionTimestamp(for: transport) == true }
+                .removeDuplicates().map { _ in () }.eraseToAnyPublisher(),
+            audioTap.objectWillChange.eraseToAnyPublisher()
+        ]
+        Publishers.MergeMany(recognitionChanges)
+            .sink { [weak self] in self?.scheduleRecognitionRefresh() }.store(in: &subscriptions)
         // Auch ohne offenes Hauptfenster müssen Empfang, Dateien und Verlauf vor Quit schließen.
         NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in
@@ -155,5 +158,16 @@ final class RadioServices: @preconcurrency ObservableObject {
                 self.player.history.pruneOnLaunchOrQuit()
                 SongExporter.cleanupTemporaryExports()
             }.store(in: &subscriptions)
+    }
+
+    private func scheduleRecognitionRefresh() {
+        guard !recognitionRefreshPending else { return }
+        recognitionRefreshPending = true
+        // @Published meldet den neuen Wert vor der Zuweisung. Kontext danach zusammen lesen.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            recognitionRefreshPending = false
+            recognition.refresh()
+        }
     }
 }

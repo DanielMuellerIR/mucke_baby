@@ -4,11 +4,28 @@ import os
 
 private let uiLog = Logger(subsystem: "de.danielmuller.macradio", category: "ui")
 
+private struct AppNotices: ViewModifier {
+    @ObservedObject var startup: StartupSettings
+    @ObservedObject var store: Store
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Startauswahl", isPresented: $startup.showNotice) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(startup.notice ?? "")
+            }
+            .alert(store.persistenceMessage, isPresented: $store.persistenceFailed) {
+                Button("OK", role: .cancel) {}
+            }
+    }
+}
+
 #if !MUCKE_TRANSPORT_PROBE
 @main
 #endif
 struct MacRadioApp: App {
-    @StateObject private var services = RadioServices.shared
+    private let services = RadioServices.shared
     private var store: Store { services.store }
     private var startup: StartupSettings { services.startup }
     private var player: RadioPlayer { services.player }
@@ -61,15 +78,7 @@ struct MacRadioApp: App {
                 // Theme und ColorScheme ins Environment injizieren
                 .environment(\.theme, theme)
                 .preferredColorScheme(effectiveScheme)
-                .alert("Startauswahl", isPresented: Binding(get: { startup.showNotice }, set: { startup.showNotice = $0 })) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text(startup.notice ?? "")
-                }
-                .alert(store.persistenceMessage,
-                       isPresented: Binding(get: { store.persistenceFailed }, set: { store.persistenceFailed = $0 })) {
-                    Button("OK", role: .cancel) {}
-                }
+                .modifier(AppNotices(startup: startup, store: store))
         }
         // Eigener Kopfbereich statt nativer Toolbar/Titel: hiddenTitleBar entfernt die
         // macOS-Titelleiste (und damit die erzwungenen Glas-Kapseln um Toolbar-Inhalte,
@@ -390,7 +399,7 @@ struct ContentView: View {
             // 3-Spalten-Layout (Stations | Stage+Visualizer | Verlauf). Standard = minimalste
             // Skin. Spalten werden responsiv ein-/ausgeblendet (s. consoleBody).
             consoleBody
-            TimeshiftControlsView()
+            TimeshiftControlsView(player: player)
             // Fuß: aktueller Titel groß und kopierbar, Merkliste, Laufzeit und Lautstärke.
             Rectangle().fill(theme.palette.divider).frame(height: 1)
             nowPlayingFooter

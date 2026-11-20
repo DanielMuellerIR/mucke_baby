@@ -144,17 +144,23 @@ struct Theme: Identifiable {
 
     // MARK: Textur-Loader
 
+    @MainActor private static let textures = NSCache<NSURL, NSImage>()
+
     /// Lädt eine Theme-Textur aus dem Bundle (`Contents/Resources/themes/<id>/`).
     /// Gibt `nil` zurück, wenn die Datei fehlt → Aufrufer nutzt Palette-Farbe.
-    func image(_ file: String?) -> Image? {
+    @MainActor func image(_ file: String?) -> Image? {
         guard let file else { return nil }
         let ns = file as NSString
         let base = ns.deletingPathExtension
         let ext = ns.pathExtension.isEmpty ? "png" : ns.pathExtension
         guard let url = Bundle.main.url(forResource: base, withExtension: ext,
-                                        subdirectory: "themes/\(id.rawValue)"),
-              let img = NSImage(contentsOf: url) else { return nil }
-        return Image(nsImage: img)
+                                        subdirectory: "themes/\(id.rawValue)") else { return nil }
+        if let cached = Self.textures.object(forKey: url as NSURL) {
+            return Image(nsImage: cached)
+        }
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        Self.textures.setObject(image, forKey: url as NSURL)
+        return Image(nsImage: image)
     }
 
     // MARK: Lookup & Zyklus

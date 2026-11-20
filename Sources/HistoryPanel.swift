@@ -261,11 +261,9 @@ struct HistoryPanel: View {
             if filter.period != .all { filterNow = date }
         }
         .task {
-            while !Task.isCancelled {
-                let next = await player.recorder.librarySnapshot()
+            for await next in player.recorder.libraryUpdates() {
                 guard !Task.isCancelled else { return }
                 recordings = next
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }

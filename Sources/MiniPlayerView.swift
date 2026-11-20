@@ -90,7 +90,7 @@ struct MiniPlayerView: View {
                         .accessibilityLabel("Titel merken").accessibilityIdentifier("mini-bookmark-unavailable")
                 }
             }
-            TimeshiftControlsView(compact: true)
+            TimeshiftControlsView(player: player, compact: true)
             HStack {
                 RecordingControl(identifier: "mini-recording")
                 Spacer()

@@ -23,6 +23,35 @@ struct RecordingLibraryHarness {
         catch { fatalError("Unerwarteter Fehler: \(error)") }
     }
 
+    static func checkLibraryUpdates(in directory: URL) async throws {
+        let watchdog = Task {
+            do { try await Task.sleep(for: .seconds(12)) } catch { return }
+            fatalError("Die Aufnahmebibliothek erhält keine Änderungen")
+        }
+        defer { watchdog.cancel() }
+        let recorder = Recorder(directory: directory, minimumFreeBytes: -1)
+        var updates = recorder.libraryUpdates().makeAsyncIterator()
+        let initial = await updates.next()
+        check(initial?.items.isEmpty == true, "Leerer Bestand wird nicht geliefert")
+        let streamID = UUID()
+        recorder.configureCapture(station: "Updates", streamID: streamID, enabled: true, revision: 1, at: base, uptime: 0)
+        recorder.captureFormat("audio/mpeg", streamID: streamID)
+        recorder.captureAudio(Data([1, 2, 3]), at: base, receivedUptime: 1, streamID: streamID)
+        let started = await updates.next()
+        guard let item = started?.items.first else { fatalError("Neue Aufnahme fehlt") }
+        check(item.isActive && item.bytes == 3, "Aufnahmestart wird falsch angezeigt")
+        recorder.captureAudio(Data([4, 5]), at: base.addingTimeInterval(1), receivedUptime: 2, streamID: streamID)
+        var next: RecordingLibrarySnapshot?
+        repeat { next = await updates.next() } while next?.items.first?.bytes != 5
+        recorder.finishCapture(streamID: streamID, at: base.addingTimeInterval(60))
+        repeat { next = await updates.next() } while next?.items.first?.isActive != false
+        try FileManager.default.removeItem(at: directory.appendingPathComponent(item.clip.file))
+        repeat { next = await updates.next() } while next?.items.first?.status != .missing
+        try await recorder.removeCompleted(id: item.id)
+        let cleared = await updates.next()
+        check(cleared?.items.isEmpty == true, "Entfernte Aufnahme bleibt sichtbar")
+    }
+
     @MainActor static func main() async throws {
         let fm = FileManager.default
         let root = fm.temporaryDirectory.appendingPathComponent("MuckeLibrary-" + UUID().uuidString)
@@ -156,6 +185,7 @@ struct RecordingLibraryHarness {
         let corruptSnapshot = await corrupt.librarySnapshot()
         check(corruptSnapshot.indexRecovered && fm.fileExists(atPath: corruptDir.appendingPathComponent("preserved.mp3").path), "Beschädigter Index wird nicht sichtbar gesichert")
         check(try fm.contentsOfDirectory(atPath: corruptDir.path).contains { $0.hasPrefix("recordings-index.json.broken-") }, "Beschädigtes Original wurde nicht aufbewahrt")
-        print("RecordingLibraryHarness: Bestand, Audioverfügbarkeit, Zeitgrenzen, aktive/fehlende/manipulierte Dateien, getrennte Daten, Schreib-/Löschfehler und Crash-Recovery OK")
+        try await checkLibraryUpdates(in: root.appendingPathComponent("updates"))
+        print("RecordingLibraryHarness: Bestand, aktive/fehlende/manipulierte Dateien, Änderungen und Wachstum, getrennte Daten, Schreib-/Löschfehler und Crash-Recovery OK")
     }
 }

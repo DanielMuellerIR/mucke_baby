@@ -2,15 +2,22 @@ import SwiftUI
 
 // Hauptfenster und Miniplayer bedienen dieselbe Hörposition.
 struct TimeshiftControlsView: View {
-    @EnvironmentObject private var player: RadioPlayer
+    @ObservedObject private var player: RadioPlayer
+    @ObservedObject private var presentation: TimeshiftPresentation
     @Environment(\.theme) private var theme
     @Environment(\.uiFontScale) private var scale
-    var compact = false
+    private let compact: Bool
     @State private var scrubbing: Double?
     @State private var editing = false
-    private var transport: TimeshiftTransport { player.timeshiftTransport }
+    private var transport: TimeshiftTransport { presentation.transport }
     private var timeline: MetadataTimeline { transport.timeline }
     private var available: Bool { player.canSeekTimeshift && player.hasPlaybackIntent }
+
+    init(player: RadioPlayer, compact: Bool = false) {
+        self.player = player
+        presentation = player.timeshiftPresentation
+        self.compact = compact
+    }
 
     var body: some View {
         if player.timeshiftRequested && !player.isHLSStream {
