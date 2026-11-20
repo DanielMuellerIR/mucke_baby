@@ -16,7 +16,7 @@ concurrency:
 jobs:
   tests:
     runs-on: macos-15
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -24,6 +24,10 @@ jobs:
           persist-credentials: false
       - name: Run headless harnesses
         run: bash Tests/run-tests.sh
+      - name: Build and verify the macOS app
+        run: |
+          bash build.sh
+          FLEET_RULES_REQUIRE_ARTIFACT=1 bash Tests/fleet-rules.sh
 
   linux:
     runs-on: ubuntu-24.04
