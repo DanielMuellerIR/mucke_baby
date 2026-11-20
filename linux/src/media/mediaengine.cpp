@@ -157,6 +157,7 @@ public:
         if (monitor) monitor->setActive(false);
         state.state = PlaybackState::Stopped; state.previewActive = false; state.timeshiftPaused = false;
         // Der Quelltyp bleibt für Resume erhalten, auch wenn die Vorschau gerade gestoppt ist.
+        if (stationPreview) resolvedURL.clear();
         recordOverride.clear(); recorder.setEnabled(state.recordRequested);
         state.timeshiftAvailable = false; state.delaySeconds = state.bufferSeconds = 0; state.heardTrack = {}; liveTrack = {}; state.error.clear(); publish();
         releasePlayer(); shiftBuffer.reset();
@@ -177,10 +178,11 @@ public:
     }
     void startStation(Station value, bool preview) {
         if (systemSleeping) {
+            resolvedURL.clear();
             resumeAfterWake = false; stationPreview = preview; station = std::move(value); state.stationID = station.id; state.stationName = station.name;
             state.error = trMessage("Playback stays stopped while the system sleeps", "Wiedergabe bleibt während des Systemschlafs gestoppt"); publish(); return;
         }
-        stop(); stationPreview = preview; state.previewActive = preview; station = std::move(value); retryCount = 0;
+        stop(); resolvedURL.clear(); stationPreview = preview; state.previewActive = preview; station = std::move(value); retryCount = 0;
         if (preview) recordOverride = trMessage("Station preview: recording and history are off", "Sendervorschau: Aufnahme und Verlauf sind aus");
         state.stationID = station.id; state.stationName = station.name;
         if (!ensurePlayer() || !validStreamURL(station.url)) { fail(trMessage("Invalid or unsupported stream URL", "Ungültige oder nicht unterstützte Stream-URL")); return; }
@@ -644,13 +646,13 @@ public:
     }
     void goLive() {
         if (systemSleeping) { resumeAfterWake = false; return; }
-        if (!state.timeshiftEnabled || state.previewActive) return;
+        if (!state.timeshiftEnabled || state.previewActive || stationPreview || station.id.isEmpty() || resolvedURL.isEmpty()) return;
         if (outputFromBuffer && !state.timeshiftPaused && state.state == PlaybackState::Playing && state.delaySeconds <= 3.5) return;
         if (shiftBuffer && shiftBuffer->view().phase == MediaPrivate::BufferPhase::Ready) {
             if (playBuffer(shiftBuffer->readerLive(), true)) { updateTimeshift(); return; }
         }
         if (!shiftBuffer && !outputExpired && !pendingShiftStart && state.state == PlaybackState::Playing) return;
-        if (!resolvedURL.isEmpty()) { releasePlayer(); restartCaptureForTimeshift(true); publish(); }
+        releasePlayer(); restartCaptureForTimeshift(true); publish();
     }
     void beginHealth() {
         if (state.previewActive) { playbackHealth.cancel(); healthTimer->stop(); return; }

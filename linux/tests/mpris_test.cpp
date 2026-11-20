@@ -148,13 +148,33 @@ private slots:
             QVERIFY(engine.snapshot().recordRequested);
             QVERIFY(!engine.snapshot().recordActive);
         }
-        engine.stopPreview();
+        call(bridge, "Stop");
         QTRY_COMPARE(engine.snapshot().state, PlaybackState::Stopped);
-        QVERIFY(engine.snapshot().stationID.isEmpty());
+        QVERIFY(!engine.snapshot().stationID.isEmpty());
+        engine.stopPreview();
+        QTRY_VERIFY(engine.snapshot().state == PlaybackState::Stopped && engine.snapshot().stationID.isEmpty());
         const int completedRequests = requests;
         call(bridge, "Play"); QTest::qWait(150);
         QCOMPARE(engine.snapshot().state, PlaybackState::Stopped);
         QCOMPARE(requests, completedRequests);
+        QVERIFY(engine.recordings().isEmpty());
+        QVERIFY(tracks.isEmpty());
+
+        engine.setTimeshiftEnabled(true);
+        engine.previewStation({newID(), "Resolved preview", QString("http://127.0.0.1:%1/live").arg(server.serverPort()), {}});
+        QTRY_VERIFY(engine.snapshot().state == PlaybackState::Buffering && engine.snapshot().previewActive);
+        QTRY_COMPARE(requests, completedRequests + 1);
+        call(bridge, "Stop");
+        QTRY_COMPARE(engine.snapshot().state, PlaybackState::Stopped);
+        engine.stopPreview();
+        QTRY_VERIFY(engine.snapshot().state == PlaybackState::Stopped && engine.snapshot().stationID.isEmpty());
+
+        engine.goLive();
+        engine.setVolume(41);
+        QTRY_COMPARE(engine.snapshot().volume, 41);
+        QCOMPARE(engine.snapshot().state, PlaybackState::Stopped);
+        QCOMPARE(requests, completedRequests + 1);
+        QVERIFY(!engine.snapshot().recordActive);
         QVERIFY(engine.recordings().isEmpty());
         QVERIFY(tracks.isEmpty());
         engine.shutdown();

@@ -1271,7 +1271,8 @@ class MainWindow::Impl {
         bufferControls->setVisible(buffered || s.previewActive);
         for (auto *control : QList<QWidget *>{back15, forward15, liveButton, delay, bufferStatus})
             control->setVisible(buffered);
-        liveButton->setEnabled(s.timeshiftEnabled || s.timeshiftAvailable);
+        const bool canGoLive = !s.previewActive && !s.stationID.isEmpty() && (s.timeshiftEnabled || s.timeshiftAvailable);
+        liveButton->setEnabled(canGoLive);
         recordStatus->setText(s.recordStatus);
         bufferStatus->setText(text("Puffer ", "Buffer ") + duration(s.bufferSeconds) +
                               text(" · Verzögerung ", " · Delay ") + duration(s.delaySeconds));
@@ -1296,7 +1297,7 @@ class MainWindow::Impl {
             miniDelay->setEnabled(s.timeshiftAvailable);
             miniBack->setEnabled(back15->isEnabled());
             miniForward->setEnabled(forward15->isEnabled());
-            miniLive->setEnabled(s.timeshiftEnabled || s.timeshiftAvailable);
+            miniLive->setEnabled(canGoLive);
             QSignalBlocker sliderBlock(miniDelay), stationBlock(miniStations);
             miniDelay->setMaximum(int(s.bufferSeconds));
             if (!miniDelay->isSliderDown())
