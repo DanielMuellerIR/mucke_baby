@@ -173,7 +173,8 @@ def run(root):
                 press('timeshift-pause'); mark('resumed')
                 press('timeshift-live'); mark('live')
                 if quick:
-                    command('click', 'timeshift-position'); mark('slider-sought')
+                    subprocess.run([str(root / 'media-key'), str(pid), '--drag-timeshift'], check=True, timeout=10)
+                    mark('slider-sought')
                     subprocess.run([str(root / 'media-key'), str(pid)], check=True, timeout=5)
                     mark('media-key-paused')
                     subprocess.run([str(root / 'media-key'), str(pid)], check=True, timeout=5)

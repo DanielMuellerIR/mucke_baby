@@ -73,7 +73,9 @@ Der `TimeshiftPlayerHarness` aus `Tests/run-player-tests.sh` prüft die Produktk
 und echtem MP3-Puffer: Startreserve, gehörte statt empfangene Titel, Seek in Pause,
 Live, alte Ausgangsereignisse und Überlauf. `Tests/timeshift-transport.py` baut
 einen isolierten nativen Prüfhost mit echten Produktansichten; der Lauf gehört
-in die Ressourcen-FIFO. Details und Grenzen: [Audiopuffer](../docs/timeshift-buffer.md).
+in die Ressourcen-FIFO. Der Schnelllauf (`MUCKE_TRANSPORT_QUICK=1`) zieht den
+Reglerknopf im Miniplayer und prüft den Positionssprung, Medientasten und
+Speicherknappheit. Details stehen unter [Audiopuffer](../docs/timeshift-buffer.md).
 
 `python3 Tests/timeshift-seek.py prepare ROOT` bereitet das native Seek-Gate vor.
 `run ROOT` gehört in den exklusiven nativen Prüfblock. `verify ROOT` vergleicht
