@@ -3,6 +3,12 @@
 All notable changes to "Mucke, Baby!" are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 1.10.15 — 2026-11-20
+
+- Linux: Closing a station preview prevents the Live button from restarting it as regular playback, even when recording and timeshift are enabled.
+- macOS: Scroll newly selected songs into view even if their end time is updated immediately.
+- Linux: Keep the current reading position when the listening history drops older songs at its size limit.
+
 ## 1.10.14 — 2026-11-19
 
 - macOS and Linux: When a new song appears in listening history, select it and scroll it into view if the selection was empty or on the previous latest song. Keep older selections so history actions still target the chosen song.
